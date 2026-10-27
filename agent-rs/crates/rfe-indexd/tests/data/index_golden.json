@@ -1,0 +1,9954 @@
+{
+ "note": "generated from the Go index and Go recents walk by TestGenerateIndexGoldens; do not edit",
+ "fixture": [
+  {
+   "rel": ".git",
+   "kind": "dir",
+   "mtimeNs": 1706770800000000000
+  },
+  {
+   "rel": ".git/config",
+   "kind": "file",
+   "size": 5,
+   "mtimeNs": 1704128400000000000
+  },
+  {
+   "rel": ".hidden-file",
+   "kind": "file",
+   "size": 3,
+   "mtimeNs": 1704099600000000000
+  },
+  {
+   "rel": "Photo.PNG",
+   "kind": "file",
+   "size": 2000,
+   "mtimeNs": 1704074400000000000
+  },
+  {
+   "rel": "a",
+   "kind": "dir",
+   "mtimeNs": 1706781600000000000
+  },
+  {
+   "rel": "a/.cache",
+   "kind": "dir",
+   "mtimeNs": 1706752800000000000
+  },
+  {
+   "rel": "a/.cache/x.bin",
+   "kind": "file",
+   "size": 8,
+   "mtimeNs": 1704135600000000000
+  },
+  {
+   "rel": "a/Zed.TXT",
+   "kind": "file",
+   "size": 9,
+   "mtimeNs": 1704110400000000000
+  },
+  {
+   "rel": "a/alpha.txt",
+   "kind": "file",
+   "size": 11,
+   "mtimeNs": 1704114000000000000
+  },
+  {
+   "rel": "a/b",
+   "kind": "dir",
+   "mtimeNs": 1706778000000000000
+  },
+  {
+   "rel": "a/b/c",
+   "kind": "dir",
+   "mtimeNs": 1706763600000000000
+  },
+  {
+   "rel": "a/b/c/deep.txt",
+   "kind": "file",
+   "size": 42,
+   "mtimeNs": 1704103200000000000
+  },
+  {
+   "rel": "a/b/photo2.jpg",
+   "kind": "file",
+   "size": 1200,
+   "mtimeNs": 1704106800000000000
+  },
+  {
+   "rel": "a/link-up",
+   "kind": "link",
+   "target": "../docs",
+   "mtimeNs": 1704427200000000000
+  },
+  {
+   "rel": "archive.zip",
+   "kind": "file",
+   "size": 3000,
+   "mtimeNs": 1704088800000000000
+  },
+  {
+   "rel": "café",
+   "kind": "dir",
+   "mtimeNs": 1706767200000000000
+  },
+  {
+   "rel": "café/naïve.txt",
+   "kind": "file",
+   "size": 13,
+   "mtimeNs": 1704139200000000000
+  },
+  {
+   "rel": "docs",
+   "kind": "dir",
+   "mtimeNs": 1706774400000000000
+  },
+  {
+   "rel": "docs/UPPER.DOC",
+   "kind": "file",
+   "size": 120,
+   "mtimeNs": 1704124800000000000
+  },
+  {
+   "rel": "docs/readme.md",
+   "kind": "file",
+   "size": 300,
+   "mtimeNs": 1704117600000000000
+  },
+  {
+   "rel": "docs/spec.pdf",
+   "kind": "file",
+   "size": 90000,
+   "mtimeNs": 1704121200000000000
+  },
+  {
+   "rel": "link-abs-dir",
+   "kind": "link",
+   "target": "$ROOT/docs",
+   "mtimeNs": 1704430800000000000
+  },
+  {
+   "rel": "link-abs-file",
+   "kind": "link",
+   "target": "$ROOT/photo.jpg",
+   "mtimeNs": 1704434400000000000
+  },
+  {
+   "rel": "link-broken",
+   "kind": "link",
+   "target": "does-not-exist",
+   "mtimeNs": 1704438000000000000
+  },
+  {
+   "rel": "link-outside",
+   "kind": "link",
+   "target": "$OUTSIDE",
+   "mtimeNs": 1704441600000000000
+  },
+  {
+   "rel": "link-outside-fil",
+   "kind": "link",
+   "target": "$OUTSIDE/secret.txt",
+   "mtimeNs": 1704445200000000000
+  },
+  {
+   "rel": "link-rel-dir",
+   "kind": "link",
+   "target": "docs",
+   "mtimeNs": 1704448800000000000
+  },
+  {
+   "rel": "link-rel-file",
+   "kind": "link",
+   "target": "a/alpha.txt",
+   "mtimeNs": 1704452400000000000
+  },
+  {
+   "rel": "movie.mp4",
+   "kind": "file",
+   "size": 5000,
+   "mtimeNs": 1704078000000000000
+  },
+  {
+   "rel": "node_modules",
+   "kind": "dir",
+   "mtimeNs": 1706749200000000000
+  },
+  {
+   "rel": "node_modules/pkg",
+   "kind": "dir",
+   "mtimeNs": 1706745600000000000
+  },
+  {
+   "rel": "node_modules/pkg/index.js",
+   "kind": "file",
+   "size": 77,
+   "mtimeNs": 1704132000000000000
+  },
+  {
+   "rel": "noext",
+   "kind": "file",
+   "size": 7,
+   "mtimeNs": 1704096000000000000
+  },
+  {
+   "rel": "notes.txt",
+   "kind": "file",
+   "size": 10,
+   "mtimeNs": 1704085200000000000
+  },
+  {
+   "rel": "photo.jpg",
+   "kind": "file",
+   "size": 1000,
+   "mtimeNs": 1704070800000000000
+  },
+  {
+   "rel": "song.mp3",
+   "kind": "file",
+   "size": 500,
+   "mtimeNs": 1704081600000000000
+  },
+  {
+   "rel": "sp ace",
+   "kind": "dir",
+   "mtimeNs": 1706760000000000000
+  },
+  {
+   "rel": "sp ace/file name.txt",
+   "kind": "file",
+   "size": 14,
+   "mtimeNs": 1704142800000000000
+  },
+  {
+   "rel": "unicode",
+   "kind": "dir",
+   "mtimeNs": 1706756400000000000
+  },
+  {
+   "rel": "unicode/日本語.txt",
+   "kind": "file",
+   "size": 15,
+   "mtimeNs": 1704146400000000000
+  },
+  {
+   "rel": "weird.xyz",
+   "kind": "file",
+   "size": 100,
+   "mtimeNs": 1704092400000000000
+  }
+ ],
+ "queries": [
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=photo",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=PHOTO",
+   "filters": {
+    "glob": "",
+    "needle": "photo",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706767200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/sp ace",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706760000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=a",
+   "filters": {
+    "glob": "",
+    "needle": "a",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=txt",
+   "filters": {
+    "glob": "",
+    "needle": "txt",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A.jpg",
+   "filters": {
+    "glob": "*.jpg",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A.TXT",
+   "filters": {
+    "glob": "*.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=p%2A",
+   "filters": {
+    "glob": "p*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%3F.txt",
+   "filters": {
+    "glob": "?.txt",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%5Bab%5D%2A",
+   "filters": {
+    "glob": "[ab]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706767200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706774400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706774400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%5B%21a-m%5D%2A",
+   "filters": {
+    "glob": "[!a-m]*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=link",
+   "filters": {
+    "glob": "",
+    "needle": "link",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706767200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706774400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/noext",
+     "isDir": false,
+     "size": 7,
+     "mtimeNs": 1704096000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/song.mp3",
+     "isDir": false,
+     "size": 500,
+     "mtimeNs": 1704081600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706760000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/unicode",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706756400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706781600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706774400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706763600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706778000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%2A",
+   "filters": {
+    "glob": "*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=na%3Fve%2A",
+   "filters": {
+    "glob": "na?ve*",
+    "needle": "",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/café",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706767200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/café",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706767200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%C3%A9",
+   "filters": {
+    "glob": "",
+    "needle": "é",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=%E6%97%A5%E6%9C%AC",
+   "filters": {
+    "glob": "",
+    "needle": "日本",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=file+name",
+   "filters": {
+    "glob": "",
+    "needle": "file name",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=image,video",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image",
+     "video"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=document",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "document"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/noext",
+     "isDir": false,
+     "size": 7,
+     "mtimeNs": 1704096000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026types=archive,audio,other",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "archive",
+     "audio",
+     "other"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=jpg,png",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "jpg",
+     "png"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=txt",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "txt"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026ext=.md",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": [
+     "md"
+    ],
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/noext",
+     "isDir": false,
+     "size": 7,
+     "mtimeNs": 1704096000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026maxSize=1000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": 1000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026minSize=100\u0026maxSize=2000",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": 100,
+    "maxSize": 2000,
+    "modAfterNs": null,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/sp ace",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706760000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/unicode",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1706756400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T10:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704103200000000000,
+    "modBeforeNs": null
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/noext",
+     "isDir": false,
+     "size": 7,
+     "mtimeNs": 1704096000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": true,
+   "entries": [
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": [
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedBefore=2024-01-01T20:00:00Z",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": null,
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": null,
+    "modBeforeNs": 1704139200000000000
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/a"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/docs",
+    "$ROOT/a/b"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT/a/"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 1000,
+   "truncated": false,
+   "entries": []
+  },
+  {
+   "raw": "q=e\u0026modifiedAfter=2024-01-01T05:00:00Z\u0026modifiedBefore=2024-01-01T15:00:00Z\u0026types=image",
+   "filters": {
+    "glob": "",
+    "needle": "e",
+    "types": [
+     "image"
+    ],
+    "exts": null,
+    "minSize": null,
+    "maxSize": null,
+    "modAfterNs": 1704085200000000000,
+    "modBeforeNs": 1704121200000000000
+   },
+   "roots": [
+    "$ROOT-sibling"
+   ],
+   "limit": 3,
+   "truncated": false,
+   "entries": []
+  }
+ ],
+ "recents": [
+  {
+   "root": "$ROOT",
+   "limit": 1,
+   "entries": [
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/a",
+   "limit": 1,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/docs",
+   "limit": 1,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT",
+   "limit": 5,
+   "entries": [
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/a",
+   "limit": 5,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/docs",
+   "limit": 5,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT",
+   "limit": 8,
+   "entries": [
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/a",
+   "limit": 8,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/docs",
+   "limit": 8,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT",
+   "limit": 100,
+   "entries": [
+    {
+     "path": "$ROOT/link-rel-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704452400000000000,
+     "isSymlink": true,
+     "target": "a/alpha.txt"
+    },
+    {
+     "path": "$ROOT/link-rel-dir",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704448800000000000,
+     "isSymlink": true,
+     "target": "docs"
+    },
+    {
+     "path": "$ROOT/link-outside-fil",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704445200000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE/secret.txt"
+    },
+    {
+     "path": "$ROOT/link-outside",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704441600000000000,
+     "isSymlink": true,
+     "target": "$OUTSIDE"
+    },
+    {
+     "path": "$ROOT/link-broken",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704438000000000000,
+     "isSymlink": true,
+     "target": "does-not-exist"
+    },
+    {
+     "path": "$ROOT/link-abs-file",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704434400000000000,
+     "isSymlink": true,
+     "target": "$ROOT/photo.jpg"
+    },
+    {
+     "path": "$ROOT/link-abs-dir",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704430800000000000,
+     "isSymlink": true,
+     "target": "$ROOT/docs"
+    },
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": true,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/unicode/日本語.txt",
+     "isDir": false,
+     "size": 15,
+     "mtimeNs": 1704146400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/sp ace/file name.txt",
+     "isDir": false,
+     "size": 14,
+     "mtimeNs": 1704142800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/café/naïve.txt",
+     "isDir": false,
+     "size": 13,
+     "mtimeNs": 1704139200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/.hidden-file",
+     "isDir": false,
+     "size": 3,
+     "mtimeNs": 1704099600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/noext",
+     "isDir": false,
+     "size": 7,
+     "mtimeNs": 1704096000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/weird.xyz",
+     "isDir": false,
+     "size": 100,
+     "mtimeNs": 1704092400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/archive.zip",
+     "isDir": false,
+     "size": 3000,
+     "mtimeNs": 1704088800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/notes.txt",
+     "isDir": false,
+     "size": 10,
+     "mtimeNs": 1704085200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/song.mp3",
+     "isDir": false,
+     "size": 500,
+     "mtimeNs": 1704081600000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/movie.mp4",
+     "isDir": false,
+     "size": 5000,
+     "mtimeNs": 1704078000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/Photo.PNG",
+     "isDir": false,
+     "size": 2000,
+     "mtimeNs": 1704074400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/photo.jpg",
+     "isDir": false,
+     "size": 1000,
+     "mtimeNs": 1704070800000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/a",
+   "limit": 100,
+   "entries": [
+    {
+     "path": "$ROOT/a/link-up",
+     "isDir": false,
+     "size": 0,
+     "mtimeNs": 1704427200000000000,
+     "isSymlink": true,
+     "target": "../docs"
+    },
+    {
+     "path": "$ROOT/a/alpha.txt",
+     "isDir": false,
+     "size": 11,
+     "mtimeNs": 1704114000000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/Zed.TXT",
+     "isDir": false,
+     "size": 9,
+     "mtimeNs": 1704110400000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/photo2.jpg",
+     "isDir": false,
+     "size": 1200,
+     "mtimeNs": 1704106800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/a/b/c/deep.txt",
+     "isDir": false,
+     "size": 42,
+     "mtimeNs": 1704103200000000000,
+     "isSymlink": false
+    }
+   ]
+  },
+  {
+   "root": "$ROOT/docs",
+   "limit": 100,
+   "entries": [
+    {
+     "path": "$ROOT/docs/UPPER.DOC",
+     "isDir": false,
+     "size": 120,
+     "mtimeNs": 1704124800000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/spec.pdf",
+     "isDir": false,
+     "size": 90000,
+     "mtimeNs": 1704121200000000000,
+     "isSymlink": false
+    },
+    {
+     "path": "$ROOT/docs/readme.md",
+     "isDir": false,
+     "size": 300,
+     "mtimeNs": 1704117600000000000,
+     "isSymlink": false
+    }
+   ]
+  }
+ ]
+}

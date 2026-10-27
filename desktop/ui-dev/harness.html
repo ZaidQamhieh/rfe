@@ -1,0 +1,36 @@
+<!-- Dev harness: the real window on the stub backend (ui-dev/stub-backend.js). Not part of the app. -->
+<!doctype html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RFE Tonal</title>
+<link rel="stylesheet" href="../ui/base.css">
+<link rel="stylesheet" href="../ui/app.css">
+</head>
+<body>
+<script>/* dev only: ?wait=ms holds the load event so a headless screenshot sees the settled page (needs ui-dev slow server) */(function(){var m=/[?&]wait=(\d+)/.exec(location.search);if(m)document.write('<img src="http://127.0.0.1:8799/'+m[1]+'" width="0" height="0" style="position:absolute" alt="">');})();</script>
+<div class="app" id="app">
+  <nav class="rail" id="rail"></nav>
+  <div class="main" id="main">
+    <header class="top" id="top"></header>
+    <section class="stage" id="stage"></section>
+    <aside class="side" id="side"></aside><div class="rsz-side" id="rszSide" role="separator" aria-orientation="vertical" aria-label="Resize the side panel" tabindex="0" title="Drag to resize"></div>
+    <section class="sheet" id="sheet"></section>
+  </div>
+</div>
+<div class="layer" id="layer"></div>
+<script src="../ui/csp-shim.js"></script>
+<script src="../ui/icons.js"></script>
+<script src="sim-engine.js"></script>
+<script>window.SimEngine=window.Engine;</script>
+<script src="stub-backend.js"></script>
+<script src="../ui/engine.js"></script>
+<script src="../ui/qr.js"></script>
+<script src="../ui/ui.js"></script>
+<script src="../ui/pages.js"></script>
+<script src="../ui/features.js"></script>
+<script src="../ui/fpages.js"></script>
+<script src="../ui/fx2.js"></script>
+<script src="../ui/fx3.js"></script>
+<script src="../ui/fx4.js"></script>
+<script src="../ui/fx5.js"></script>
+<script src="../ui/fx6.js"></script>
+</body></html>

@@ -1,0 +1,33 @@
+# Git hooks for the Go agent + React Native monorepo, managed by Lefthook.
+# https://github.com/evilmartians/lefthook
+#
+# Setup once after clone:   lefthook install
+# Run manually any time:    lefthook run pre-commit   /   lefthook run pre-push
+#
+# rc sources the PATH for go so hooks work even when launched from an
+# IDE or a non-login shell.
+rc: ./.lefthook-rc
+
+# Fast, free checks on every commit — staged files only. Catches format/analyze/vet
+# errors locally (zero tokens) instead of on a CI round-trip.
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      root: "agent/"
+      glob: "*.go"
+      run: 'test -z "$(gofmt -l {staged_files})" || { gofmt -l {staged_files}; echo "^ needs gofmt -w"; exit 1; }'
+    go-vet:
+      root: "agent/"
+      glob: "*.go"
+      run: go vet ./...
+
+# Tests on push — only the side(s) you changed. Trust CI for the full green;
+# never run the whole suite locally for one change.
+pre-push:
+  parallel: true
+  commands:
+    go-test:
+      root: "agent/"
+      glob: "*.go"
+      run: go test ./...

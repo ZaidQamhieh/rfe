@@ -1,0 +1,2660 @@
+openapi: 3.0.3
+info:
+  title: RFE — Host Agent API
+  version: 1.19.0
+  description: >
+    Contract between the Flutter mobile app and the Go host agent. JSON for control and
+    metadata; binary streams for file content. All routes except /pair, /register,
+    /login, /auth/challenge, /auth/logout, and /health require a bearer device token. The
+    embedded browser companion can instead use its same-origin HttpOnly session cookie;
+    it requests that mode with `X-RFE-Web-Session: 1`, and the agent omits `deviceToken`
+    from the authentication response. Native clients continue to receive bearer tokens.
+    Clients may send an optional `X-RFE-Client-Version` header (e.g.
+    "1.10.0+18") on every authenticated request; the agent records this plus the
+    caller's network address against the device row. Admin devices see those fields
+    for all devices via GET /devices (see Device.lastAddress / Device.lastVersion);
+    ordinary paired devices receive only their own minimal device record.
+
+    A device's token is "admin" (Device.viaLogin=true) if it was obtained via /login or
+    /register (proof of the single account's password) rather than /pair (a one-time
+    code meant for an ordinary device like the phone app). Admin devices may manage
+    OTHER devices: POST /pairing/generate, and PATCH/DELETE /devices/{id} targeting a
+    device other than themselves. An ordinary (non-admin) device may still manage only
+    ITSELF via DELETE /devices/{id}.
+
+    File-action permissions are independent per device: browse, download,
+    upload, modify, delete, and share. Existing devices retain their prior
+    access when this model is introduced; future code-paired devices start
+    browse-only. Owner devices bypass these per-device file grants, while the
+    agent's global read-only policy, configured roots, per-device jail/read-only
+    controls, and global share-link switch remain in force. A denied file action
+    returns HTTP 403 with code `CAPABILITY_DENIED`.
+
+    Pair, register, and login all require device-identity proof-of-possession: fetch a
+    nonce from POST /auth/challenge, sign it with the device's permanent Ed25519 key,
+    and send the (devicePublicKey, nonce, signature) triple. The agent pins the public
+    key to the device row on first use (TOFU). POST /login additionally *enforces* that
+    pin — a known device id presenting a different key is rejected
+    (code=DEVICE_KEY_MISMATCH) rather than silently re-trusted, since a password alone
+    is weaker proof than the one-time codes /pair and /register require. /pair and
+    /register instead re-pin on a key change: consuming a fresh one-time code is
+    itself a stronger trust event (physical/terminal access to the host), covering a
+    legitimate reinstall that generated a new device key.
+servers:
+  - url: https://{host}:{port}/v1
+    variables:
+      host: { default: "127.0.0.1" }
+      port: { default: "8765" }
+
+security:
+  - deviceToken: []
+
+paths:
+  /health:
+    get:
+      summary: Liveness probe (unauthenticated)
+      description: >
+        Reachable without a token, but only `status` is guaranteed for an
+        unauthenticated (or invalid-token) caller — name/version/os/readOnly/
+        address/tailscaleAddress/macAddress are only included for a caller
+        presenting a valid, non-revoked device bearer token or valid same-origin
+        browser session, so an unpaired caller can't fingerprint or map the host.
+      security: []
+      responses:
+        "200":
+          description: Agent is up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /status:
+    get:
+      summary: Agent self-report (uptime, version, platform, disk space)
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Agent status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentStatus' }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+
+  /metrics:
+    get:
+      summary: Live host metrics (transfer byte counters, CPU %, RAM %)
+      description: >
+        rxBytes/txBytes are process-lifetime cumulative totals, not a rate —
+        clients diff successive readings against tsMs to derive live bytes/sec.
+        cpuPercent/ramPercent are instantaneous point reads (Linux /proc; 0 on
+        other platforms). The agent keeps no history, so all series reset on
+        restart. The web companion polls this every 2s.
+
+        Admin only: these are whole-host figures, so a device paired with a
+        one-time code (the phone app, a guest) gets 403. Only a device
+        authenticated via /login or /register may read them.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Current host metrics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Metrics' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /transfers/list:
+    get:
+      summary: List recent upload transfer sessions (web companion Transfers page)
+      description: >
+        Read-only listing of the chunked-upload sessions the agent tracks.
+        The transfers array is capped at the most recent 200 rows (the table
+        accumulates every session ever opened); counts/total aggregate the
+        whole table so the summary cards stay accurate. progress is derived
+        from received-chunk count; "open" means started-but-never-finalized.
+        Distinct from GET /transfers/{id} (single-session status) and POST
+        /transfers (open a session).
+
+        Scoped to the caller: an admin device (authenticated via /login or
+        /register) sees every session plus the whole-table counts and the
+        devices/users filter lists. A code-paired device sees only the
+        sessions it opened, its device/user query params are ignored rather
+        than honoured, counts/activeNow are derived from its own rows (and so
+        capped at the same 200), and devices/users come back empty.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - name: device
+          in: query
+          required: false
+          schema: { type: string }
+          description: >
+            Restrict results to transfers opened by this device ID. Omit or
+            pass empty for all devices. Values come from the devices list in
+            this endpoint's own response. Admin only — ignored for a
+            code-paired caller, which is always scoped to itself.
+        - name: user
+          in: query
+          required: false
+          schema: { type: string }
+          description: >
+            Restrict results to transfers opened by devices authenticated as
+            this login account (devices are stamped with a username at
+            /login and /register; pair-flow devices are unattributed). Values
+            come from the users list in this endpoint's own response.
+            Combines with the device filter (AND).
+      responses:
+        '200':
+          description: Recent transfer sessions plus whole-table status counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer, description: Total transfer rows in the table }
+                  counts:
+                    type: object
+                    additionalProperties: { type: integer }
+                    description: Row count per status (e.g. open, completed, failed)
+                  activeNow:
+                    type: integer
+                    description: Open transfers that received a chunk in the last 30s
+                  devices:
+                    type: array
+                    description: Distinct devices with at least one transfer, for the filter-chip row and the table's Device/User columns
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        label: { type: string }
+                        username: { type: string, description: "\"\" if the device paired by code rather than login" }
+                  users:
+                    type: array
+                    description: Distinct login accounts with at least one transfer, for the user filter-chip row
+                    items: { type: string }
+                  transfers:
+                    type: array
+                    items: { $ref: '#/components/schemas/TransferSummary' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: >
+            Caller has no device identity at all. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /users:
+    get:
+      summary: List login accounts (web companion Users page)
+      description: >
+        Usernames and creation times only — never password hashes. RFE has no
+        per-user roles or session tracking, so those Figma-style columns are
+        intentionally absent.
+
+        Admin only: a code-paired device (the phone app, a guest) gets 403 and
+        cannot enumerate the host's accounts.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Login accounts
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /users/{username}:
+    delete:
+      summary: Permanently remove a login account (web companion Users page)
+      description: >
+        Admin only — a code-paired device gets 403. Every login account is a
+        full admin today (see the /users GET note), so there's no
+        self-vs-other distinction like device management has: any admin may
+        remove any account. The one exception: the LAST remaining account
+        can't be deleted (code=LAST_USER), since that would brick password
+        login entirely (no way to obtain a device token except an existing
+        pairing code).
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: username, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Account removed }
+        '400':
+          description: >
+            username is the only remaining account. code=LAST_USER.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404':
+          description: No account with that username. code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /logs:
+    get:
+      summary: Tail the agent's own log output (web companion Logs page)
+      description: >
+        Last ~200 lines of the agent's journald output (Linux/systemd). Empty
+        array on non-systemd hosts. RFE logs are unstructured, so there is no
+        severity level field.
+
+        Admin only: the journal spans every device, so a code-paired caller
+        (which may itself be jailed or read-only) gets 403.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Recent log lines
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/LogLine' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /audit:
+    get:
+      summary: Read the account/device/share audit trail
+      description: >
+        Security-relevant events only — pairing, registration, login (including
+        failed attempts), device revoke/remove/limit changes, share-link
+        mint/revoke, and agent restart. File operations are deliberately not
+        recorded: they arrive at transfer volume and would bury everything
+        else. The log keeps the most recent 5000 entries.
+
+        Admin only: it spans every device, so a code-paired caller gets 403.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 500 }
+          description: Entries per page. Out-of-range values fall back to 100.
+        - in: query
+          name: before
+          schema: { type: integer, format: int64 }
+          description: >
+            Page backwards by passing the `id` of the last entry from the
+            previous response. Omit for the newest page.
+      responses:
+        '200':
+          description: Audit entries, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEntry' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /agent/restart:
+    post:
+      summary: Restart the agent's own service (Linux/systemd only)
+      description: >
+        Admin only — a code-paired device gets 403, since a restart cuts every
+        other device's transfers. Restart-only, no remote stop, so there is
+        nothing to get permanently stuck in. Shells out to
+        `systemctl --user restart rfe.service`; the response is sent
+        before the command runs. Returns 501 on non-Linux agents.
+      security: [{ deviceToken: [] }]
+      responses:
+        '202':
+          description: Restart triggered
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '501':
+          description: Not supported on this platform. code=NOT_IMPLEMENTED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /auth/challenge:
+    post:
+      summary: Mint a single-use nonce for device-identity proof-of-possession (unauthenticated)
+      description: >
+        Sign the returned nonce with the device's Ed25519 private key and pass
+        it (with the device's public key) to /pair, /register, or /login as
+        proof the caller controls that key. Valid for 2 minutes, single-use.
+
+        Two signatures are accepted. The bare nonce (UTF-8 bytes) is what the phone app and the
+        browser companion send. `proof: "v2"` says the agent also accepts a signature over
+        `"rfe-device-proof-v2\n" + <this agent's TLS leaf-certificate SHA-256, lowercase hex> + "\n" + nonce`.
+        That signature is worthless at any other agent, so a malicious agent cannot fetch a nonce
+        from this one, hand it to a device as its own challenge and replay the answer here. A client
+        that must not sign a bare nonce (the desktop app) refuses an agent that does not send `proof`.
+      security: []
+      responses:
+        "200":
+          description: Nonce minted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nonce: { type: string }
+                  proof:
+                    type: string
+                    enum: [v2]
+                    description: Present on agents that accept the certificate-bound v2 proof.
+                  certFingerprint:
+                    type: string
+                    description: >
+                      This agent's TLS leaf-certificate SHA-256 (lowercase hex), so the browser companion,
+                      which cannot read the certificate itself, can sign the v2 message. /pair and /register
+                      accept only the v2 proof.
+        "429":
+          description: Too many challenge requests (rate-limited at 30/min). code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /auth/logout:
+    post:
+      summary: End the embedded browser's session
+      description: >
+        Clears the RFE browser session cookie and ends the session server-side: a
+        password-login session's device row is deleted, and a paired browser's
+        device is revoked, so a copy of the cookie value stops working (the
+        browser pairs again). The route is safe to call without a session and
+        has no effect on native bearer-token clients.
+      security: []
+      responses:
+        "204": { description: Browser session cookie cleared }
+        "405": { description: Method not allowed }
+
+  /pair:
+    post:
+      summary: Complete device pairing (unauthenticated; consumes one-time pairing code)
+      description: >
+        Newly created code-paired devices start with browse enabled and
+        download, upload, modify, delete, and share disabled. Re-pairing an
+        existing paired device preserves its current grants. If an existing
+        owner-login device is converted back to an ordinary paired device, it
+        returns to the browse-only default.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PairRequest" }
+      responses:
+        "200":
+          description: Device paired; token issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairResponse" }
+        "400":
+          description: >
+            Malformed body, or missing devicePublicKey/nonce/signature.
+            code=BAD_REQUEST or code=DEVICE_KEY_REQUIRED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: >
+            Invalid pairing code (code=INVALID_CODE), nonce missing/expired/reused
+            (code=INVALID_NONCE), or signature doesn't verify (code=INVALID_SIGNATURE).
+            A key change for an already-known device id is accepted here (re-pinned),
+            not rejected — see the device-identity note above.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Too many pairing attempts (rate-limited at 10/min per agent, since the
+            pairing code is short and brute-forceable). code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /pair/request:
+    post:
+      summary: Ask to be paired; the owner approves at the computer (unauthenticated)
+      description: >
+        Pairing without a code. The caller proves possession of its device key
+        (nonce from /auth/challenge, signed as the v2 proof bound to the agent's
+        certificate; a bare-nonce signature is refused) and sends
+        `clientNonceCommit`, the SHA-256 of a random 16-byte nonce it keeps
+        secret for now. The agent answers with `requestId`, chosen after it holds
+        the commitment. The caller then reveals the nonce with POST
+        /pair/request/{id}/reveal; only then does the agent show the owner a
+        prompt (desktop notification, `rfe pair accept`, or an admin
+        session) with the device label and a match code. Committing first stops a
+        relay from choosing the request id after seeing the nonce and grinding
+        for an id that makes both codes agree. The caller then polls
+        GET /pair/request/{id}. Both sides
+        derive the match code as HMAC-SHA256(key = certificate SHA-256 bytes,
+        msg = "rfe-pair-sas\n" + clientNonce bytes + requestId), first 8 bytes
+        as big-endian uint64 mod 10^8, formatted "1234 5678". It is keyed by the
+        certificate each side saw, so a machine relaying the connection yields a
+        different code. The certificate fingerprint itself is never shown or
+        typed. Requests expire after 2 minutes; at most 3 wait at once.
+        Approved devices start browse-only, like code-paired devices.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [devicePublicKey, nonce, signature, clientNonceCommit]
+              properties:
+                deviceLabel: { type: string, description: "Shown to the owner; control characters removed, 40 characters max." }
+                deviceId: { type: string }
+                devicePublicKey: { type: string }
+                nonce: { type: string }
+                signature: { type: string }
+                clientNonceCommit: { type: string, description: "Hex SHA-256 (64 characters) of the 16-byte client nonce revealed later." }
+      responses:
+        "200":
+          description: Request recorded; the owner is asked after the reveal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string }
+                  expiresInSeconds: { type: integer }
+        "400":
+          description: Malformed body, missing clientNonceCommit, or missing device proof. code=BAD_REQUEST or DEVICE_KEY_REQUIRED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: Nonce missing/expired/reused (INVALID_NONCE) or bad signature (INVALID_SIGNATURE).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Rate limited (6/min per address, code=RATE_LIMITED) or 3 requests already waiting (code=PAIR_BUSY).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /pair/request/{id}/reveal:
+    post:
+      summary: Reveal the client nonce of a pairing request (unauthenticated)
+      description: >
+        Sends the 16-byte nonce whose SHA-256 was committed in POST /pair/request.
+        The agent checks it against the commitment, derives the match code and
+        asks the owner. The nonce also authorises polling. Works once per request.
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientNonce]
+              properties:
+                clientNonce: { type: string, description: "16 random bytes, hex (32 characters)." }
+      responses:
+        "200":
+          description: The owner has been asked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [pending] }
+        "400":
+          description: Malformed nonce. code=BAD_REQUEST.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown or expired request, wrong nonce for the commitment, or already revealed. code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Rate limited (code=RATE_LIMITED) or 3 requests are already waiting for the owner (code=PAIR_BUSY; retry shortly, the request stays valid until it expires).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /pair/request/{id}:
+    get:
+      summary: Poll the owner's answer to a pairing request (unauthenticated)
+      description: >
+        `nonce` must equal the request's clientNonce. `approved` returns the
+        device token exactly once; a second poll is 404.
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: nonce, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Current state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [pending, approved, rejected] }
+                  deviceToken: { type: string, description: "Present when approved (omitted for browser sessions, which get the cookie)." }
+                  deviceId: { type: string }
+                  agentName: { type: string }
+                  certFingerprint: { type: string }
+                  address: { type: string }
+                  tailscaleAddress: { type: string }
+        "404":
+          description: Unknown, expired, wrong nonce, or the token was already collected. code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Rate limited. code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /pair/requests:
+    get:
+      summary: List pairing requests waiting for the owner — admin-only
+      security: [{ deviceToken: [] }]
+      responses:
+        "200":
+          description: Waiting requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        label: { type: string }
+                        matchCode: { type: string }
+                        remoteIp: { type: string }
+                        replaces:
+                          type: string
+                          description: Label of the already paired device this approval would take over (new key and token, access reset to browse-only). Empty for a new phone.
+                        expiresAt: { type: string, format: date-time }
+        "403":
+          description: Not an admin session. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /pair/requests/{id}/approve:
+    post:
+      summary: Approve a waiting pairing request — admin-only
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Approved }
+        "403": { description: "Not an admin session. code=FORBIDDEN.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "404": { description: "Unknown, expired or already answered. code=NOT_FOUND.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /pair/requests/{id}/reject:
+    post:
+      summary: Reject a waiting pairing request — admin-only
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Rejected }
+        "403": { description: "Not an admin session. code=FORBIDDEN.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "404": { description: "Unknown, expired or already answered. code=NOT_FOUND.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /register:
+    post:
+      summary: >
+        Create the account and pair this device in one step (unauthenticated;
+        consumes one-time pairing code). An alternative to `rfe adduser`
+        for first-time setup entirely from the phone app or web companion.
+        Requires the same one-time pairing code as POST /pair — this is what
+        stops a stranger on the network from creating an account before the
+        owner does. Enforces one account per agent: fails once any account
+        already exists (code=ACCOUNT_ALREADY_EXISTS), regardless of pairing
+        code validity — log in instead. Response shape is identical to
+        PairResponse.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: Account created, device paired; token issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairResponse" }
+        "400":
+          description: >
+            Malformed body, missing username, password under 8 characters, or
+            missing devicePublicKey/nonce/signature. code=BAD_REQUEST or
+            code=DEVICE_KEY_REQUIRED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: >
+            Invalid pairing code (code=INVALID_CODE), or device-identity proof
+            failed (code=INVALID_NONCE / INVALID_SIGNATURE — see POST /pair).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: >
+            This agent already has an account (code=ACCOUNT_ALREADY_EXISTS —
+            one account per agent; log in instead), or that exact username
+            was taken by a concurrent request (code=USERNAME_TAKEN).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Too many registration attempts (rate-limited at 10/min per agent).
+            code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /login:
+    post:
+      summary: >
+        Log in with the account created via POST /register or `rfe
+        adduser` (unauthenticated). An additional way to obtain a device
+        token alongside POST /pair — not a replacement for it. Response
+        shape is identical to PairResponse.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Logged in; device token issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairResponse" }
+        "400":
+          description: >
+            Malformed body, missing username/password, or missing
+            devicePublicKey/nonce/signature. code=BAD_REQUEST or
+            code=DEVICE_KEY_REQUIRED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: >
+            Invalid username or password (code=INVALID_CREDENTIALS — the same
+            error is returned for a nonexistent username as for a wrong
+            password, so a caller can't enumerate valid usernames), or
+            device-identity proof failed (code=INVALID_NONCE / INVALID_SIGNATURE
+            / DEVICE_KEY_MISMATCH — see POST /pair).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Too many login attempts (rate-limited at 10/min per agent).
+            code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /wol:
+    post:
+      summary: Send a Wake-on-LAN magic packet to a MAC address on the agent's LAN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mac]
+              properties:
+                mac: { type: string, description: "Colon-separated MAC address (e.g. aa:bb:cc:dd:ee:ff)" }
+      responses:
+        "200":
+          description: Magic packet sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [sent] }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /share/mint:
+    post:
+      summary: Mint a one-time share link for a single file
+      description: >
+        Generates a short-lived, single-use, unauthenticated download URL for
+        one file. Returns 403 if the agent's `allowSharing` setting is
+        disabled (default). Only regular files up to 500 MiB are accepted.
+        See docs/r1-share-link-threat-model.md.
+      security: [{ deviceToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string, description: "Absolute path to the file to share." }
+                expiresInSeconds:
+                  type: integer
+                  format: int64
+                  description: "Defaults to 900 (15min) if absent/zero. Maximum 86400 (24h)."
+      responses:
+        "200":
+          description: Share link minted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShareLink" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: Share links are disabled on this agent. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "413":
+          description: The file exceeds the 500 MiB share limit. code=FILE_TOO_LARGE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /share/{token}:
+    get:
+      summary: Fetch a shared file (UNAUTHENTICATED, single-use)
+      description: >
+        The only unauthenticated route in the entire agent besides /health
+        and /pair. token is single-use: the first successful (or attempted)
+        fetch deletes it. Requests are limited to 10/min per source IP; the
+        agent keeps at most 4096 IP buckets and rejects new IPs while the
+        table is full. The opened file must still be regular and at most
+        500 MiB. Returns 404 for both "expired" and "never existed" — the
+        response never reveals which.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: File bytes, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "413":
+          description: The file exceeds the 500 MiB share limit. The single-use token is consumed. code=FILE_TOO_LARGE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Too many share requests from this source IP, or the bounded rate-limit table is full. code=RATE_LIMITED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    delete:
+      summary: Revoke an active share link
+      description: >
+        For DELETE the {token} path segment is the SHA-256 HASH of the token
+        (as returned by POST /share/mint's tokenHash field), not the raw
+        token used by GET.
+
+        Scoped to the link's owner: only the device that minted it, or an
+        admin device, may revoke it. Anyone else gets 404 — the same response
+        an unknown hash gets, so a foreign hash is never confirmed. Links
+        minted before the agent recorded owners are admin-only.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Revoked }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: >
+            No such link, or it belongs to another device. code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /share:
+    get:
+      summary: List active (unexpired) share links
+      description: >
+        Scoped to the caller: an admin device (authenticated via /login or
+        /register) sees every active link; a code-paired device sees only the
+        links it minted. Links minted before the agent recorded owners appear
+        for admins only.
+      security: [{ deviceToken: [] }]
+      responses:
+        "200":
+          description: Active share links
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShareLinkSummary" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: >
+            Caller has no device identity at all. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /system/drives:
+    get:
+      summary: List drives / mount points (virtual roots)
+      responses:
+        "200":
+          description: Drives
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Drive" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /fs:
+    get:
+      summary: List a directory
+      description: Naming a regular file returns 400 BAD_REQUEST; a FIFO, socket or device returns 422 NOT_A_FILE.
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+        - { in: query, name: cursor, schema: { type: string }, description: Pagination cursor (by name) }
+        - { in: query, name: limit, schema: { type: integer, default: 200 } }
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Listing" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete one or more paths (to trash by default, recursive)
+      description: >
+        By default deletes are **reversible**: each path is moved to the trash
+        store (XDG `~/.local/share/Trash` on Linux, a managed dir elsewhere) and
+        can be listed/restored via `/trash`. Pass `permanent=true` to bypass the
+        trash and remove recursively and irreversibly (equivalent to `rm -rf`).
+        Directories are removed along with all of their contents. A symbolic
+        link is removed (or trashed) itself; its target is never touched, and
+        a link whose target is outside the allowed roots can still be removed.
+      parameters:
+        - { in: query, name: path, schema: { type: string }, description: Single path; or use body for batch }
+        - in: query
+          name: permanent
+          required: false
+          schema: { type: boolean, default: false }
+          description: When true, hard-delete (no trash); otherwise move to trash.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths: { type: array, items: { type: string } }
+      responses:
+        "200": { $ref: "#/components/responses/BatchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /fs/folder:
+    post:
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /fs/file:
+    post:
+      summary: Create an empty file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /fs/rename:
+    patch:
+      summary: Rename / move a single entry
+      description: >
+        Renames the named entry itself: a symbolic link is renamed, not its
+        target, and the response describes the link. Moving a folder into
+        its own subtree returns 409 CONFLICT without creating anything. A
+        rename never replaces an entry: 409 CONFLICT is also returned when the
+        destination appears while the rename is in progress, and the existing
+        entry is left unchanged. Renaming an entry onto itself (`src` and
+        `dst` name the same path, file or folder) is a no-op that returns the
+        entry. A missing `src` returns 404 PATH_NOT_FOUND. A destination
+        appearing mid-rename is never replaced: Linux and macOS use the
+        kernel's atomic no-replace rename (renameat2, renameatx_np). On a
+        Linux or macOS filesystem without it (some NFS or FUSE mounts) a file
+        or symlink is hard-linked to the new name and the old name removed,
+        which is still no-replace; a folder can only replace an empty folder
+        created in the race window; a filesystem without hard links refuses
+        with 501 NOT_IMPLEMENTED and nothing is changed. That hard-link path
+        is not atomic as a whole: both names exist for a moment, and an entry
+        another process renames onto the old name in the instant between the
+        agent's identity check and its removal of that name is removed (the
+        rename itself never removes the renamed entry's last name). The same
+        applies to move and restore on such a filesystem. Windows uses
+        MoveFileEx without replace (no-replace). Other platforms check for the
+        destination first, which is best effort.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [src, dst]
+              properties:
+                src: { type: string }
+                dst: { type: string }
+      responses:
+        "200": { description: Renamed, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "501": { $ref: "#/components/responses/Error" }
+
+  /fs/copy:
+    post:
+      summary: Copy / duplicate entries (batch-capable)
+      description: >
+        A symbolic link named as a source is copied as its target's content,
+        under the link's own name. Links inside copied folders are recreated
+        as links. A copy never overwrites an entry that was not replaced on
+        purpose: a source whose destination appears during the copy, or whose
+        keep-both ("duplicate") names are all taken, gets a CONFLICT result. A
+        copy that fails part-way leaves no partial destination; if the cleanup
+        itself fails, the result message names where the partial copy remains.
+        A destination that appears during the copy is never replaced: Linux
+        and macOS use the atomic no-replace rename (renameat2, renameatx_np),
+        or on a filesystem without it a hard link for files and symlinks
+        (still no-replace; a folder can only replace an empty folder created
+        in the race window); a filesystem without hard links gives that
+        source a NOT_IMPLEMENTED result and nothing is changed. Windows uses
+        MoveFileEx without replace. Other platforms check for the destination
+        first, which is best effort.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TransferOpRequest" } } }
+      responses:
+        "202": { $ref: "#/components/responses/BatchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /fs/move:
+    post:
+      summary: Move entries (batch-capable)
+      description: >
+        A symbolic link among the sources is moved as the link itself; its
+        target stays where it is. destDir itself may be a link to a folder
+        inside the allowed roots. A move never replaces an entry that was not
+        replaced on purpose: a source whose destination appears during the move,
+        or whose keep-both ("duplicate") names are all taken, gets a CONFLICT
+        result and is left where it was. Linux and macOS use the atomic
+        no-replace rename (renameat2, renameatx_np); on a filesystem without
+        it (some NFS or FUSE mounts) a file or symlink is hard-linked and the
+        old name removed, still no-replace, a folder can only replace an empty
+        folder created in the race window, and a filesystem without hard
+        links gives that source a NOT_IMPLEMENTED result and leaves it where
+        it was. Windows uses MoveFileEx without replace. Other platforms check
+        for the destination first, which is best effort. A move across
+        filesystems is done as a copy followed by removal of the source.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TransferOpRequest" } } }
+      responses:
+        "202": { $ref: "#/components/responses/BatchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /fs/compress:
+    post:
+      summary: Compress entries into a new zip archive
+      description: >
+        Creates a zip archive at `dest` containing each of `sources` (files or
+        directories, recursively). Every source and the destination are
+        jail-checked. If `dest` already exists it is auto-renamed ("keep both",
+        e.g. `archive (1).zip`) so the call never clobbers an existing file —
+        the created archive's actual path is returned in the Entry. If no free
+        keep-both name remains, or a file appears at the chosen name before the
+        archive is published, the call returns 409 CONFLICT and the existing
+        file is left unchanged. A file that appears before publishing is never
+        replaced: Linux and macOS use the atomic no-replace rename (renameat2,
+        renameatx_np); on a filesystem without it (some NFS or FUSE mounts) the
+        archive is hard-linked into place, still no-replace, and a filesystem
+        without hard links refuses with 501 NOT_IMPLEMENTED and publishes
+        nothing. Windows uses MoveFileEx without replace. Other platforms check
+        for the destination first, which is best effort.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sources, dest]
+              properties:
+                sources: { type: array, items: { type: string }, description: "Absolute paths to include." }
+                dest: { type: string, description: "Absolute path of the .zip to create." }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "501": { $ref: "#/components/responses/Error" }
+
+  /fs/extract:
+    post:
+      summary: Extract an archive into a directory
+      description: >
+        Unpacks `archive` into `destDir` (created if absent). Supports `.zip`,
+        `.tar.gz` and `.tgz`. Each archive entry's target is validated to stay
+        within `destDir` (zip-slip guard). An entry whose name is absolute in
+        any form is refused, not re-rooted under destDir: a leading "/" or
+        "\" (including UNC "\\server\share" and "//server/share") or a
+        drive prefix ("C:\x", "C:/x", "C:x"; any name that starts with one
+        letter and ":", so "a:b.txt" too), on every host OS; backslashes
+        count as separators for this check. An entry whose relative name
+        climbs out of destDir ("../x") is refused too. Both give 403
+        FORBIDDEN and fail the whole extraction. Relative names that stay
+        inside destDir ("./a", "x/../a") and are valid file names on the
+        host extract normally. Non-regular
+        entries (symlinks, hard links, devices) are skipped. Both paths are
+        jail-checked. Returns the destination directory's Entry. If
+        extraction fails (a refused entry, the size or entry limit, a write
+        error), the files and folders it created are removed, including
+        entries written before the refused one; content already in destDir
+        is left untouched.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [archive, destDir]
+              properties:
+                archive: { type: string, description: "Absolute path to a .zip/.tar.gz/.tgz file." }
+                destDir: { type: string, description: "Absolute directory to extract into." }
+      responses:
+        "200": { description: Extracted, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /fs/meta:
+    get:
+      summary: Detailed metadata for a single entry
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Metadata, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /fs/checksum:
+    get:
+      summary: Compute a file's checksum
+      description: >
+        Returns 400 BAD_REQUEST for an unsupported `algo` and when `path` names
+        a folder.
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+        - in: query
+          name: algo
+          required: false
+          schema: { type: string, enum: [sha256, sha1, md5], default: sha256 }
+      responses:
+        "200":
+          description: Hex-encoded checksum
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [path, algorithm, checksum]
+                properties:
+                  path: { type: string }
+                  algorithm: { type: string }
+                  checksum: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /fs/chmod:
+    post:
+      summary: Change POSIX permissions of a file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, mode]
+              properties:
+                path: { type: string, description: "Absolute path to the file or directory." }
+                mode: { type: string, description: "Octal permission string, e.g. \"0755\"." }
+      responses:
+        "200": { description: Updated entry, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /fs/archive:
+    get:
+      summary: List the contents of an archive without extracting
+      description: >
+        Reads the headers of a zip, tar.gz, tgz, or tar archive and returns
+        an array of entries (path, size, modified, isDir) without extracting
+        any content. Respects the limit parameter (default 500); a limit
+        above 5000 is treated as 5000.
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 500, maximum: 5000 } }
+      responses:
+        "200":
+          description: Archive entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/ArchiveEntry" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /fs/checksums:
+    post:
+      summary: Compute checksums for multiple files in one request
+      description: >
+        Accepts an array of paths and returns a checksum for each. Files that
+        fail (not found, directory, permission denied) report an error string
+        per entry. Capped at 1000 paths per request. Uses a bounded goroutine
+        pool (4 workers) for parallelism.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paths]
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+                  maxItems: 1000
+                algo:
+                  type: string
+                  enum: [sha256, sha1, md5]
+                  default: sha256
+      responses:
+        "200":
+          description: Batch checksum results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checksums:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path: { type: string }
+                        hash: { type: string }
+                        error: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /trash:
+    get:
+      summary: List items currently in the trash (newest first)
+      responses:
+        "200":
+          description: Trash items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/TrashEntry" }
+        "401": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Empty the trash (all items, or only the given ids)
+      description: A request with no body empties everything. A body that is present but not valid JSON of the expected shape, that has no ids (an empty object, null or an empty ids list), or that names an invalid trash id, returns 400 and deletes nothing.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string }, description: "Specific trash ids to purge; omit to empty all." }
+      responses:
+        "200": { description: Emptied, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /trash/restore:
+    post:
+      summary: Restore trashed items to their original locations
+      description: >
+        Moves each id back to the original path recorded in its trashinfo. The
+        destination is jail-checked; if it is now occupied the restore is
+        auto-renamed ("keep both") rather than clobbering. If no free keep-both
+        name remains, or the destination is taken while the restore runs, that
+        id's result is CONFLICT, the occupant is left unchanged and the item
+        stays in the trash. A destination taken mid-restore is never
+        replaced: Linux and macOS use the atomic no-replace rename (renameat2,
+        renameatx_np); on a filesystem without it a file or symlink is
+        hard-linked back, still no-replace, a folder can only replace an empty
+        folder created in the race window, and a filesystem without hard links
+        gives that id a NOT_IMPLEMENTED result and the item stays in the trash.
+        Windows uses MoveFileEx without replace. Other platforms check for the
+        destination first, which is best effort. Returns a per-id
+        BatchResult whose `path` is the restored location on success.
+        This is a batch: a well-formed request answers 200 with one result
+        per id, in request order, and each id succeeds or fails on its own.
+        An id that is not a single opaque name (empty, ".", "..", containing
+        "/" or "\", or absolute or volume-prefixed on the host OS) gets
+        ok=false with code BAD_REQUEST and `path` echoing the id; an unknown
+        id gets PATH_NOT_FOUND. Neither reads or changes anything outside the
+        trash store, and the other ids in the batch are still processed.
+        Clients must check `ok` on every result; a 200 alone does not mean
+        anything was restored. A request-level problem (a body that is not
+        JSON, a missing or empty `ids` list) is a 400 and restores nothing.
+        On a read-only device every id gets READ_ONLY.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: string } }
+      responses:
+        "200": { $ref: "#/components/responses/BatchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /content:
+    get:
+      summary: Download file content (supports HTTP Range for resumable download)
+      description: >
+        Accepts an Accept-Encoding: gzip request header. When present, the
+        request has no Range header, the file's extension is a compressible
+        text/code type, and the file is above a small size floor, the agent
+        may respond with Content-Encoding: gzip. A Range header always
+        disables compression (gzip offsets don't correspond to the
+        original file's byte offsets), so resumable downloads are unaffected.
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Full content, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "206": { description: Partial content (Range) }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "416": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    put:
+      summary: Write a small text file's content, atomically (modify grant)
+      description: >
+        Writes the request body to path, replacing its current content. The
+        write is atomic (temp file + rename) and the existing file's mode is
+        preserved. This route requires the device's `modify` grant. The body is capped at 5 MiB; larger payloads are rejected
+        with 413. Pass baseModified (the `modified` value last read for this
+        file via /fs/meta or /fs) to get optimistic-concurrency protection —
+        if the file's mtime no longer matches, the write is rejected with 409
+        instead of clobbering newer content.
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+        - in: query
+          name: baseModified
+          required: false
+          schema: { type: string, format: date-time }
+          description: >
+            The `modified` timestamp (RFC3339) last read for this file.
+            Compared (truncated to the second) against the file's current
+            mtime; a mismatch returns 409 STALE_WRITE. Omit for an
+            unconditional write (e.g. creating new content).
+      requestBody:
+        required: true
+        content: { application/octet-stream: { schema: { type: string, format: binary } } }
+      responses:
+        "200": { description: Updated metadata, content: { application/json: { schema: { $ref: "#/components/schemas/Entry" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /transfers:
+    post:
+      summary: Open a resumable upload session
+      description: >
+        Declared upload size is capped at 64 GiB. Admission reserves the full
+        declared size: at most 4 open sessions and 64 GiB per device, and 16
+        open sessions and 128 GiB across the host. Reaching either session or
+        byte quota returns 429 RESOURCE_LIMIT. Reservations bound RFE's
+        concurrent declared uploads; they do not guarantee free disk space or
+        account for unrelated host writes. Open sessions with no chunk or
+        status/resume activity expire after 7 days; the agent sweeps hourly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, size, sha256, chunkSize]
+              properties:
+                path: { type: string }
+                size:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  maximum: 68719476736
+                  description: Maximum 64 GiB per upload.
+                sha256: { type: string }
+                chunkSize:
+                  type: integer
+                  minimum: 1
+                  maximum: 33554432
+                  description: Maximum 32 MiB per chunk.
+                overwrite:
+                  type: boolean
+                  default: false
+                  description: >
+                    When false (default) and path already exists, the
+                    session is rejected with 409 CONFLICT. The flag is
+                    recorded on the session and re-checked atomically at
+                    POST /transfers/{id}/complete, so a file that appears
+                    during the upload also conflicts (409) instead of being
+                    silently replaced. When true, the caller must also hold
+                    `modify` when opening the session, uploading chunks, and
+                    completing it. An existing file is replaced only after
+                    the checks pass.
+      responses:
+        "201":
+          description: Session opened
+          content: { application/json: { schema: { $ref: "#/components/schemas/UploadSession" } } }
+        "400":
+          description: >
+            Invalid request — missing path/sha256/chunkSize, negative size, or
+            chunkSize over the 32MiB cap. code=BAD_REQUEST.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: >
+            Path outside the caller's jail, the agent/device is read-only, or
+            overwrite=true without the modify grant. code=FORBIDDEN,
+            READ_ONLY, or CAPABILITY_DENIED. Every mutating transfer route
+            honours read-only, the same as the /fs routes.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: >
+            path already exists and overwrite=false. code=CONFLICT.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "413":
+          description: Declared upload exceeds the 64 GiB per-upload maximum. code=PAYLOAD_TOO_LARGE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Per-device or host-wide active-session/reserved-byte quota is full.
+            Finish or delete an existing session before opening another.
+            No Retry-After is supplied because capacity can become available
+            as soon as another upload finishes. code=RESOURCE_LIMIT.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /transfers/{id}:
+    get:
+      summary: Get session status + missing chunks (for resume)
+      description: >
+        A successful status/resume request by the session owner refreshes the
+        session's activity time. Open sessions with no chunk or owner
+        status/resume activity for 7 days are eligible for the agent's hourly
+        stale-session sweep.
+      parameters: [ { in: path, name: id, required: true, schema: { type: string } } ]
+      responses:
+        "200": { description: Session, content: { application/json: { schema: { $ref: "#/components/schemas/UploadSession" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "409":
+          description: Completion currently holds the session lease. code=TRANSFER_ACTIVE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete an inactive transfer session (web companion Transfers page)
+      description: >
+        Deletes the session record and its temporary upload file; it never
+        deletes a file already published at the destination. Deletion is
+        coordinated with chunk uploads, completion, and stale cleanup. If a
+        session operation is active, deletion returns 409 TRANSFER_ACTIVE and
+        removes nothing. An old unreferenced `.tmp` file left after a previous
+        deletion failure is removed by age-gated cleanup once it is older than
+        the 7-day retention period.
+
+        Scoped to the session's owner: only the device that opened it, or an
+        admin device, may remove the row. Anyone else gets 404 — the same
+        response an unknown ID gets, so a foreign session ID is never
+        confirmed. Rows with no recorded owner are admin-only.
+      security: [{ deviceToken: [] }]
+      parameters: [ { in: path, name: id, required: true, schema: { type: string } } ]
+      responses:
+        '204': { description: Transfer row removed }
+        '401': { $ref: '#/components/responses/Error' }
+        '409':
+          description: An active session operation currently holds the transfer. code=TRANSFER_ACTIVE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        '404':
+          description: >
+            No transfer with that ID, or it belongs to another device.
+            code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /transfers/{id}/chunks/{n}:
+    put:
+      summary: Upload chunk n (per-chunk checksum)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+        - { in: path, name: n, required: true, schema: { type: integer } }
+        - in: header
+          name: Content-Range
+          required: false
+          schema: { type: string }
+          description: >
+            Optional/informational only — the agent does not currently read this
+            header. Chunk placement is fully determined by the {n} path segment
+            and the session's chunkSize from POST /transfers.
+        - { in: header, name: X-Chunk-Sha256, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/octet-stream: { schema: { type: string, format: binary } } }
+      responses:
+        "204": { description: Chunk stored }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: >
+            The agent or the calling device is read-only, or the session uses
+            overwrite=true without the modify grant. code=READ_ONLY or
+            CAPABILITY_DENIED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: Chunk hash mismatch, the transfer is no longer open, or completion currently holds the session. code=CHUNK_HASH_MISMATCH, TRANSFER_NOT_OPEN, or TRANSFER_ACTIVE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "413": { $ref: "#/components/responses/Error" }
+        "429":
+          description: The agent is already holding as many chunk bodies in memory as it allows. Retry after the `Retry-After` seconds. code=CHUNK_BUSY.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /transfers/{id}/complete:
+    post:
+      summary: Finalize upload (verify whole-file hash, atomic rename)
+      description: >
+        Verifies the whole-file SHA-256 against the hash supplied at session
+        open, then publishes the temp file to its final destination. A 200
+        response means the file is integrity-verified: it includes sha256 (the
+        verified whole-file hash) and verified=true alongside the usual Entry
+        fields.
+
+        The publish honours the session's overwrite flag atomically: with
+        overwrite=false a file that appeared at the destination during the
+        upload yields 409 CONFLICT and is left untouched, rather than being
+        replaced. If overwrite=true, the caller must still hold the `modify`
+        grant; that permission is re-checked when the file is published.
+      parameters: [ { in: path, name: id, required: true, schema: { type: string } } ]
+      responses:
+        "200":
+          description: >
+            Completed and integrity-verified. Returns the Entry fields plus
+            sha256 (the verified whole-file SHA-256) and verified=true.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Entry"
+                  - type: object
+                    properties:
+                      sha256:
+                        type: string
+                        description: Verified whole-file SHA-256 hash (hex-encoded).
+                      verified:
+                        type: boolean
+                        description: Always true on a successful complete.
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: >
+            Path outside the caller's jail, the agent/device is read-only, or
+            overwrite=true without the modify grant. code=FORBIDDEN,
+            READ_ONLY, or CAPABILITY_DENIED.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: >
+            The destination was created during the upload and the session was
+            opened with overwrite=false (CONFLICT), or chunks are still missing
+            (UPLOAD_INCOMPLETE; the session stays open), or the session is no
+            longer open (TRANSFER_NOT_OPEN), or another chunk/status request
+            currently holds the session (TRANSFER_ACTIVE).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: Whole-file SHA-256 mismatch. code=HASH_MISMATCH.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /thumb:
+    get:
+      summary: Server-rendered thumbnail / preview
+      parameters:
+        - { in: query, name: path, required: true, schema: { type: string } }
+        - { in: query, name: size, schema: { type: integer, default: 256 } }
+      responses:
+        "200": { description: Thumbnail, content: { image/jpeg: { schema: { type: string, format: binary } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: No thumbnail available for this file. code=NOT_AVAILABLE.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: Thumbnail work is at capacity. code=THUMB_BUSY; retry after the Retry-After interval.
+          headers:
+            Retry-After:
+              schema: { type: integer, example: 1 }
+              description: Minimum seconds to wait before retrying.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /search:
+    get:
+      summary: Search files and folders
+      description: >
+        Recursively searches under root (or the configured roots / home
+        directory) for entries matching q, optionally narrowed by types,
+        ext, size bounds, and modified-time bounds. All filters are ANDed
+        together. The response body is always a bare JSON array of Entry
+        (unchanged from v1) — truncation/partial-result state is signaled
+        via response headers instead, so existing clients that only read
+        the array continue to work.
+      parameters:
+        - in: query
+          name: q
+          required: true
+          description: >
+            Case-insensitive match against the entry name. If the value
+            contains `*` or `?`, it is treated as a glob pattern (matched
+            with path.Match against the lowercased name); an invalid glob
+            pattern returns 400 BAD_REQUEST. Otherwise it is a
+            case-insensitive substring match.
+          schema: { type: string }
+        - { in: query, name: root, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 100, maximum: 500 } }
+        - in: query
+          name: types
+          description: >
+            Comma-separated list of categories to include (AND-ed with the
+            other filters). Unknown values return 400 BAD_REQUEST.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [folder, image, video, audio, document, archive, other]
+          style: form
+          explode: false
+        - in: query
+          name: ext
+          description: >
+            Comma-separated list of file extensions to include, without the
+            leading dot, case-insensitive (e.g. `jpg,png`). Implies
+            non-folder; may be combined with types.
+          schema: { type: string }
+        - in: query
+          name: minSize
+          description: >
+            Minimum file size in bytes (inclusive). When minSize and/or
+            maxSize is set, folders are excluded from results. Invalid
+            (non-integer) values return 400 BAD_REQUEST.
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: maxSize
+          description: >
+            Maximum file size in bytes (inclusive). When minSize and/or
+            maxSize is set, folders are excluded from results. Invalid
+            (non-integer) values return 400 BAD_REQUEST.
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: modifiedAfter
+          description: >
+            Only include entries modified at or after this timestamp
+            (RFC3339). Invalid timestamps return 400 BAD_REQUEST.
+          schema: { type: string, format: date-time }
+        - in: query
+          name: modifiedBefore
+          description: >
+            Only include entries modified at or before this timestamp
+            (RFC3339). Invalid timestamps return 400 BAD_REQUEST.
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: >
+            Results as a bare JSON array of Entry (filters applied;
+            truncation/time-budget state is reported via headers, not the
+            body).
+          headers:
+            X-Search-Truncated:
+              description: >
+                Set to `1` when the walk stopped early because the result
+                limit was reached. Not set if the walk finished naturally
+                or the time budget expired before the limit was hit.
+              schema: { type: string, enum: ["1"] }
+            X-Search-Time-Budget:
+              description: >
+                Set to `1` when the 15s search time budget expired before
+                the result limit was reached, indicating the results are
+                partial. Mutually exclusive with X-Search-Truncated.
+              schema: { type: string, enum: ["1"] }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Entry" } }
+        "400":
+          description: >
+            BAD_REQUEST — missing q, an invalid glob pattern in q, an
+            unknown types value, a non-integer minSize/maxSize, or an
+            invalid RFC3339 modifiedAfter/modifiedBefore.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /fs/recent:
+    get:
+      summary: List the most recently modified files
+      description: >
+        Recursively walks root (or the configured roots / home directory),
+        returning the `limit` most recently modified *files* (directories
+        are never included), newest first. Unlike /search, this can't stop
+        early once it has `limit` candidates — it keeps a bounded top-K
+        (min-heap) of the best candidates seen so far, so the full walk
+        (bounded by the same 15s time budget) still has to run. Complete
+        results may be reused for up to five seconds for the same effective
+        roots, requested root and limit. Partial results are not cached.
+        X-Search-Time-Budget is set when a refresh exceeds the budget; results
+        are then partial (the most recent files seen, not guaranteed to be
+        the true most-recent files in the tree). At most two scans run
+        concurrently per agent process. Additional uncached requests receive
+        429 code=RECENT_BUSY with Retry-After: 1.
+      parameters:
+        - { in: query, name: root, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        "200":
+          description: Results as a bare JSON array of Entry, newest first.
+          headers:
+            X-Search-Time-Budget:
+              description: >
+                Set to `1` when the 15s time budget expired before the walk
+                finished, indicating results may be missing more-recent
+                files that hadn't been visited yet.
+              schema: { type: string, enum: ["1"] }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Entry" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "429":
+          description: Recent-file scan capacity is full. code=RECENT_BUSY.
+          headers:
+            Retry-After:
+              schema: { type: integer, example: 1 }
+              description: Minimum seconds to wait before retrying.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /settings:
+    get:
+      summary: Get agent settings
+      description: >
+        Admin devices (`isAdmin=true`) receive host-wide settings. Ordinary
+        paired devices receive `effectiveScope=device`, with roots and readOnly
+        reflecting the policy applied to that device's request. The response
+        omits unrelated host-wide settings; `agentName` and `allowSharing` are
+        intentionally shared so clients can identify the host and show the
+        share-link policy. It returns the photo-backup
+        destination to a paired device only when that device's effective roots
+        allow the path and its effective policy permits writes; this is a
+        policy check and does not guarantee the operating system will permit
+        the eventual write. Otherwise the configured/available booleans report
+        the state without disclosing the destination.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentSettings' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Update host-wide agent settings (admin-only, partial)
+      description: Requires an admin device authenticated through /login or /register.
+      security: [{ deviceToken: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentSettings' }
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: Caller is not an admin device.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /settings/bandwidth:
+    get:
+      summary: Get bandwidth limits
+      description: Admin-only host-wide policy.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Current bandwidth limits
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BandwidthSettings' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Set bandwidth limits (admin-only)
+      description: Requires an admin device authenticated through /login or /register.
+      security: [{ deviceToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BandwidthSettings' }
+      responses:
+        '200':
+          description: Updated bandwidth limits
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BandwidthSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /devices:
+    get:
+      summary: List paired devices or the caller's own device
+      description: >
+        Admin devices receive the full paired-device list. Each entry includes
+        lastAddress and lastVersion, captured from the device's most recent
+        authenticated request. Ordinary paired devices receive a one-element
+        array containing only their own minimal record (`id`, `label`, `created`,
+        `lastSeen`, and `current`). Their response does not disclose other
+        clients' labels, addresses, versions, jails, or revocation state.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Device' }
+        '401': { $ref: '#/components/responses/Error' }
+  /devices/{id}:
+    patch:
+      summary: Set per-device access controls — admin-only
+      description: >
+        Requires the CALLER to be an admin device (Device.viaLogin=true — see
+        the top-level description). An ordinary (non-admin) device gets 403
+        FORBIDDEN regardless of `{id}`, including targeting itself. These
+        `jailRoot`, `readOnly`, `viewApps`, `launchApps`, `browse`, `download`,
+        `upload`, `modify`, `delete`, and `share` are optional and
+        independently applied (only fields present in the body are changed),
+        mirroring PATCH /settings. Existing devices retain their former access
+        when upgraded. New paired devices default to browse-only; login/register
+        owner devices retain full file access and bypass per-device file grants.
+        Global read-only, configured roots, per-device jail/read-only controls,
+        and global sharing remain in force. App permissions default to false for every
+        device. `launchApps=true` requires the effective `viewApps` value to
+        also be true. `viaLogin` remains authentication provenance/admin status
+        and is not controlled by these app permissions. The jail and readOnly
+        fields are also manageable with the `rfe jail <device-id> <path>`
+        / `rfe readonly <id> <on|off>` admin CLI commands.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jailRoot:
+                  type: string
+                  description: Absolute path, or "" to clear the per-device jail.
+                readOnly:
+                  type: boolean
+                viewApps:
+                  type: boolean
+                  default: false
+                  description: Allows this device to see the host app catalog.
+                launchApps:
+                  type: boolean
+                  default: false
+                  description: Allows launching approved apps; requires viewApps=true.
+                browse:
+                  type: boolean
+                  default: true
+                  description: Allows listing directories, drives, search results, trash, metadata, and archive entries.
+                download:
+                  type: boolean
+                  default: false
+                  description: Allows file downloads and byte-derived thumbnail/checksum reads.
+                upload:
+                  type: boolean
+                  default: false
+                  description: Allows new-file resumable upload transfers. Sessions with overwrite=true also require modify.
+                modify:
+                  type: boolean
+                  default: false
+                  description: Allows PUT /content, create, rename, copy, move, archive, chmod, trash restore, and overwriting an upload destination.
+                delete:
+                  type: boolean
+                  default: false
+                  description: Allows permanent and trash-backed filesystem deletion, plus emptying trash.
+                share:
+                  type: boolean
+                  default: false
+                  description: Allows minting a share link when browse and global sharing are also allowed. Disabling this grant revokes the device's active links.
+      responses:
+        '200':
+          description: Updated device
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '400':
+          description: >
+            Invalid JSON body, jailRoot is not absolute / does not resolve
+            within the agent's configured global roots, or the effective app
+            permissions request launchApps=true with viewApps=false.
+            code=BAD_REQUEST.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: >
+            Caller is not an admin device. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        '404':
+          description: No device with that id. code=NOT_FOUND.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    delete:
+      summary: Revoke or permanently remove a device, with ?purge=true for the latter
+      description: >
+        A device may always manage ITSELF (`{id}` equal to the calling
+        device's own id). Managing another device additionally requires the
+        caller to be an admin device (Device.viaLogin=true — see the
+        top-level description); an ordinary (non-admin) device targeting
+        another id is rejected. By default this revokes the target device
+        (its token is rejected thereafter, 204). With purge=true the target
+        device row is permanently deleted instead (204).
+
+
+        The `rfe revoke`/`remove` admin CLI remains available on the PC
+        regardless of caller type.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - name: purge
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: When true, permanently delete the target device instead of revoking it.
+      responses:
+        '204': { description: Target device revoked or removed }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: >
+            `{id}` is not the calling device's own id, and the caller is not
+            an admin device. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /pairing/generate:
+    post:
+      summary: Mint a new one-time pairing code from an authenticated session — admin-only
+      description: >
+        Lets a new device be paired without a trip to the PC terminal
+        (`rfe pair`). Requires the caller to be an admin device
+        (Device.viaLogin=true — see the top-level description); an ordinary
+        (non-admin) device is rejected, since minting fresh codes for
+        arbitrary new devices is a materially bigger privilege than the
+        read-only web-companion endpoints.
+      security: [{ deviceToken: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ttlSeconds:
+                  type: integer
+                  description: How long the code stays valid. Defaults to 3600 (1 hour) if omitted or <= 0.
+                guest:
+                  type: boolean
+                  description: >
+                    Mint a Guest code instead: the device created when this
+                    code is redeemed is forced read-only and jailed to
+                    jailRoot from creation, and (like every device) can't
+                    change its own jail/read-only state — only an admin can.
+                    Requires jailRoot.
+                jailRoot:
+                  type: string
+                  description: Required when guest=true. Validated the same way as PATCH /devices/{id}'s jailRoot.
+      responses:
+        '200':
+          description: Pairing code minted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pairingCode: { type: string }
+                  expiresInSeconds: { type: integer }
+                  qrPayload:
+                    type: object
+                    description: Same payload shape embedded in the PC-printed QR code.
+                    properties:
+                      address: { type: string }
+                      tailscaleAddress: { type: string }
+                      certFingerprint: { type: string }
+                      pairingCode: { type: string }
+                  qrPngBase64:
+                    type: string
+                    description: >
+                      Base64-encoded PNG (240px) of a QR code encoding qrPayload as JSON —
+                      lets the web companion show a scannable code, same as `rfe pair`'s
+                      terminal QR. Omitted (not an error) if QR encoding fails; the text code
+                      alone is always sufficient to pair.
+        '400':
+          description: guest=true without a valid jailRoot. code=BAD_REQUEST.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: Caller is not an admin device. code=FORBIDDEN.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /apps:
+    get:
+      summary: List apps discovered for the current host user
+      description: >
+        Returns display metadata and stable opaque IDs for user-facing apps
+        discovered in the current user's supported OS catalog. The catalog
+        includes visible registrations that do not have a supported launch
+        action; those entries have launchable=false. It is not an inventory of
+        every executable or every installed package. Linux reads visible XDG
+        application desktop entries and launches eligible entries through
+        GIO. Windows reads the
+        current user's AppsFolder registrations and launches by validated
+        AUMID through Explorer. macOS scans standard `.app` bundle locations
+        and launches the selected bundle through Launch Services. The response
+        never contains local paths, executable paths, raw commands, arguments,
+        or environment values. The caller must have ViewApps=true. ViaLogin/
+        admin status does not bypass this device capability. `launchAllowed`
+        reflects the caller's LaunchApps grant so view-only devices can hide
+        launch controls; POST /apps/{id}/launch still checks both capabilities
+        on every request.
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Current host app catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HostAppCatalog' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '501':
+          description: Host platform does not yet have a safe catalog implementation
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503':
+          description: App inventory provider is unavailable
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /apps/{id}/launch:
+    post:
+      summary: Launch a host app catalog entry
+      description: >
+        The request contains no command, path, arguments, or environment. The
+        agent strictly validates the opaque catalog ID, rebuilds the current
+        inventory, resolves that ID locally, rejects entries marked
+        launchable=false, and invokes the platform's native app launcher
+        without elevation. Both ViewApps=true and LaunchApps=true
+        are required for every caller, including devices authenticated via
+        /login or /register. Linux launches the registered XDG desktop entry
+        with GIO. A 202 response means the native launcher accepted the
+        handoff; it cannot guarantee that the app completed startup. Windows
+        resolves the validated AUMID in the current user's AppsFolder; macOS
+        resolves the ID against standard `.app` bundle locations and launches
+        the bundle through Launch Services. Launch attempts and outcomes are
+        recorded with the actor, opaque app ID, display name when known, and
+        outcome only.
+      security: [{ deviceToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: '^app_[0-9a-f]{64}$' }
+          description: Opaque stable ID returned by GET /apps.
+      responses:
+        '202':
+          description: Native launcher accepted the app launch request
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [started] }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: Caller lacks either ViewApps or LaunchApps capability
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: Another launch is active, or this catalog entry cannot be launched
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429': { $ref: '#/components/responses/Error' }
+        '501': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503':
+          description: No interactive desktop session, or native launcher unavailable
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /app/latest:
+    get:
+      summary: Latest available Android APK
+      security: [{ deviceToken: [] }]
+      responses:
+        '200':
+          description: Release metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppRelease' }
+        '204': { description: No update available }
+        '401': { $ref: '#/components/responses/Error' }
+  /app/download:
+    get:
+      summary: Download the latest APK (Range-enabled)
+      security: [{ deviceToken: [] }]
+      responses:
+        '200': { description: APK bytes (application/vnd.android.package-archive) }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { description: No update available }
+
+components:
+  securitySchemes:
+    deviceToken:
+      type: http
+      scheme: bearer
+
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    BatchResult:
+      description: Per-item results for a batch operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              results:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path: { type: string }
+                    ok: { type: boolean }
+                    error: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    HostAppCatalog:
+      type: object
+      required: [platform, launchAllowed, apps]
+      properties:
+        platform:
+          type: string
+          description: Host operating system identifier, such as linux or windows.
+        launchAllowed:
+          type: boolean
+          description: Whether this caller has LaunchApps enabled; POST always rechecks both app capabilities.
+        apps:
+          type: array
+          items: { $ref: '#/components/schemas/HostApp' }
+    HostApp:
+      type: object
+      required: [id, name, launchable]
+      properties:
+        id:
+          type: string
+          pattern: '^app_[0-9a-f]{64}$'
+          description: Opaque stable ID; it does not encode a local path or command.
+        name: { type: string, description: Safe display name from the app registration. }
+        launchable:
+          type: boolean
+          description: Whether this discovered entry has a supported native launch action; launch requests are rejected when false.
+        description: { type: string, description: Optional plain-text description. }
+        icon:
+          type: string
+          description: Optional safe icon theme name; local icon paths are omitted.
+        category:
+          type: string
+          description: Optional short category label (Development, Internet, Office, Media, Graphics, Games, System, Utilities) from the desktop entry; omitted when unknown.
+    AgentSettings:
+      type: object
+      properties:
+        isAdmin:
+          type: boolean
+          description: True when the caller may manage host-wide settings and other devices.
+        effectiveScope:
+          type: string
+          enum: [global, device]
+          description: Global host policy for admins, or this device's effective policy for paired clients.
+        accessDenied:
+          type: boolean
+          description: >
+            For paired clients, true when a per-device jail falls outside all
+            configured host roots. In that state an empty roots list means no
+            filesystem access, not unrestricted access. False for admins.
+        readOnly: { type: boolean }
+        roots:
+          type: array
+          items: { type: string }
+        agentName: { type: string }
+        allowSharing:
+          type: boolean
+          description: >
+            Host-level gate for R1 one-time share links (default false).
+            POST /share/mint returns 403 while this is false.
+        photoBackupConfigured:
+          type: boolean
+          description: Whether a photo-backup destination is configured; safe to return to all devices.
+        photoBackupAvailable:
+          type: boolean
+          description: >
+            Whether the effective path roots and read-only policy permit this
+            caller to write to the configured photo-backup destination. This
+            does not guarantee operating-system filesystem permissions. For
+            paired clients, photoBackupRoot is returned only when this is true.
+        photoBackupRoot:
+          type: string
+          description: >
+            PC-side destination folder for phone photo backup, set from the
+            web companion Settings page only. Returned to admins and to paired
+            clients only when photoBackupAvailable is true. Empty means no
+            destination was disclosed.
+        fileCapabilities:
+          type: object
+          description: >
+            What the calling device may do with files, so a client can hide
+            actions the agent would refuse with CAPABILITY_DENIED. Login
+            (owner) devices report everything true. Absent on older agents.
+          properties:
+            browse: { type: boolean }
+            download: { type: boolean }
+            upload: { type: boolean }
+            modify: { type: boolean }
+            delete: { type: boolean }
+            share: { type: boolean }
+    ShareLink:
+      type: object
+      properties:
+        token: { type: string, description: "Raw token — shown only once, in this response." }
+        tokenHash: { type: string, description: "SHA-256 hash of token; pass this to DELETE /share/{tokenHash}." }
+        expiresAt: { type: integer, format: int64, description: "Unix seconds." }
+        url: { type: string, description: "Fully-qualified https URL the recipient fetches." }
+    ShareLinkSummary:
+      type: object
+      properties:
+        tokenHash: { type: string }
+        path: { type: string }
+        expiresAt: { type: integer, format: int64, description: "Unix seconds." }
+    BandwidthSettings:
+      type: object
+      properties:
+        maxUploadBytesPerSec:
+          type: integer
+          format: int64
+          description: >
+            Maximum upload (phone→PC) throughput in bytes per second.
+            0 means unlimited.
+        maxDownloadBytesPerSec:
+          type: integer
+          format: int64
+          description: >
+            Maximum download (PC→phone) throughput in bytes per second.
+            0 means unlimited.
+    Device:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        created: { type: integer, format: int64 }
+        lastSeen: { type: integer, format: int64 }
+        revoked: { type: boolean }
+        current: { type: boolean }
+        lastAddress: { type: string, description: "Client IP from the last authenticated request (port stripped); empty if never seen." }
+        lastVersion: { type: string, description: "Value of the last X-RFE-Client-Version header sent by this device; empty if never reported." }
+        jailRoot:
+          type: string
+          description: >
+            Per-device path jail (H2). Empty means no per-device restriction —
+            the device gets the agent's full configured root jail. When
+            non-empty, an absolute path; the device is confined to that
+            subtree, intersected with the agent's configured roots.
+        readOnly:
+          type: boolean
+          description: >
+            Per-device read-only flag (#8). When true, the device may browse and
+            download but every filesystem write (create/upload/rename/move/
+            delete/compress/extract/write-content) is rejected with 403
+            READ_ONLY, independent of the agent's global read-only mode. Set
+            via `rfe readonly <id> <on|off>` on the PC, or by an admin
+            device via PATCH /devices/{id}.
+        viewApps:
+          type: boolean
+          default: false
+          description: >
+            Whether this device may view the host app catalog. Defaults to
+            false for all devices. Returned on the full device records available
+            to admin devices; ordinary paired devices receive only their own
+            minimal record from GET /devices.
+        launchApps:
+          type: boolean
+          default: false
+          description: >
+            Whether this device may request launch of an approved host app.
+            Defaults to false and requires viewApps=true. This permission does
+            not grant host administration or arbitrary command execution.
+            Returned on the full device records available to admin devices;
+            ordinary paired devices receive only their own minimal record from
+            GET /devices.
+        browse:
+          type: boolean
+          default: true
+          description: >
+            Allows file and directory discovery endpoints. Existing rows are
+            migrated with this enabled; new paired devices start browse-only.
+        download:
+          type: boolean
+          default: false
+          description: Allows file-content reads and byte-derived thumbnail/checksum endpoints.
+        upload:
+          type: boolean
+          default: false
+          description: Allows content writes and resumable transfers; upload overwrite is covered by this grant.
+        modify:
+          type: boolean
+          default: false
+          description: Allows create, rename, copy, move, compress, extract, chmod, and trash restore.
+        delete:
+          type: boolean
+          default: false
+          description: Allows filesystem deletion and emptying trash.
+        share:
+          type: boolean
+          default: false
+          description: Allows minting share links with browse and the global sharing switch enabled.
+        viaLogin:
+          type: boolean
+          description: >
+            True if this device's current token was obtained via /login or
+            /register (the account password) rather than /pair (a one-time
+            code). Admin devices (viaLogin=true) may manage OTHER devices —
+            see the top-level description.
+    AppRelease:
+      type: object
+      properties:
+        versionName: { type: string }
+        versionCode: { type: integer }
+        size: { type: integer, format: int64 }
+        sha256: { type: string, description: Hex SHA-256 of the APK; clients verify the download against it }
+    Health:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+        name: { type: string, description: Agent display name }
+        version: { type: string }
+        apiVersion:
+          type: integer
+          description: >
+            Protocol revision (2 today). Absent on v1.42.x agents; clients read
+            absent as 1. See protocol/compat.md.
+        features:
+          type: array
+          items: { type: string }
+          description: >
+            Sorted ids of optional capabilities (e.g. "pairRequest"). Absent on
+            older agents; clients read absent as none. Gate UI on these.
+        os: { type: string, enum: [windows, linux] }
+        readOnly: { type: boolean }
+        address:
+          type: string
+          description: >
+            LAN host:port the agent is reachable at, if detected. Lets an
+            already-paired app learn an address it didn't capture at pairing time.
+        tailscaleAddress:
+          type: string
+          description: Tailscale host:port the agent is reachable at, if detected.
+        macAddress:
+          type: string
+          description: >
+            MAC address of the LAN network interface (e.g. "aa:bb:cc:dd:ee:ff").
+            The app caches this so it can send a Wake-on-LAN magic packet when
+            the host is asleep and the agent is unreachable. Empty/absent when
+            the LAN interface has no hardware address.
+
+    PairRequest:
+      type: object
+      required: [pairingCode, deviceLabel, devicePublicKey, nonce, signature]
+      properties:
+        pairingCode: { type: string, description: One-time code shown by the agent }
+        deviceLabel: { type: string }
+        devicePublicKey:
+          type: string
+          description: This device's permanent Ed25519 public key, standard base64 (32 raw bytes).
+        nonce: { type: string, description: A nonce obtained from POST /auth/challenge. }
+        signature:
+          type: string
+          description: nonce signed with the device's private key, standard base64 (64 raw bytes).
+        deviceId:
+          type: string
+          description: >
+            Optional hardware-stable client identifier (e.g. Android ID). When
+            present, the agent deduplicates pairings so the same device reuses
+            its device row instead of creating a duplicate on re-pair.
+
+    RegisterRequest:
+      type: object
+      required: [pairingCode, username, password, devicePublicKey, nonce, signature]
+      properties:
+        pairingCode: { type: string, description: One-time code shown by the agent (same as PairRequest). }
+        username: { type: string }
+        password: { type: string, description: Minimum 8 characters. }
+        deviceLabel: { type: string, description: "Defaults to \"unnamed-device\" if omitted." }
+        devicePublicKey: { $ref: "#/components/schemas/PairRequest/properties/devicePublicKey" }
+        nonce: { $ref: "#/components/schemas/PairRequest/properties/nonce" }
+        signature: { $ref: "#/components/schemas/PairRequest/properties/signature" }
+        deviceId:
+          type: string
+          description: Optional hardware-stable client identifier, same dedup behavior as PairRequest.deviceId.
+
+    LoginRequest:
+      type: object
+      required: [username, password, devicePublicKey, nonce, signature]
+      properties:
+        username: { type: string }
+        password: { type: string }
+        deviceLabel: { type: string, description: "Defaults to \"unnamed-device\" if omitted." }
+        devicePublicKey: { $ref: "#/components/schemas/PairRequest/properties/devicePublicKey" }
+        nonce: { $ref: "#/components/schemas/PairRequest/properties/nonce" }
+        signature: { $ref: "#/components/schemas/PairRequest/properties/signature" }
+        deviceId:
+          type: string
+          description: >
+            Optional hardware-stable client identifier, same dedup behavior as
+            PairRequest.deviceId.
+
+    PairResponse:
+      type: object
+      properties:
+        deviceToken:
+          type: string
+          description: >
+            Returned to native clients. Omitted when the embedded browser
+            requests an HttpOnly cookie with X-RFE-Web-Session: 1.
+        deviceId: { type: string }
+        agentName: { type: string }
+        certFingerprint: { type: string, description: "SHA-256 of agent TLS cert, for pinning" }
+        address:
+          type: string
+          description: LAN host:port the agent is reachable at, if detected.
+        tailscaleAddress:
+          type: string
+          description: Tailscale host:port the agent is reachable at, if detected.
+
+    Drive:
+      type: object
+      properties:
+        path: { type: string, example: "C:\\" }
+        label: { type: string }
+        totalBytes: { type: integer, format: int64 }
+        freeBytes: { type: integer, format: int64 }
+        isOS: { type: boolean, description: "True for the drive that contains the operating system." }
+
+    Entry:
+      type: object
+      properties:
+        name: { type: string }
+        path: { type: string }
+        isDir: { type: boolean }
+        size: { type: integer, format: int64 }
+        mimeType: { type: string }
+        mode: { type: string, description: POSIX-style permission string }
+        modified: { type: string, format: date-time }
+        created: { type: string, format: date-time }
+        isSymlink: { type: boolean }
+        symlinkTarget: { type: string, description: "Absolute path the symlink points to (only present when isSymlink is true)" }
+        childCount:
+          type: integer
+          description: Items directly inside a directory, capped at 1000 (1000 means "at least 1000"). Present only in listings, for at most 60 directories per page, and omitted when the directory cannot be read.
+
+    Listing:
+      type: object
+      properties:
+        path: { type: string }
+        entries: { type: array, items: { $ref: "#/components/schemas/Entry" } }
+        nextCursor: { type: string, nullable: true }
+
+    TrashEntry:
+      type: object
+      properties:
+        id: { type: string, description: Opaque trash id (used by /trash/restore and DELETE /trash). }
+        name: { type: string }
+        originalPath: { type: string, description: Where the item will be restored to. }
+        deletedAt: { type: string, format: date-time }
+        size: { type: integer, format: int64 }
+        isDir: { type: boolean }
+
+    CreateRequest:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string, description: Full path of the new folder/file }
+
+    TransferOpRequest:
+      type: object
+      required: [sources, destDir]
+      properties:
+        sources: { type: array, items: { type: string } }
+        destDir: { type: string }
+        duplicate: { type: boolean, default: false, description: "When true, auto-rename on collision" }
+        overwrite:
+          type: boolean
+          default: false
+          description: >
+            Per-source collision precedence: if duplicate=true, auto-rename
+            wins and overwrite is ignored. Else if overwrite=true, the
+            existing destination is replaced (removed, then the source is
+            copied/moved in its place). Otherwise the item fails with a
+            CONFLICT entry in the batch result (ok=false, error.code=CONFLICT).
+
+    UploadSession:
+      type: object
+      properties:
+        id: { type: string }
+        path: { type: string }
+        size: { type: integer, format: int64 }
+        chunkSize: { type: integer }
+        totalChunks: { type: integer }
+        receivedChunks: { type: array, items: { type: integer }, description: Indices already stored }
+        status: { type: string, enum: [open, completed, failed] }
+
+    ArchiveEntry:
+      type: object
+      properties:
+        path: { type: string, description: "Relative path inside the archive." }
+        size: { type: integer, format: int64, description: "Uncompressed size in bytes." }
+        modified: { type: string, format: date-time }
+        isDir: { type: boolean }
+
+    AgentStatus:
+      type: object
+      properties:
+        version: { type: string }
+        uptimeSeconds: { type: integer, format: int64 }
+        platform: { type: string }
+        freeBytes: { type: integer, format: int64 }
+        totalBytes: { type: integer, format: int64 }
+
+    Metrics:
+      type: object
+      properties:
+        rxBytes: { type: integer, format: int64 }
+        txBytes: { type: integer, format: int64 }
+        cpuPercent: { type: number, format: double }
+        ramPercent: { type: number, format: double }
+        tsMs: { type: integer, format: int64 }
+
+    TransferSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, description: "basename of the target path" }
+        path: { type: string }
+        totalSize: { type: integer, format: int64 }
+        receivedBytes: { type: integer, format: int64 }
+        progress: { type: number, format: double, description: "0-100, from received-chunk count" }
+        status: { type: string, enum: [open, completed, failed] }
+        deviceId: { type: string, description: "opening device id; may be empty for pre-migration rows" }
+        updatedAt: { type: integer, format: int64, description: "unix seconds, stamped per received chunk; 0 = never" }
+
+    UserSummary:
+      type: object
+      properties:
+        username: { type: string }
+        created: { type: integer, format: int64, description: "unix seconds" }
+
+    LogLine:
+      type: object
+      properties:
+        ts: { type: string, description: "ISO-8601 timestamp from journald" }
+        message: { type: string }
+
+    AuditEntry:
+      type: object
+      description: One recorded security-relevant event (see GET /audit).
+      properties:
+        id: { type: integer, format: int64, description: "Cursor for the `before` query parameter" }
+        at: { type: string, format: date-time }
+        action:
+          type: string
+          enum: [pair, register, login, login_failed, device_revoked, device_removed,
+                 device_updated, share_created, share_revoked, agent_restart, app_launch, wake_on_lan]
+        actor:
+          type: string
+          description: >
+            Device label or username responsible, copied in at write time so an
+            entry stays readable after the device or account it names is gone.
+        target: { type: string, description: "Device id, path, or label the action applied to" }
+        detail: { type: string, description: "Free-form context, e.g. the requesting IP" }
+
+    Error:
+      type: object
+      description: >
+        Uniform error envelope returned on non-2xx responses. The `code` field is
+        the authoritative machine-readable vocabulary the agent emits (see enum);
+        `message` is a human-readable detail string and may change without notice.
+      properties:
+        code:
+          type: string
+          example: PATH_NOT_FOUND
+          enum:
+            - BAD_REQUEST
+            - UNAUTHORIZED
+            - READ_ONLY
+            - FORBIDDEN
+            - PATH_NOT_FOUND
+            - NOT_A_FILE
+            - CONFLICT
+            - CHUNK_HASH_MISMATCH
+            - HASH_MISMATCH
+            - NOT_AVAILABLE
+            - THUMB_BUSY
+            - RECENT_BUSY
+            - INVALID_CODE
+            - DELETE_FAILED
+            - RATE_LIMITED
+            - RESOURCE_LIMIT
+            - TRANSFER_ACTIVE
+            - TRANSFER_NOT_OPEN
+            - UPLOAD_INCOMPLETE
+            - CHUNK_BUSY
+            - PAYLOAD_TOO_LARGE
+            - NOT_FOUND
+            - COPY_FAILED
+            - MOVE_FAILED
+            - TRASH_FAILED
+            - RESTORE_FAILED
+            - CAPABILITY_DENIED
+            - UNSUPPORTED_FORMAT
+            - STALE_WRITE
+            - NOT_IMPLEMENTED
+            - INTERNAL
+          description: >
+            - `BAD_REQUEST` (400): malformed or missing required fields.
+            - `NOT_A_FILE` (422): the path is a FIFO, socket or device, which the agent never opens; also a folder named by GET or PUT /content.
+            - `UNAUTHORIZED` (401): missing/invalid/revoked bearer token.
+            - `READ_ONLY` (403): write rejected — the agent is in global
+              read-only mode OR the calling device has the per-device read-only
+              flag set (#8).
+            - `FORBIDDEN` (403): path escapes the configured root jail; or a
+              /devices/{id} DELETE/PATCH or /pairing/generate call that
+              requires an admin device (Device.viaLogin=true) came from a
+              non-admin device.
+            - `PATH_NOT_FOUND` (404): path does not exist.
+            - `NOT_FOUND` (404): PATCH /devices/{id} — no device with that id.
+            - `CONFLICT` (409): destination already exists.
+            - `CHUNK_HASH_MISMATCH` (409): per-chunk SHA-256 did not match
+              X-Chunk-Sha256.
+            - `HASH_MISMATCH` (422): whole-file SHA-256 did not match on complete.
+            - `NOT_AVAILABLE` (404): no thumbnail/preview available for this file.
+            - `THUMB_BUSY` (429): thumbnail request capacity is full; retry after the `Retry-After` interval.
+            - `RECENT_BUSY` (429): two recursive recent-file scans are already active; retry after the `Retry-After` interval.
+            - `INVALID_CODE` (401): pairing code invalid or expired.
+            - `DELETE_FAILED`: per-item batch-delete failure (returned inside a
+              BatchResult entry, not as a top-level HTTP error).
+            - `RATE_LIMITED` (429): too many /pair attempts (10/min).
+            - `RESOURCE_LIMIT` (429): upload admission reached the per-device
+              (4 sessions / 64 GiB) or host-wide (16 sessions / 128 GiB)
+              session or reserved-byte quota. Retry after completing or
+              deleting an existing session; no fixed Retry-After is provided.
+            - `TRANSFER_ACTIVE` (409): an operation conflicts with active
+              session work; completion is exclusive, and DELETE is rejected
+              while another request holds the session.
+            - `CHUNK_BUSY` (429): too many chunk bodies are in flight; retry after `Retry-After`.
+            - `UPLOAD_INCOMPLETE` (409): complete was called before every chunk arrived; the session stays open, send the missing chunks and complete again.
+            - `TRANSFER_NOT_OPEN` (409): the session is completed or failed
+              and no longer accepts chunks or completion.
+            - `PAYLOAD_TOO_LARGE` (413): chunk body exceeds the session's chunkSize.
+            - `COPY_FAILED`: per-item batch-copy failure (returned inside a
+              BatchResult entry, not as a top-level HTTP error).
+            - `MOVE_FAILED`: per-item batch-move failure (returned inside a
+              BatchResult entry, not as a top-level HTTP error).
+            - `TRASH_FAILED`: per-item move-to-trash failure (returned inside a
+              BatchResult entry, not as a top-level HTTP error).
+            - `RESTORE_FAILED`: per-item restore-from-trash failure (returned
+              inside a BatchResult entry, not as a top-level HTTP error).
+            - `CAPABILITY_DENIED` (403): the calling device lacks the per-device
+              permission (browse, download, upload, modify, delete, share) the
+              request needs.
+            - `UNSUPPORTED_FORMAT` (400): the archive extension is not a supported
+              format (.zip, .tar.gz, .tgz).
+            - `STALE_WRITE` (409): the file changed since the caller last read
+              it (`baseModified` no longer matches); re-read and retry.
+            - `NOT_IMPLEMENTED` (501): not supported here: a non-Linux agent asked to
+              restart, or a file system that can neither rename without replacing
+              nor hard-link (nothing was changed). Inside a BatchResult entry it
+              has no HTTP status of its own.
+            - `INTERNAL` (500): unexpected server error.
+        message: { type: string }
+        details: { type: object, additionalProperties: true }

@@ -1,0 +1,9 @@
+[Unit]
+Description=RFE agent
+
+[Service]
+ExecStart=/usr/bin/rfe
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

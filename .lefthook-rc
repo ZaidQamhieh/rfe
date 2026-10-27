@@ -1,0 +1,8 @@
+# Sourced by lefthook before running hooks (see `rc:` in lefthook.yml).
+# Puts the Go toolchain on PATH for hooks launched from IDEs / non-login shells.
+# Adjust paths if your toolchain lives elsewhere.
+export PATH="$HOME/.local/go/bin:$HOME/go-sdk/bin:$HOME/go/bin:$PATH"
+
+# Unset GIT_DIR/GIT_WORK_TREE so tools that run git themselves are not confused by lefthook's
+# worktree-scoped GIT_DIR.
+unset GIT_DIR GIT_WORK_TREE

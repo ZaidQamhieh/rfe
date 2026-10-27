@@ -1,0 +1,218 @@
+name: CI
+
+# A master push that touches mobile/** or protocol/** runs these gates through release.yml (workflow_call) plus the build,
+# so those paths are not listed here (every check would run twice). A push that only touches the agent side runs them here
+# and never starts the APK build.
+on:
+  push:
+    branches: [master, main]
+    paths: ['agent/**', 'agent-rs/**', 'tools/**', '.github/workflows/ci.yml']
+  pull_request:
+    branches: [master, main]
+    paths-ignore: ['mobile/**', 'desktop/**', 'docs/**', '**.md']
+  # Callable so release.yml can require these exact gates before publishing,
+  # instead of a second copy that drifts out of sync with this one (PR-70).
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older run obsolete; tag runs (releases) are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  agent-cross-build:
+    name: Agent build (${{ matrix.goos }}-${{ matrix.goarch }})
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: agent/go.sum
+
+      - name: Build host agent
+        working-directory: agent
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: go build -trimpath -o "$RUNNER_TEMP/rfe" ./cmd/agent
+
+  agent:
+    name: Agent (Go)
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: agent/go.sum
+
+      - name: gofmt check
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; echo '^ run gofmt -w'; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test (race, coverage)
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: coverage floor (55%)
+        run: |
+          pct=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+')
+          echo "total coverage: ${pct}%"
+          awk -v p="$pct" 'BEGIN { exit !(p >= 55) }' || { echo "below 55% floor"; exit 1; }
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  agent-rs:
+    name: Rust sidecars
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: agent/go.sum
+
+      # The toolchain is pinned in agent-rs/rust-toolchain.toml; rustup installs it on the first cargo call. The cache
+      # holds the registry and the build output, keyed on the lockfile and toolchain (a tag build reads master's).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            agent-rs/target
+          key: rust-${{ runner.os }}-${{ hashFiles('agent-rs/Cargo.lock', 'agent-rs/rust-toolchain.toml') }}
+          restore-keys: rust-${{ runner.os }}-
+
+      - name: rustfmt
+        working-directory: agent-rs
+        run: cargo fmt --all --check
+
+      - name: clippy
+        working-directory: agent-rs
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        working-directory: agent-rs
+        run: cargo test --workspace --locked
+
+      # Advisory check of Cargo.lock, the Rust counterpart of govulncheck. The version is pinned and the binary is
+      # cached, so only the first run (or a version bump) compiles it.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-audit-bin
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.22.2-${{ runner.os }}
+
+      - name: Install cargo-audit
+        if: steps.cargo-audit-bin.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked --version 0.22.2
+
+      - name: cargo audit
+        working-directory: agent-rs
+        run: cargo audit
+
+      - name: Build release sidecars
+        working-directory: agent-rs
+        run: cargo build --release --locked --workspace
+
+      # The other platforms have their own code paths (seccomp is Linux only, Windows has the job object, macOS the
+      # FSEvents watcher). A type-check per target catches a path that stopped compiling before the release does.
+      - name: Type-check other targets
+        working-directory: agent-rs
+        run: |
+          rustup target add x86_64-pc-windows-gnu aarch64-pc-windows-gnullvm aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin
+          for t in x86_64-pc-windows-gnu aarch64-pc-windows-gnullvm aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin; do
+            cargo check --workspace --locked --target "$t"
+          done
+
+      # The packaged set must start together: package it, then ask the agent what it thinks of the sidecars.
+      - name: Package smoke test
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sc" "$RUNNER_TEMP/pkg" "$RUNNER_TEMP/data"
+          cp agent-rs/target/release/rfe-indexd agent-rs/target/release/rfe-thumbd "$RUNNER_TEMP/sc/"
+          tools/package-agent.sh linux amd64 0.0.0-ci "$RUNNER_TEMP/sc" "$RUNNER_TEMP/pkg.tar.gz"
+          tar -C "$RUNNER_TEMP/pkg" -xzf "$RUNNER_TEMP/pkg.tar.gz"
+          "$RUNNER_TEMP/pkg/rfe" status -data "$RUNNER_TEMP/data" | tee "$RUNNER_TEMP/status.txt"
+          grep -q 'rfe-indexd: verified' "$RUNNER_TEMP/status.txt"
+          grep -q 'rfe-thumbd: verified' "$RUNNER_TEMP/status.txt"
+
+      # The Go agent is the oracle: the same fixture trees go through both implementations and must agree.
+      - name: Differential tests (Go vs Rust)
+        working-directory: agent
+        env:
+          RFE_SIDECAR_DIR: ${{ github.workspace }}/agent-rs/target/release
+        run: go test -race -count=1 -v -run 'Sidecar|Renderer' ./internal/server ./internal/sidecar ./internal/thumbs
+
+  web:
+    name: Web companion
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: agent/internal/webui/web
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: agent/internal/webui/web/package-lock.json
+
+      - name: Install web companion dependencies
+        run: npm ci
+
+      - name: Build embedded web companion
+        run: npm run build
+
+      - name: Verify embedded bundle is current
+        run: |
+          git diff --exit-code -- agent/internal/webui/dist
+          test -z "$(git ls-files --others --exclude-standard -- agent/internal/webui/dist)"
+
+      - name: Lint web companion
+        run: npm run lint
+
+  contract:
+    name: OpenAPI contract
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - name: Redocly lint (fail on errors)
+        run: npx --yes @redocly/cli@latest lint protocol/openapi.yaml

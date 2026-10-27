@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = ["crates/rfe-proto", "crates/rfe-indexd", "crates/rfe-thumbd"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cap-std = "3"
+rayon = "1"
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+rustix = { version = "1", features = ["fs"] }
+rfe-proto = { path = "crates/rfe-proto" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

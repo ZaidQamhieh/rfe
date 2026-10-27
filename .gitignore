@@ -1,0 +1,62 @@
+# Go agent
+/agent/bin/
+/agent/agent
+*.exe
+/agent/coverage.out
+
+# TLS / local state (never commit)
+*.pem
+agent.db
+agent.db-*
+
+# IDE module files
+*.iml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+# JetBrains project state: generated per-machine (SDK paths, device caches,
+# resolved Dart packages), so it churns for every user and is regenerated on
+# open.
+/.idea/
+
+# Agent worktrees (local scratch space, never commit)
+/.claude/worktrees/
+
+# Personal Claude Code settings (per-user, not team config)
+/.claude/settings.local.json
+
+# Generated knowledge-graph artifact (regenerate with tools/rebuild-graph.sh)
+/graphify-out/
+
+# Web companion build tooling (compiled output ships in dist/)
+/agent/internal/webui/node_modules/
+/agent/internal/webui/web/node_modules/
+
+# Rust sidecars
+/agent-rs/target/
+
+# Internal agent-workflow notes and audits (kept local, not published)
+/HANDOFF.md
+/docs/claude-reference.md
+/docs/WAVE_RUNBOOK.md
+/docs/superpowers/
+/docs/audit/
+/docs/audit-reconciliation.md
+/docs/code-review-2026-06.md
+/docs/dev-experience-and-automation.md
+/desktop/docs/requirements-*.md
+
+# Secrets and build output (never commit)
+.env
+.env.*
+*.jks
+*.keystore
+*.apk
+*.aab
+local.properties
+node_modules/
+/mobile/android/
+/mobile/ios/
+/mobile/.expo/

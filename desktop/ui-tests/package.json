@@ -1,0 +1,8 @@
+{
+  "name": "rfe-desktop-ui-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests of the desktop window. Only window.test.mjs needs a package (jsdom); the others run on plain node.",
+  "scripts": { "test": "node --test *.test.mjs" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

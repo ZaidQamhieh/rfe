@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata, installed by the .deb to /usr/share/metainfo. Check it with:
+       appstreamcli validate desktop/src-tauri/packaging/linux/app.rfe.desktop.metainfo.xml
+     The release entry is the version in Cargo.toml; desktop/src-tauri/tests/versions.rs fails when they differ. -->
+<component type="desktop-application">
+  <id>app.rfe.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>RFE Desktop</name>
+  <summary>Control your PC from your PC: pin the RFE agent and manage its devices</summary>
+  <developer id="app.rfe">
+    <name>RFE</name>
+  </developer>
+  <description>
+    <p>
+      RFE Desktop connects to an rfe after you compare its certificate fingerprint, signs in
+      with your account or a pairing code, and lists the devices paired with it.
+    </p>
+    <p>
+      Passwords are never stored. The device key and the login token are kept in the system keystore
+      (Secret Service), not in a file.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/ZaidQamhieh/rfe</url>
+  <launchable type="desktop-id">RFE Desktop.desktop</launchable>
+  <provides>
+    <binary>rfe-desktop</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.1" date="2026-10-27"/>
+    <release version="1.0.0" date="2026-10-04"/>
+  </releases>
+</component>

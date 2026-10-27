@@ -1,0 +1,26 @@
+/* Neutral reset only. Every concept owns its look. */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+*{scrollbar-width:thin;scrollbar-color:rgba(128,128,128,.6) transparent}
+body{overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,select{font:inherit;color:inherit}
+button{cursor:default;background:none;border:0;padding:0;text-align:inherit}
+input{outline:none}
+ul{list-style:none;margin:0;padding:0}
+table{border-collapse:collapse;border-spacing:0}
+.ic{width:1em;height:1em;flex:none;display:inline-block;vertical-align:-0.125em}
+.mono{font-family:var(--mono,ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace)}
+.num{font-variant-numeric:tabular-nums}
+.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(128,128,128,.55);border-radius:6px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+/* file-type colours; concepts override the variables */
+.fi-dir{color:var(--k-dir,#e0a030)}.fi-pkg{color:var(--k-pkg,#5b8def)}.fi-video{color:var(--k-video,#b868e0)}
+.fi-image{color:var(--k-image,#36b37e)}.fi-archive{color:var(--k-archive,#d9822b)}.fi-text{color:var(--k-text,#8a94a6)}
+.fi-code{color:var(--k-code,#3fb0c4)}.fi-doc{color:var(--k-doc,#e5484d)}.fi-key{color:var(--k-key,#c9a227)}
+.fi-exec{color:var(--k-exec,#5bbf6a)}.fi-file{color:var(--k-file,#8a94a6)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{opacity:.35}}
+.spin{animation:spin 1s linear infinite}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}

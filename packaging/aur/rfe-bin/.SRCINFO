@@ -1,0 +1,22 @@
+pkgbase = rfe-bin
+	pkgdesc = RFE host agent with its Rust sidecars (binary release)
+	pkgver = 1.43.0
+	pkgrel = 1
+	url = https://github.com/ZaidQamhieh/rfe
+	install = rfe-bin.install
+	arch = x86_64
+	arch = aarch64
+	license = GPL-3.0-only
+	depends = glibc
+	optdepends = libcap: setcap lets the agent also listen on port 443 (done by the install hook)
+	provides = rfe
+	conflicts = rfe
+	options = !strip
+	source = rfe.service
+	sha256sums = SKIP
+	source_x86_64 = agent-v1.43.0-linux-amd64.tar.gz::https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.43.0/agent-v1.43.0-linux-amd64.tar.gz
+	sha256sums_x86_64 = aa209792054db7e80ab64273e12eedd323ff9de09a93a30fe9184b36da8f1b80
+	source_aarch64 = agent-v1.43.0-linux-arm64.tar.gz::https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.43.0/agent-v1.43.0-linux-arm64.tar.gz
+	sha256sums_aarch64 = 6442ded700423368cd025435183ba563ac755d69c6c182e678b5f2b142c85270
+
+pkgname = rfe-bin

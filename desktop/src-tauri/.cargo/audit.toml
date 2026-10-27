@@ -1,0 +1,18 @@
+# cargo audit reads this from desktop/src-tauri. CI runs `cargo audit --deny warnings`, so only the
+# advisories below are accepted; anything new fails the job.
+#
+# The first two come from tauri 2.12.1 -> muda -> gtk 0.18 (the GTK3 bindings). They are fixed only by tauri
+# moving off gtk-rs 0.18, not by anything in this crate. Re-check on every tauri upgrade.
+[advisories]
+ignore = [
+  # proc-macro-error is unmaintained; a build-time proc macro only (via glib-macros).
+  "RUSTSEC-2024-0370",
+  # glib 0.18.5: unsound VariantStrIter. This crate never calls glib::Variant APIs itself.
+  "RUSTSEC-2024-0429",
+  # zvariant, zvariant_derive and zbus_names (2026-10-16): unmaintained. They arrive through zbus 5 from
+  # tauri-plugin-notification (notify-rust) and tauri-plugin-single-instance, and zbus 4 / 3 further down the
+  # same tree; no release of those plugins moves off them yet. Re-check on every tauri plugin upgrade.
+  "RUSTSEC-2026-0370",
+  "RUSTSEC-2026-0371",
+  "RUSTSEC-2026-0372",
+]

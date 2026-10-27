@@ -1,0 +1,82 @@
+{
+  "expo": {
+    "name": "RFE",
+    "slug": "remote-file-explorer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zqamhieh.remoteFileExplorer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.zqamhieh.remote_file_explorer",
+      "versionCode": 83,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Lato_400Regular.ttf",
+            "./assets/fonts/Lato_700Bold.ttf",
+            "./assets/fonts/Lato_900Black.ttf",
+            "./assets/fonts/Inter-Regular.ttf",
+            "./assets/fonts/Inter-Medium.ttf",
+            "./assets/fonts/Inter-SemiBold.ttf",
+            "./assets/fonts/JetBrainsMono-Regular.ttf",
+            "./assets/fonts/JetBrainsMono-Medium.ttf"
+          ]
+        }
+      ],
+      "./plugins/withRfeAndroid",
+      "expo-local-authentication",
+      "expo-image",
+      [
+        "expo-media-library",
+        {
+          "granularPermissions": ["photo"]
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "disableIOS": true,
+          "androidIntentFilters": ["*/*"],
+          "androidMultiIntentFilters": ["*/*"]
+        }
+      ],
+      "expo-background-task"
+    ],
+    "scheme": "rfe"
+  }
+}

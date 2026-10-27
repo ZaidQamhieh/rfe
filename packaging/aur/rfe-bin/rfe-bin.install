@@ -1,0 +1,11 @@
+post_install() {
+  # Lets the agent bind port 443 (https://<name>.local); without it the agent keeps its high port.
+  setcap cap_net_bind_service=+ep /usr/bin/rfe 2>/dev/null || true
+  echo 'Enable the agent for your user:  systemctl --user enable --now rfe'
+  echo 'Then pair a phone:               rfe pair'
+}
+
+post_upgrade() {
+  setcap cap_net_bind_service=+ep /usr/bin/rfe 2>/dev/null || true
+  echo 'Restart the agent to use the new version:  systemctl --user restart rfe'
+}

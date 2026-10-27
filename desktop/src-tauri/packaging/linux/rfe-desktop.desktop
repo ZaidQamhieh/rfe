@@ -1,0 +1,17 @@
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+GenericName=Remote PC control
+Keywords=rfe;agent;remote;pc;devices;pairing;fingerprint;
+Exec={{exec}}
+StartupNotify=true
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}

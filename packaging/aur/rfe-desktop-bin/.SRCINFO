@@ -1,0 +1,21 @@
+pkgbase = rfe-desktop-bin
+	pkgdesc = RFE desktop app: pin an agent and manage its paired devices (binary release)
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/ZaidQamhieh/rfe
+	arch = x86_64
+	license = GPL-3.0-only
+	depends = webkit2gtk-4.1
+	depends = gtk3
+	depends = dbus
+	optdepends = gnome-keyring: Secret Service keystore for saved secrets
+	optdepends = keepassxc: alternative Secret Service keystore
+	optdepends = libayatana-appindicator: tray icon
+	provides = rfe-desktop
+	conflicts = rfe-desktop
+	noextract = RFE-Desktop_1.0.0_amd64.deb
+	options = !strip
+	source = RFE-Desktop_1.0.0_amd64.deb::https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.0/RFE-Desktop_1.0.0_amd64.deb
+	sha256sums = 539a031e85d3a12616ca407e6a3d0f727854614cddfaf48df1e0c3d49cfc4d12
+
+pkgname = rfe-desktop-bin

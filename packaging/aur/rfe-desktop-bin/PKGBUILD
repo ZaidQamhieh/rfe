@@ -1,0 +1,27 @@
+# Maintainer: Zaid Qamhieh
+# Repackages the official .deb (the app binary, launcher entry, icons and AppStream metadata) for Arch.
+# After the version or checksum changes: updpkgsums, then makepkg --printsrcinfo > .SRCINFO.
+pkgname=rfe-desktop-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='RFE desktop app: pin an agent and manage its paired devices (binary release)'
+arch=('x86_64')
+url='https://github.com/ZaidQamhieh/rfe'
+license=('GPL-3.0-only')
+depends=('webkit2gtk-4.1' 'gtk3' 'dbus')
+optdepends=('gnome-keyring: Secret Service keystore for saved secrets'
+            'keepassxc: alternative Secret Service keystore'
+            'libayatana-appindicator: tray icon')
+provides=('rfe-desktop')
+conflicts=('rfe-desktop')
+options=('!strip')
+source=("RFE-Desktop_${pkgver}_amd64.deb::$url/releases/download/desktop-v$pkgver/RFE-Desktop_${pkgver}_amd64.deb")
+sha256sums=('539a031e85d3a12616ca407e6a3d0f727854614cddfaf48df1e0c3d49cfc4d12')
+noextract=("RFE-Desktop_${pkgver}_amd64.deb")
+
+package() {
+  bsdtar -xOf "RFE-Desktop_${pkgver}_amd64.deb" data.tar.gz | bsdtar -xf - -C "$pkgdir"
+  # A space in a .desktop file name trips some launchers; use the app id instead.
+  mv "$pkgdir/usr/share/applications/RFE Desktop.desktop" "$pkgdir/usr/share/applications/app.rfe.desktop.desktop"
+  chmod 755 "$pkgdir/usr/bin/rfe-desktop"
+}

@@ -1,0 +1,235 @@
+name: Desktop (Tauri)
+
+# The desktop app lives in desktop/. It is not part of the Android release, so release.yml and ci.yml ignore desktop/**;
+# this workflow is its only gate. Its tests run against an agent built from the same checkout.
+on:
+  push:
+    branches: [master, main]
+    paths: ['desktop/**', 'agent/**', 'protocol/**', '.github/workflows/desktop.yml']
+  pull_request:
+    branches: [master, main]
+    paths: ['desktop/**', 'agent/**', 'protocol/**', '.github/workflows/desktop.yml']
+  # Callable so desktop-release.yml can require these gates and reuse the bundles from the same run.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  # A tag run (a desktop release calls this workflow) is never cancelled.
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  rust:
+    name: fmt, clippy, tests
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop/src-tauri
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0 # the release tags are checked out below
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: agent/go.sum
+
+      # Tauri 2 on Linux links against WebKitGTK; the tests build the whole crate, so the dev packages are needed.
+      # libdbus-1-dev is for the keystore (keyring -> dbus -> libdbus-sys, which has no vendored build here).
+      # GTK pulls it in transitively today; it is named so the build does not depend on that.
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev libdbus-1-dev \
+            dbus-daemon gnome-keyring libsecret-tools
+
+      # A cache made by a tag run is readable by that tag only (GitHub scopes caches to the ref and the
+      # default branch), so tag runs restore but never save: the 3 GB would only crowd out the caches
+      # the branch and pull-request runs use.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-rust
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-audit
+            desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-${{ runner.os }}-
+
+      # rust-toolchain.toml pins the compiler; rustup 1.28+ does not install it on first use.
+      - name: Rust toolchain
+        run: rustup toolchain install
+
+      - name: Build the agent the tests run against
+        working-directory: agent
+        run: go build -o "$RUNNER_TEMP/rfe" ./cmd/agent
+
+      - name: rustfmt
+        run: cargo fmt --all --check
+
+      - name: clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        env:
+          RFE_AGENT_BIN: ${{ runner.temp }}/rfe
+        run: cargo test --locked
+
+      # The window's engine, its command contract with this crate, and the window scripts in a DOM
+      # (jsdom) on a stand-in for the core. Not a check of how it looks: desktop/e2e does that.
+      - name: Window tests
+        run: |
+          npm ci --prefix ../ui-tests
+          node --test ../ui-tests/*.test.mjs
+
+      # The app must keep working with the last stable agent release, not only with the agent built
+      # from this checkout. Tests of features that release lacks may skip (RFE_ALLOW_OLD_AGENT);
+      # the tests above run without that flag, so a missing feature fails them.
+      - name: Tests against the last stable agent release
+        env:
+          RFE_ALLOW_OLD_AGENT: '1'
+        run: |
+          tag=$(git tag -l 'agent-v*' --sort=-v:refname | grep -v -- '-rc' | head -n 1 || true)
+          if [ -z "$tag" ]; then
+            echo "::notice::no stable agent tag yet, skipping"
+            exit 0
+          fi
+          echo "testing against $tag"
+          git worktree add "$RUNNER_TEMP/prev-agent" "$tag"
+          (cd "$RUNNER_TEMP/prev-agent/agent" && go build -o "$RUNNER_TEMP/rfe-prev" ./cmd/agent)
+          # The app signs in only with the certificate-bound proof (proofVersion in
+          # agent/internal/server/challenge.go). A stable release without it is refused by design, so
+          # against it the one thing to prove is that refusal; once a stable release has the proof,
+          # the whole suite runs against it again.
+          if grep -q 'proofVersion' "$RUNNER_TEMP/prev-agent/agent/internal/server/challenge.go" 2>/dev/null; then
+            RFE_AGENT_BIN="$RUNNER_TEMP/rfe-prev" cargo test --locked
+          else
+            echo "::notice::$tag has no bound sign-in proof; the app must refuse it, testing only that"
+            RFE_AGENT_BIN="$RUNNER_TEMP/rfe-prev" cargo test --locked --test bound_proof
+          fi
+
+      # The real Secret Service, in a private D-Bus session with a throwaway empty keyring. The other
+      # tests use in-memory stores; this one proves the OS keystore path itself.
+      - name: Secret Service round trip
+        run: ../scripts/with-keyring.sh cargo test --locked --test keystore -- --ignored
+
+      # The same, with the default keyring present and locked: the refusal must name the fix.
+      - name: Secret Service locked
+        run: ../scripts/with-keyring.sh --locked cargo test --locked --test keystore_locked -- --ignored
+
+      # Accepted advisories are listed with reasons in .cargo/audit.toml; any new warning fails the job.
+      - name: cargo audit
+        run: |
+          command -v cargo-audit >/dev/null || cargo install cargo-audit --locked --version 0.22.2
+          cargo audit --deny warnings
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref_type != 'tag' && steps.cache-rust.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-audit
+            desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+
+  # Runs beside the test job, not after it: building needs nothing from the tests, and the release job waits
+  # for this whole workflow before it publishes, so a red test job still blocks a release.
+  bundle:
+    name: deb, rpm and AppImage
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop/src-tauri
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev libdbus-1-dev file xdg-utils
+
+      - name: Rust toolchain
+        run: rustup toolchain install
+
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-bundle
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: desktop-bundle-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-bundle-${{ runner.os }}-
+
+      # The prebuilt CLI from npm, the same version as the tauri crate in Cargo.lock. `cargo install
+      # tauri-cli` compiled several hundred crates on every run that missed the cache.
+      - name: tauri-cli
+        run: npm install --no-save --prefix "$RUNNER_TEMP/tauri-cli" @tauri-apps/cli@2.12.1 && echo "$RUNNER_TEMP/tauri-cli/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # linuxdeploy and its AppImage plugin are downloaded by the bundler at build time and are not
+      # pinned by it; the artifact is for testing, and release signing/provenance is a separate task.
+      - name: Bundle
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          NO_STRIP: 'true'
+        # A version bump changes Cargo.lock, so the cache above can restore target/ from an older version; the bundler
+        # leaves that version's .deb behind, and two .deb files break the steps below and the release.
+        run: |
+          rm -rf target/release/bundle
+          tauri build --ci --bundles deb,rpm,appimage
+
+      # What a launcher and a software centre read, from the package that was just built: the
+      # desktop entry, the AppStream metadata and the icon sizes.
+      - name: Launcher entry and metadata
+        run: |
+          sudo apt-get install -y --no-install-recommends desktop-file-utils appstream
+          root=$(mktemp -d)
+          dpkg-deb -x target/release/bundle/deb/*.deb "$root"
+          desktop-file-validate "$root"/usr/share/applications/*.desktop
+          appstreamcli validate --no-net "$root"/usr/share/metainfo/*.xml
+          for size in 16 24 32 48 64 128 256 512; do
+            test -f "$root/usr/share/icons/hicolor/${size}x${size}/apps/rfe-desktop.png"
+          done
+
+      # What a release publishes next to the packages: the SBOM, and SHA256SUMS over everything.
+      # The sums are checked straight away with the script a downloader uses. Build provenance
+      # (an attestation) belongs to the release job, which has the permissions for it.
+      - name: Checksums and SBOM
+        working-directory: desktop
+        run: |
+          mkdir -p dist
+          cp src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm src-tauri/target/release/bundle/appimage/*.AppImage dist/
+          python3 scripts/sbom.py src-tauri/Cargo.lock dist/rfe-desktop.sbom.json
+          scripts/checksums.sh dist
+          cd dist
+          ../scripts/verify-download.sh SHA256SUMS ./*.deb ./*.rpm ./*.AppImage ./rfe-desktop.sbom.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rfe-desktop-linux
+          path: |
+            desktop/dist/*.deb
+            desktop/dist/*.rpm
+            desktop/dist/*.AppImage
+            desktop/dist/rfe-desktop.sbom.json
+            desktop/dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref_type != 'tag' && steps.cache-bundle.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: desktop-bundle-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
