@@ -13,9 +13,7 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 pub fn agent_bin() -> PathBuf {
-    PathBuf::from(
-        std::env::var("RFE_AGENT_BIN").expect("set RFE_AGENT_BIN to a built rfe binary"),
-    )
+    PathBuf::from(std::env::var("RFE_AGENT_BIN").expect("set RFE_AGENT_BIN to a built rfe binary"))
 }
 
 /// A loopback port nobody is using, for an agent that is started a moment later. Asking the system

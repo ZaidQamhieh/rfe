@@ -1,6 +1,6 @@
 [package]
 name = "rfe-desktop"
-version = "1.0.1"
+version = "1.0.3"
 description = "RFE desktop PC control app (first slice: pin, log in, list devices)"
 license = "GPL-3.0-only"
 edition = "2021"

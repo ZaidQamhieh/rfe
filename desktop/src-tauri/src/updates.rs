@@ -15,8 +15,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The releases of the project, newest first.
-pub const RELEASES_URL: &str =
-    "https://api.github.com/repos/ZaidQamhieh/rfe/releases?per_page=50";
+pub const RELEASES_URL: &str = "https://api.github.com/repos/ZaidQamhieh/rfe/releases?per_page=50";
 const TAG_PREFIX: &str = "desktop-v";
 /// The biggest package this app will fetch.
 const MAX_PACKAGE: u64 = 400 << 20;
