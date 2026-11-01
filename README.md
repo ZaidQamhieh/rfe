@@ -17,7 +17,7 @@ app (Linux) controls the agent from the PC. See [Install the host agent](#instal
 </tr>
 <tr>
 <th align="left">Android</th>
-<td align="center" colspan="2"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a> (also runs on 32-bit ARMv7 phones)</td>
+<td align="center" colspan="2"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a></td>
 </tr>
 <tr>
 <th align="left">Windows</th>
