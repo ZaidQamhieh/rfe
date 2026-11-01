@@ -42,8 +42,8 @@ agent() { link "$agent_tag" "$agent_assets" "$1" "${2:-Agent}"; }
 desktop() { link "$desktop_tag" "$desktop_assets" "$1" "${2:-Desktop}"; }
 
 cell() { printf '<td align="center">%s</td>' "$1"; }
-row() { # row <platform> <cell for amd64> <cell for arm64>: ARMv7 builds exist only for Android
-  printf '<tr>\n<th align="left">%s</th>\n%s\n%s\n<td></td>\n</tr>\n' "$1" "$(cell "$2")" "$(cell "$3")"
+row() { # row <platform> <cell for amd64> <cell for arm64>
+  printf '<tr>\n<th align="left">%s</th>\n%s\n%s\n</tr>\n' "$1" "$(cell "$2")" "$(cell "$3")"
 }
 linux() { # linux <arch: amd64|arm64> <agent ext> <desktop regex for amd64>
   local d=""
@@ -51,16 +51,16 @@ linux() { # linux <arch: amd64|arm64> <agent ext> <desktop regex for amd64>
   join "$(agent "linux-$1\.$2$")" "$d"
 }
 
-apk="$(link "$app_tag" "$app_assets" '\.apk$' 'Universal APK')"
+apk="$(link "$app_tag" "$app_assets" '\.apk$' 'Universal APK') (also runs on 32-bit ARMv7 phones)"
 table="$(
   cat <<EOF
 <table>
 <tr>
-<th>Platform</th><th>x86-64 (64-bit)</th><th>AArch64 (ARM64)</th><th>ARMv7 (32-bit)</th>
+<th>Platform</th><th>x86-64 (64-bit)</th><th>AArch64 (ARM64)</th>
 </tr>
 <tr>
 <th align="left">Android</th>
-<td align="center" colspan="3">$apk</td>
+<td align="center" colspan="2">$apk</td>
 </tr>
 EOF
   row Windows "$(agent 'windows-amd64\.zip$')" "$(agent 'windows-arm64\.zip$')"
