@@ -20,6 +20,44 @@ certificate-pin and pairing-code checks. mDNS does not authenticate a host. QR p
 address entry remain available. The project has no cloud relay or cloud database. See `docs/` for
 the full architecture.
 
+## Download
+
+The Android app installs on the phone; the host agent runs on each computer you want to browse, and the desktop
+app (Linux) controls the agent from the PC. See [Install the host agent](#install-the-host-agent) for setup.
+
+<!-- downloads:start -->
+
+<table>
+<tr>
+<th>Architecture</th><th>Android</th><th>Windows</th><th>macOS</th><th>Debian / Ubuntu</th><th>Fedora / openSUSE</th><th>Other Linux</th>
+</tr>
+<tr>
+<td>x86-64 (64-bit)</td>
+<td align="center" rowspan="3"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-amd64.zip">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-amd64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.deb">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.deb">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.rpm">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop-1.0.3-1.x86_64.rpm">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.tar.gz">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.AppImage">Desktop</a></td>
+</tr>
+<tr>
+<td>AArch64 (ARM64)</td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-arm64.zip">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-arm64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.deb">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.rpm">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.tar.gz">Agent</a></td>
+</tr>
+<tr>
+<td>ARMv7 (32-bit)</td>
+<td></td><td></td><td></td><td></td><td></td>
+</tr>
+</table>
+
+App 1.0.0 · Agent 1.0.0 · Desktop 1.0.3. Each release lists its `SHA256SUMS`; older versions are on the [releases page](https://github.com/ZaidQamhieh/rfe/releases).
+
+<!-- downloads:end -->
+
 ## Status
 
 The agent serves the v1 API for directory browsing, resumable transfers, search, previews, settings,

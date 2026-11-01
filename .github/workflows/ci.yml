@@ -48,6 +48,7 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: ${{ runner.environment == 'github-hosted' }}
           go-version: '1.26.10'
           cache-dependency-path: agent/go.sum
 
@@ -71,6 +72,7 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: ${{ runner.environment == 'github-hosted' }}
           go-version: '1.26.10'
           cache-dependency-path: agent/go.sum
 
@@ -103,12 +105,16 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: ${{ runner.environment == 'github-hosted' }}
           go-version: '1.26.10'
           cache-dependency-path: agent/go.sum
 
       # The toolchain is pinned in agent-rs/rust-toolchain.toml; rustup installs it on the first cargo call. The cache
       # holds the registry and the build output, keyed on the lockfile and toolchain (a tag build reads master's).
+      # The self-hosted runner (tools/ci-runner) keeps every cache on local volumes, so GitHub's network caches
+      # (these steps, setup-go/setup-node `cache:`) run on GitHub-hosted runners only.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.environment == 'github-hosted'
         with:
           path: |
             ~/.cargo/registry
@@ -132,6 +138,7 @@ jobs:
       # Advisory check of Cargo.lock, the Rust counterpart of govulncheck. The version is pinned and the binary is
       # cached, so only the first run (or a version bump) compiles it.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.environment == 'github-hosted'
         id: cargo-audit-bin
         with:
           path: ~/.cargo/bin/cargo-audit
@@ -139,7 +146,7 @@ jobs:
 
       - name: Install cargo-audit
         if: steps.cargo-audit-bin.outputs.cache-hit != 'true'
-        run: cargo install cargo-audit --locked --version 0.22.2
+        run: command -v cargo-audit >/dev/null || cargo install cargo-audit --locked --version 0.22.2
 
       - name: cargo audit
         working-directory: agent-rs
@@ -191,7 +198,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
-          cache: npm
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: agent/internal/webui/web/package-lock.json
 
       - name: Install web companion dependencies

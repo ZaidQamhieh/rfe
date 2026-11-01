@@ -35,6 +35,7 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: ${{ runner.environment == 'github-hosted' }}
           go-version: '1.26.10'
           cache-dependency-path: agent/go.sum
 
@@ -52,6 +53,7 @@ jobs:
       # default branch), so tag runs restore but never save: the 3 GB would only crowd out the caches
       # the branch and pull-request runs use.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.environment == 'github-hosted'
         id: cache-rust
         with:
           path: |
@@ -90,12 +92,13 @@ jobs:
 
       # The app must keep working with the last stable agent release, not only with the agent built
       # from this checkout. Tests of features that release lacks may skip (RFE_ALLOW_OLD_AGENT);
-      # the tests above run without that flag, so a missing feature fails them.
+      # the tests above run without that flag, so a missing feature fails them. "Last" is by tag date, not version:
+      # versions restarted at 1.0.0 with the RFE rebrand, so agent-v1.43.0 is older than agent-v1.0.0.
       - name: Tests against the last stable agent release
         env:
           RFE_ALLOW_OLD_AGENT: '1'
         run: |
-          tag=$(git tag -l 'agent-v*' --sort=-v:refname | grep -v -- '-rc' | head -n 1 || true)
+          tag=$(git tag -l 'agent-v*' --sort=-creatordate | grep -v -- '-rc' | head -n 1 || true)
           if [ -z "$tag" ]; then
             echo "::notice::no stable agent tag yet, skipping"
             exit 0
@@ -130,7 +133,7 @@ jobs:
           cargo audit --deny warnings
 
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: github.ref_type != 'tag' && steps.cache-rust.outputs.cache-hit != 'true'
+        if: runner.environment == 'github-hosted' && github.ref_type != 'tag' && steps.cache-rust.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.cargo/registry
@@ -161,6 +164,7 @@ jobs:
         run: rustup toolchain install
 
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.environment == 'github-hosted'
         id: cache-bundle
         with:
           path: |
@@ -226,7 +230,7 @@ jobs:
           retention-days: 14
 
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: github.ref_type != 'tag' && steps.cache-bundle.outputs.cache-hit != 'true'
+        if: runner.environment == 'github-hosted' && github.ref_type != 'tag' && steps.cache-bundle.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.cargo/registry

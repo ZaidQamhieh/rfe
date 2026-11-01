@@ -12,7 +12,8 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.gradle
-        {
+        # The self-hosted runner keeps ~/.gradle between jobs; append once.
+        grep -qs '^org.gradle.caching=true' ~/.gradle/gradle.properties || {
           echo "org.gradle.caching=true"
           echo "org.gradle.parallel=true"
           # The runner has 16 GB; the project default (2 GB) makes R8 and Kotlin compile garbage-collect heavily.
@@ -20,6 +21,7 @@ runs:
         } >> ~/.gradle/gradle.properties
 
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: runner.environment == 'github-hosted'
       with:
         path: |
           ~/.gradle/caches
@@ -28,6 +30,7 @@ runs:
         restore-keys: gradle-${{ runner.os }}-
 
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: runner.environment == 'github-hosted'
       with:
         path: |
           /usr/local/lib/android/sdk/ndk/27.1.12297006
