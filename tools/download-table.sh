@@ -41,17 +41,14 @@ join() { # joins the non-empty arguments with " · "
 agent() { link "$agent_tag" "$agent_assets" "$1" "${2:-Agent}"; }
 desktop() { link "$desktop_tag" "$desktop_assets" "$1" "${2:-Desktop}"; }
 
-row() { # row <label> <arch: amd64|arm64> [android cell html]
-  local a="$1" arch="$2" rpm_arch
-  [[ "$arch" == amd64 ]] && rpm_arch=x86_64 || rpm_arch=aarch64
-  printf '<tr>\n<td>%s</td>\n' "$a"
-  [[ -n "${3:-}" ]] && printf '%s\n' "$3"
-  printf '<td align="center">%s</td>\n' "$(agent "windows-$arch\.zip$")"
-  printf '<td align="center">%s</td>\n' "$(agent "darwin-$arch\.tar\.gz$")"
-  printf '<td align="center">%s</td>\n' "$(join "$(agent "linux-$arch\.deb$")" "$(desktop "_$arch\.deb$")")"
-  printf '<td align="center">%s</td>\n' "$(join "$(agent "linux-$arch\.rpm$")" "$(desktop "\.$rpm_arch\.rpm$")")"
-  printf '<td align="center">%s</td>\n' "$(join "$(agent "linux-$arch\.tar\.gz$")" "$(desktop "_$arch\.AppImage$")")"
-  printf '</tr>\n'
+cell() { printf '<td align="center">%s</td>' "$1"; }
+row() { # row <platform> <cell for amd64> <cell for arm64>: ARMv7 builds exist only for Android
+  printf '<tr>\n<th align="left">%s</th>\n%s\n%s\n<td></td>\n</tr>\n' "$1" "$(cell "$2")" "$(cell "$3")"
+}
+linux() { # linux <arch: amd64|arm64> <agent ext> <desktop regex for amd64>
+  local d=""
+  [[ "$1" == amd64 ]] && d="$(desktop "$3")"
+  join "$(agent "linux-$1\.$2$")" "$d"
 }
 
 apk="$(link "$app_tag" "$app_assets" '\.apk$' 'Universal APK')"
@@ -59,12 +56,19 @@ table="$(
   cat <<EOF
 <table>
 <tr>
-<th>Architecture</th><th>Android</th><th>Windows</th><th>macOS</th><th>Debian / Ubuntu</th><th>Fedora / openSUSE</th><th>Other Linux</th>
+<th>Platform</th><th>x86-64 (64-bit)</th><th>AArch64 (ARM64)</th><th>ARMv7 (32-bit)</th>
+</tr>
+<tr>
+<th align="left">Android</th>
+<td align="center" colspan="3">$apk</td>
 </tr>
 EOF
-  row 'x86-64 (64-bit)' amd64 "<td align=\"center\" rowspan=\"3\">$apk</td>"
-  row 'AArch64 (ARM64)' arm64
-  printf '<tr>\n<td>ARMv7 (32-bit)</td>\n<td></td><td></td><td></td><td></td><td></td>\n</tr>\n</table>\n'
+  row Windows "$(agent 'windows-amd64\.zip$')" "$(agent 'windows-arm64\.zip$')"
+  row macOS "$(agent 'darwin-amd64\.tar\.gz$')" "$(agent 'darwin-arm64\.tar\.gz$')"
+  row 'Debian / Ubuntu' "$(linux amd64 deb '_amd64\.deb$')" "$(linux arm64 deb)"
+  row 'Fedora / openSUSE' "$(linux amd64 rpm '\.x86_64\.rpm$')" "$(linux arm64 rpm)"
+  row 'Other Linux' "$(linux amd64 'tar\.gz' '_amd64\.AppImage$')" "$(linux arm64 'tar\.gz')"
+  printf '</table>\n'
   printf '\nApp %s · Agent %s · Desktop %s. ' "${app_tag#v}" "${agent_tag#agent-v}" "${desktop_tag#desktop-v}"
   printf 'Each release lists its `SHA256SUMS`; older versions are on the [releases page](https://github.com/%s/releases).\n' "$repo"
 )"

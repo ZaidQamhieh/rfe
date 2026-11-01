@@ -29,28 +29,41 @@ app (Linux) controls the agent from the PC. See [Install the host agent](#instal
 
 <table>
 <tr>
-<th>Architecture</th><th>Android</th><th>Windows</th><th>macOS</th><th>Debian / Ubuntu</th><th>Fedora / openSUSE</th><th>Other Linux</th>
+<th>Platform</th><th>x86-64 (64-bit)</th><th>AArch64 (ARM64)</th><th>ARMv7 (32-bit)</th>
 </tr>
 <tr>
-<td>x86-64 (64-bit)</td>
-<td align="center" rowspan="3"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a></td>
+<th align="left">Android</th>
+<td align="center" colspan="3"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a></td>
+</tr>
+<tr>
+<th align="left">Windows</th>
 <td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-amd64.zip">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-amd64.tar.gz">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.deb">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.deb">Desktop</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.rpm">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop-1.0.3-1.x86_64.rpm">Desktop</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.tar.gz">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.AppImage">Desktop</a></td>
-</tr>
-<tr>
-<td>AArch64 (ARM64)</td>
 <td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-arm64.zip">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-arm64.tar.gz">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.deb">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.rpm">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.tar.gz">Agent</a></td>
+<td></td>
 </tr>
 <tr>
-<td>ARMv7 (32-bit)</td>
-<td></td><td></td><td></td><td></td><td></td>
+<th align="left">macOS</th>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-amd64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-arm64.tar.gz">Agent</a></td>
+<td></td>
+</tr>
+<tr>
+<th align="left">Debian / Ubuntu</th>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.deb">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.deb">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.deb">Agent</a></td>
+<td></td>
+</tr>
+<tr>
+<th align="left">Fedora / openSUSE</th>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.rpm">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop-1.0.3-1.x86_64.rpm">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.rpm">Agent</a></td>
+<td></td>
+</tr>
+<tr>
+<th align="left">Other Linux</th>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.tar.gz">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.AppImage">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.tar.gz">Agent</a></td>
+<td></td>
 </tr>
 </table>
 
