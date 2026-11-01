@@ -4,22 +4,6 @@ Remote File Explorer: a mobile app that turns your phone into a full graphical f
 Linux computers — browse, manage, and transfer files over a Finder/Explorer-style GUI, with no SSH
 or terminal required.
 
-- **`mobile/`** — React Native (Expo) Android app; it upgrades the old Flutter v1.42 app in place (see `docs/upgrade-to-react-native.md`)
-- **`agent/`** — Go host service that runs on each Windows/macOS/Linux computer
-- **`protocol/`** — OpenAPI 3 contract shared by both sides (source of truth)
-- **`docs/`** — architecture and setup guides
-
-The app connects to the agent over HTTPS/TLS. On a local network, connect by IP address or
-hostname without a VPN. **Tailscale is optional** for remote access; the app can also save a
-direct HTTPS hostname or IP as a fallback route. That route works only after the PC owner configures
-public DNS (if needed), router NAT, and firewall access to the agent. The app never opens ports or
-changes router settings, and its pinned certificate means a TLS-terminating proxy with a different
-certificate is not compatible. The agent advertises itself over mDNS/DNS-SD; the Android app can
-list local IPv4 candidates from Add computer → Find on LAN, then still requires the normal
-certificate-pin and pairing-code checks. mDNS does not authenticate a host. QR pairing and manual
-address entry remain available. The project has no cloud relay or cloud database. See `docs/` for
-the full architecture.
-
 ## Download
 
 The Android app installs on the phone; the host agent runs on each computer you want to browse, and the desktop
@@ -70,6 +54,24 @@ app (Linux) controls the agent from the PC. See [Install the host agent](#instal
 App 1.0.0 · Agent 1.0.0 · Desktop 1.0.3. Each release lists its `SHA256SUMS`; older versions are on the [releases page](https://github.com/ZaidQamhieh/rfe/releases).
 
 <!-- downloads:end -->
+
+## Overview
+
+- **`mobile/`** — React Native (Expo) Android app; it upgrades the old Flutter v1.42 app in place (see `docs/upgrade-to-react-native.md`)
+- **`agent/`** — Go host service that runs on each Windows/macOS/Linux computer
+- **`protocol/`** — OpenAPI 3 contract shared by both sides (source of truth)
+- **`docs/`** — architecture and setup guides
+
+The app connects to the agent over HTTPS/TLS. On a local network, connect by IP address or
+hostname without a VPN. **Tailscale is optional** for remote access; the app can also save a
+direct HTTPS hostname or IP as a fallback route. That route works only after the PC owner configures
+public DNS (if needed), router NAT, and firewall access to the agent. The app never opens ports or
+changes router settings, and its pinned certificate means a TLS-terminating proxy with a different
+certificate is not compatible. The agent advertises itself over mDNS/DNS-SD; the Android app can
+list local IPv4 candidates from Add computer → Find on LAN, then still requires the normal
+certificate-pin and pairing-code checks. mDNS does not authenticate a host. QR pairing and manual
+address entry remain available. The project has no cloud relay or cloud database. See `docs/` for
+the full architecture.
 
 ## Status
 
