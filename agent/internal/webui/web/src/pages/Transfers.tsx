@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Search, Trash2, File as FileIcon, ArrowLeftRight } from 'lucide-react';
-import { api, ApiError, type TransferRow } from '@/lib/api';
+import { api, apiMessage, type TransferRow } from '@/lib/api';
+import { confirmDestructive } from '@/lib/confirm';
 import { useToast } from '@/lib/toast-context';
 import { DataTable } from '@/components/DataTable';
+import { ListError } from '@/components/ListError';
+import { formatBytes } from '@/lib/format';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'failed';
 const FILTERS: { id: StatusFilter; label: string }[] = [
@@ -14,18 +17,7 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'failed', label: 'Failed' },
 ];
 
-function formatBytes(n: number): string {
-  if (!n) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${i === 0 ? v : v.toFixed(1)} ${units[i]}`;
-}
-
+// Not formatAgo from lib/format: this table reads "Never" for no time and shows seconds and days differently.
 function timeAgo(unixSeconds: number): string {
   if (!unixSeconds) return 'Never';
   const diff = Date.now() / 1000 - unixSeconds;
@@ -59,10 +51,12 @@ export function Transfers() {
       qc.invalidateQueries({ queryKey: ['transfers'] });
       toast('Session cleared');
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Failed to clear session'),
+    onError: (err) => toast(apiMessage(err, 'Failed to clear session')),
   });
 
   const data = transfers.data;
+  // A failed query with nothing cached shows "--" and an error, not a believable zero or "No transfers".
+  const failed = transfers.isError && !data;
   const deviceLabel = (id: string) => data?.devices.find((d) => d.id === id)?.label ?? id;
 
   const filtered = (data?.transfers ?? []).filter((t) => {
@@ -121,7 +115,7 @@ export function Transfers() {
             className="iconbtn"
             title="Clear session"
             onClick={() => {
-              if (window.confirm(`Clear transfer session for "${row.original.name}"?`)) deleteMutation.mutate(row.original.id);
+              if (confirmDestructive(`Clear transfer session for "${row.original.name}"?`)) deleteMutation.mutate(row.original.id);
             }}
           >
             <Trash2 />
@@ -142,20 +136,20 @@ export function Transfers() {
         <div className="card stat-card">
           <div className="label">Active now</div>
           <div className="value" style={{ color: 'var(--primary)', gap: 8 }}>
-            <span className="live-dot" /> {data?.activeNow ?? 0}
+            <span className="live-dot" /> {failed ? '--' : (data?.activeNow ?? 0)}
           </div>
         </div>
         <div className="card stat-card">
           <div className="label">Completed today</div>
-          <div className="value" style={{ color: 'var(--green)' }}>{data?.counts['completed'] ?? 0}</div>
+          <div className="value" style={{ color: 'var(--green)' }}>{failed ? '--' : (data?.counts['completed'] ?? 0)}</div>
         </div>
         <div className="card stat-card">
           <div className="label">Failed</div>
-          <div className="value" style={{ color: 'var(--red)' }}>{data?.counts['failed'] ?? 0}</div>
+          <div className="value" style={{ color: 'var(--red)' }}>{failed ? '--' : (data?.counts['failed'] ?? 0)}</div>
         </div>
         <div className="card stat-card">
           <div className="label">Total sessions</div>
-          <div className="value">{data?.total ?? 0}</div>
+          <div className="value">{failed ? '--' : (data?.total ?? 0)}</div>
         </div>
       </div>
 
@@ -190,6 +184,8 @@ export function Transfers() {
 
       {transfers.isLoading ? (
         <div className="empty">Loading…</div>
+      ) : failed ? (
+        <ListError title="Could not load transfers" error={transfers.error} />
       ) : filtered.length === 0 ? (
         <div className="empty">
           <h4>No transfers</h4>

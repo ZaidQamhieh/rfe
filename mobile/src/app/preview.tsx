@@ -1,25 +1,31 @@
 import { Stack, useRouter } from 'expo-router';
-import { Download, ExternalLink, FileCode, Info, ListOrdered, Pencil, Radio, Trash2 } from 'lucide-react-native';
+import { FileCode, Info, ListOrdered, Pencil, Radio } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, StatusBar, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { can, type Entry } from '../core/api/models';
-import { ActionListCard, ActionListTile, BottomSheet, MockupSwitch, SheetHead, Text, useDialogs, useToast } from '../design/components';
+import { BottomSheet, DuoIcon, MockupSwitch, Row, SheetHead, Text, useDialogs, useToast } from '../design/components';
 import { useScheme } from '../design/theme';
 import { lightScheme, Radii, Spacing } from '../design/tokens';
+import { ON_DARK } from '../design/overlayPalette';
 import { t } from '../i18n';
 import { clientForHost } from '../services';
-import { humanizeError } from '../features/pairing/pairingService';
+import { humanizeError } from '../core/humanizeError';
 import { MetaSheet } from '../features/explorer/MetaSheet';
 import { PreviewIconButton, PreviewTopBar } from '../features/preview/PreviewChrome';
+import { FactsList, PreviewActions, PreviewFacts, TechnicalDetails } from '../features/preview/PreviewInfo';
+import { factRows } from '../features/preview/previewFacts';
 import { networkTransports } from '../core/native';
+import { pagerChipTop, pagerChipTopClearance } from '../features/preview/pagerChip';
 import { preloadNeighbours } from '../features/preview/neighbourPreload';
 import { fetchPreviewFile, MAX_EDITABLE_BYTES, MAX_IN_MEMORY_PREVIEW_BYTES } from '../features/preview/previewFile';
 import { previewKindOf } from '../features/preview/previewKind';
+import { neighbourIndex, type SwipeDirection } from '../features/preview/swipeNav';
 import { useEditorSession, usePreviewSession } from '../features/preview/session';
 import { useExternalActions } from '../features/preview/useExternalActions';
 import { useFileCapabilities } from '../features/explorer/useFileCapabilities';
+import { deleteDoneMessage } from '../features/explorer/deleteToast';
 import { useSettings } from '../state/settings';
 import { utf8Length } from '../features/preview/textDecode';
 import { PreviewPage } from '../features/preview/viewers/PreviewPage';
@@ -36,7 +42,7 @@ export default function Preview() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text muted>Nothing to preview.</Text>
+        <Text muted>{t('nothingToPreview')}</Text>
       </View>
     );
   }
@@ -93,6 +99,18 @@ function Pager({ onClose }: { onClose: () => void }) {
     session.onChanged?.();
   }
 
+  // A swipe an image page caught itself: move the pager one page that way (nothing at either end).
+  const goBy = useCallback(
+    (dir: SwipeDirection) => {
+      const ni = neighbourIndex(index, entries.length, dir);
+      if (ni === null) return;
+      setIndex(ni);
+      setZoomed(false);
+      list.current?.scrollToIndex({ index: ni, animated: true });
+    },
+    [index, entries.length],
+  );
+
   function dropCurrent() {
     session.onChanged?.();
     if (entries.length <= 1) return onClose();
@@ -127,7 +145,7 @@ function Pager({ onClose }: { onClose: () => void }) {
     try {
       const client = await clientForHost(session.host);
       await client.delete([current.path], { permanent: choice === 'forever' });
-      toast.success(choice === 'forever' ? t('deletedName', { name: current.name }) : t('movedToTrashName', { name: current.name }));
+      toast.success(deleteDoneMessage(choice === 'forever', current.name));
       dropCurrent();
     } catch (e) {
       toast.error(t('deleteFailed', { error: humanizeError(e) }));
@@ -157,12 +175,12 @@ function Pager({ onClose }: { onClose: () => void }) {
         </PreviewIconButton>
       )}
       {kind === 'markdown' && (
-        <PreviewIconButton label="Show source" selected={rawMarkdown} onPress={() => setRawMarkdown((v) => !v)}>
+        <PreviewIconButton label={t('showSourceLabel')} selected={rawMarkdown} onPress={() => setRawMarkdown((v) => !v)}>
           <FileCode size={19} color={rawMarkdown ? c.primary : c.onSurfaceVariant} />
         </PreviewIconButton>
       )}
       {canEdit && (
-        <PreviewIconButton label="Edit" onPress={edit}>
+        <PreviewIconButton label={t('editLabel')} onPress={edit}>
           <Pencil size={19} color={c.onSurfaceVariant} />
         </PreviewIconButton>
       )}
@@ -170,10 +188,10 @@ function Pager({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: onDark ? '#000' : c.surface }}>
+    <View style={{ flex: 1, backgroundColor: onDark ? ON_DARK.canvas : c.surface }}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle={onDark || c.surface !== lightScheme.surface ? 'light-content' : 'dark-content'} />
-      <PreviewTopBar entry={current} onDark={onDark} onBack={onClose} onShare={() => void external.share(current)} onMore={() => setMoreOpen(true)} leading={leading} />
+      <PreviewTopBar entry={current} onDark={onDark} onBack={onClose} onMore={() => setMoreOpen(true)} leading={leading} />
       <FlatList
         ref={list}
         data={entries}
@@ -195,32 +213,37 @@ function Pager({ onClose }: { onClose: () => void }) {
           }
         }}
         renderItem={({ item, index: i }) => (
-          // Documents stop above the gesture bar; image/video stay full-bleed.
-          <View style={{ width, flex: 1, paddingBottom: ['image', 'video'].includes(previewKindOf(item)) ? 0 : insets.bottom }}>
-            <PreviewPage host={session.host} entry={item} isCurrent={i === index} lineNumbers={lineNumbers} rawMarkdown={rawMarkdown} follow={follow} onZoomChange={setZoomed} onText={onText} />
+          // The action row below the pager already clears the gesture bar; the top clearance keeps the "n of m" chip off the page's first line.
+          <View style={{ width, flex: 1, paddingTop: pagerChipTopClearance(entries.length, ['image', 'video'].includes(previewKindOf(item))) }}>
+            <PreviewPage host={session.host} entry={item} isCurrent={i === index} lineNumbers={lineNumbers} rawMarkdown={rawMarkdown} follow={follow} onZoomChange={setZoomed} onSwipe={goBy} onText={onText} />
           </View>
         )}
       />
       {entries.length > 1 && (
-        <View pointerEvents="none" style={{ position: 'absolute', bottom: insets.bottom + Spacing.md, left: 0, right: 0, alignItems: 'center' }}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.54)', borderRadius: Radii.stadium, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs }}>
-            <Text variant="bodySmall" color="#FFFFFF">{t('previewPageIndicator', { current: index + 1, total: entries.length })}</Text>
+        <View pointerEvents="none" style={{ position: 'absolute', top: pagerChipTop(insets.top), left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ backgroundColor: ON_DARK.pill, borderRadius: Radii.stadium, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs }}>
+            <Text variant="bodySmall" color={ON_DARK.ink}>{t('previewPageIndicator', { current: index + 1, total: entries.length })}</Text>
           </View>
         </View>
       )}
+      {/* Photos and videos show their info under the picture; every other file keeps it in the "…" sheet. */}
+      {onDark ? <PreviewFacts host={session.host} entry={current} media onDark /> : null}
+      <PreviewActions
+        onDark={onDark}
+        bottomInset={insets.bottom}
+        onShare={() => void external.share(current)}
+        onSave={can(caps, 'download') ? () => void save() : undefined}
+        onOpen={can(caps, 'download') ? () => void external.openWith(current) : undefined}
+        onDelete={can(caps, 'delete') ? () => void remove() : undefined}
+      />
       <BottomSheet visible={moreOpen} onClose={() => setMoreOpen(false)}>
         <SheetHead title={current.name} />
-        <View style={{ padding: Spacing.md }}>
-          <ActionListCard>
-            {[
-              kind === 'text' ? <ActionListTile key="lines" icon={<ListOrdered size={20} color={c.onSurfaceVariant} />} label="Line numbers" trailing={<MockupSwitch value={lineNumbers} />} onPress={() => { setMoreOpen(false); setLineNumbers((v) => !v); }} /> : null,
-              kind === 'text' ? <ActionListTile key="follow" icon={<Radio size={20} color={c.onSurfaceVariant} />} label={t('followButton')} trailing={<MockupSwitch value={follow} />} onPress={() => { setMoreOpen(false); setFollow((v) => !v); }} /> : null,
-              can(caps, 'download') ? <ActionListTile key="open" icon={<ExternalLink size={20} color={c.onSurfaceVariant} />} label={t('openWithButton')} onPress={() => { setMoreOpen(false); void external.openWith(current); }} /> : null,
-              <ActionListTile key="info" icon={<Info size={20} color={c.onSurfaceVariant} />} label={t('detailsButton')} onPress={() => { setMoreOpen(false); setMetaOpen(true); }} />,
-              can(caps, 'download') ? <ActionListTile key="save" icon={<Download size={20} color={c.onSurfaceVariant} />} label={t('downloadButton')} onPress={save} /> : null,
-              can(caps, 'delete') ? <ActionListTile key="del" icon={<Trash2 size={20} color={c.error} />} label={t('deleteButton')} tint={c.error} onPress={remove} /> : null,
-            ].filter((x) => x !== null)}
-          </ActionListCard>
+        <View style={{ paddingBottom: Spacing.md }}>
+          {kind === 'text' ? <Row title={t('lineNumbersLabel')} lead={<DuoIcon icon={ListOrdered} />} trailing={<MockupSwitch value={lineNumbers} />} onPress={() => { setMoreOpen(false); setLineNumbers((v) => !v); }} /> : null}
+          {kind === 'text' ? <Row title={t('followButton')} lead={<DuoIcon icon={Radio} />} trailing={<MockupSwitch value={follow} />} onPress={() => { setMoreOpen(false); setFollow((v) => !v); }} /> : null}
+          <Row title={t('detailsButton')} lead={<DuoIcon icon={Info} />} onPress={() => { setMoreOpen(false); setMetaOpen(true); }} />
+          {onDark ? null : <FactsList rows={factRows(current)} />}
+          <TechnicalDetails path={current.path} />
         </View>
       </BottomSheet>
       {/* Mutations here (rename, delete, extract...) leave the pager stale, so they return to the refreshed folder. */}

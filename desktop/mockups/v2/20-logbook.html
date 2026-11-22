@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Logbook — a day-by-day journal of your computers</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d20{--bg:#fbf9f5;--sf:#ffffff;--rz:#f2eee6;--t1:#1f1b16;--t2:#5b544a;--t3:#7a7266;--line:rgba(31,27,22,.08);--line2:rgba(31,27,22,.14);--ac:#8a4b1f;--on-ac:#fff;--ac-ink:#7f441b;--ac-soft:rgba(138,75,31,.08);--font:"Instrument Sans",system-ui,sans-serif;--display:"Newsreader",Georgia,serif;display:grid;grid-template-columns:200px 1fr 300px}
+.d20 .k-title{font-family:var(--display);font-weight:400}
+.d20 .side{border-right:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.d20 .side .lg{display:flex;gap:8px;align-items:center;font-weight:500;padding:0 8px 16px}
+.d20 .side h4{font:500 12px var(--font);color:var(--t3);margin:16px 8px 6px}
+.d20 .side .d{display:flex;align-items:center;height:30px;padding:0 8px;border-radius:6px;color:var(--t2)} .d20 .side .d.on{background:var(--rz);color:var(--t1)}
+.d20 .side .d small{margin-left:auto;font:11px var(--mono);color:var(--t3)}
+.d20 .side .k-navi{height:32px}
+.d20 .stage{overflow:auto;padding:28px 40px;min-height:0}
+.d20 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column;padding:16px 24px}.d20 .k-files{flex:1}
+.d20 .stage.wide{grid-column:2/4}
+.d20 .day{font:400 30px/1.2 var(--display);margin:0;letter-spacing:-.01em}
+.d20 .sub{color:var(--t3);margin:4px 0 24px;font-size:13px;display:flex;gap:12px;align-items:center}
+.d20 .sub .k-in{margin-left:auto}
+.d20 .e{display:grid;grid-template-columns:56px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.d20 .e time{font:12px var(--mono);color:var(--t3);padding-top:2px}
+.d20 .e p{margin:0;font-size:14px;line-height:1.5} .d20 .e p small{display:block;color:var(--t3);font-size:12px}
+.d20 .e .acts{display:flex;gap:8px;margin-top:10px;align-items:center}
+.d20 .e.open{background:var(--sf);margin:0 -16px;padding:14px 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);border-top-color:transparent}
+.d20 .e.open+.e{border-top-color:transparent}
+.d20 .e .ph{display:flex;gap:8px;margin-top:10px}.d20 .e .ph svg{border-radius:6px}
+.d20 .e .code{font:500 20px var(--mono);letter-spacing:.04em}
+.d20 .e > div{position:relative;padding-left:30px} .d20 .e .ek{position:absolute;left:0;top:1px}
+.d20 .now{border-left:1px solid var(--line);padding:20px 16px;overflow:auto;display:flex;flex-direction:column;gap:20px;font-size:13px}
+.d20 .now h3{font:400 18px var(--display);margin:0 0 8px;display:flex;align-items:center;justify-content:space-between}
+.d20 .now .pc{display:grid;grid-template-columns:12px 1fr auto;gap:8px;align-items:center;height:30px}
+.d20 .now .pc small{font:11px var(--mono);color:var(--t3)}
+.d20 .now .x{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:13px;margin-bottom:12px} .d20 .now .x small{font:11px var(--mono);color:var(--t3)} .d20 .now .x .k-bar{grid-column:1/3;margin:0}
+.d20 .now .r{display:flex;gap:4px;align-items:center;margin-top:-4px}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d20">
+ <aside class="side" id="side"></aside>
+ <main class="stage" id="st"></main>
+ <aside class="now" id="now"></aside>
+</div>
+<script>
+window.IDEA='The app opens on today’s page of a logbook: what moved, who signed in, which phone asked to pair, which file clashed. Anything that still needs an answer is written as an open entry with its buttons, so the record and the to-do list are the same thing. What is live right now stays in a narrow column on the right.';
+window.MAP=[['Navigation','Days and pages in the left column; Today is home',1],['Switch computer','Now column, Computers; clicking one opens its files',1],['Connect and trust','Now column, Add a computer',1],['Servers and status','Now column shows each computer and its key; Servers page for details',0],['Files and preview','Files page, or a file named in an entry; right-click for every action',1],['Upload and download','Files page, Ctrl U, Ctrl D; downloads land in the log with their checksum',1],['Pair a phone','QR icon in the Now column',1],['Pairing requests','Open entry at the top of today, with Accept',1],['Transfers','Now column for progress; open entries for conflicts',0],['Search','Search the log, or / for files',1],['Tools','Tools in the left column',1],['History and audit','The whole home screen; filter by kind in the search',0],['Settings','Settings in the left column',1],['Tray and notifications','Bell in the Now column',1]];
+const I=K.I,D=K.D;
+function side(v){document.getElementById('side').innerHTML=`<div class="lg">${I('key',16)}RFE</div>${[['Today','8',1],['Yesterday','14'],['Thursday','6'],['October','212']].map(d=>`<button class="d${d[2]&&v==='log'?' on':''}" data-k="go:log">${d[0]}<small>${d[1]}</small></button>`).join('')}<h4>Pages</h4>${K.C.nav(v,{skip:['history'],size:16})}`;document.getElementById('now').style.display=v==='log'?'':'none';document.getElementById('st').classList.toggle('wide',v!=='log');}
+document.getElementById('now').innerHTML=`<div class="r">${K.C.searchBox('Search files')}</div><div class="r" style="justify-content:flex-end">${K.ib('qr','Pair a phone','dlg:pairphone')}${K.ib('bell','Notifications','menu:notes','<i class="k-nb"></i>')}<button class="k-av" data-k="menu:account">S</button></div>
+<section><h3>Now ${K.btn('Pause all',{k:'sm ghost',i:'pause'})}</h3><div class="x"><span>walkthrough-full.mov</span><small>71%</small>${K.bar(71)}<small>to studio-pc · 52.4 MB/s · 23 s</small></div><div class="x"><span>tax-2025.pdf</span><small>checking</small>${K.bar(100)}</div><div class="x"><span>seed-order.xlsx</span><small>queued</small></div></section>
+<section><h3>Computers ${K.ib('plus','Add a computer','dlg:newconn')}</h3>${D.servers.map(s=>`<button class="pc" data-k="${s.dot==='ok'?'go:files':s.dot==='bad'?'dlg:keychanged':'menu:server'}">${K.dot(s.dot)}<span>${K.mach(s,16)}${s.name}</span><small>${s.tag}</small></button>`).join('')}</section>`;
+const EK={'10:46':'phone','10:44':'outbox_tray','10:41':'inbox_tray','10:02':'warning','09:01':'locked','08:58':'key','08:14':'antenna_bars','07:55':'locked'};
+const ent=(t,body,cls='')=>`<div class="e ${cls}"><time>${t}</time><div><span class="ek">${K.E(EK[t],18)}</span>${body}</div></div>`;
+const log=()=>`<h1 class="day">Sunday, 1 November</h1><p class="sub">8 entries · 3 still open<label class="k-in sm">${I('filter',14)}<input placeholder="Search the log" aria-label="Search the log"></label></p>
+${ent('10:46',`<p>Pixel 9 asks to pair with studio-pc<small>from 192.168.1.40 · accept only if the phone shows the same code · 1:42 left</small></p><div class="acts"><span class="code">4829 1307</span><span class="sp" style="flex:1"></span>${K.btn('Reject',{k:'sm ghost'})}${K.btn('Accept…',{k:'pri sm',a:'dlg:accept'})}</div>`,'open')}
+${ent('10:44',`<p>Uploading walkthrough-full.mov to studio-pc<small>4.1 GB · 71% · 23 s left</small></p>`)}
+${ent('10:41',`<p>Downloaded north-bed-before.jpg from studio-pc, checksum verified<small>~/Downloads/RFE Desktop · 4.1 MB</small></p><div class="ph">${K.photo(1,96,64,6)}</div><div class="acts">${K.btn('Show in folder',{k:'sm',i:'folder'})}${K.btn('Open',{k:'sm ghost',a:'dlg:preview'})}</div>`)}
+${ent('10:02',`<p>bed-layout.pdf already exists on work-laptop<small>upload to /Users/sam/Documents waits for your answer</small></p><div class="acts">${K.btn('Replace',{k:'sm'})}${K.btn('Keep both',{k:'pri sm'})}${K.btn('Skip',{k:'sm ghost'})}</div>`,'open')}
+${ent('09:01',`<p>Signed in to studio-pc as sam<small>account · this computer, desk-linux</small></p>`)}
+${ent('08:58',`<p>nas presented a different key than the one you trusted<small>pinned 41DE 0B93 · RFE will not connect until you compare</small></p><div class="acts">${K.btn('Compare keys…',{k:'sm',a:'dlg:keychanged'})}</div>`,'open')}
+${ent('08:14',`<p>media-mini stopped answering; album-2019.zip paused at 33%<small>it continues when the computer is back</small></p><div class="acts">${K.btn('Wake computer',{k:'sm',i:'power'})}</div>`)}
+${ent('07:55',`<p>Failed sign-in on studio-pc for account “admin” from 10.0.0.9<small>security · 1 attempt</small></p><div class="acts">${K.btn('Agent log',{k:'sm ghost',a:'dlg:agentlog'})}</div>`)}`;
+K.mount({stage:document.getElementById('st'),state:{view:'log'},views:{log,history:log},onGo:side});
+</script></body></html>

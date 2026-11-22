@@ -43,7 +43,11 @@ func retireLegacyService(daemon bool) (bool, error) {
 	}
 	if userUnit != "" {
 		if err := os.Remove(userUnit); err == nil {
-			_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+			// The unit file is already gone; a failed reload only leaves systemd
+			// listing it until the next reload, so report it and carry on.
+			if err := exec.Command("systemctl", "--user", "daemon-reload").Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "systemctl --user daemon-reload failed: %v\n", err)
+			}
 		} else if !os.IsNotExist(err) {
 			return true, fmt.Errorf("remove %s: %w", userUnit, err)
 		}

@@ -8,12 +8,14 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/ZaidQamhieh/rfe/agent/internal/events"
 	"github.com/ZaidQamhieh/rfe/agent/internal/fsops"
 	"github.com/ZaidQamhieh/rfe/agent/internal/pairing"
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
@@ -37,14 +39,25 @@ type Config struct {
 	TrashDir         string    // trash store root (XDG Trash on Linux; managed dir elsewhere)
 	StartTime        time.Time // agent process start time (for uptime reporting)
 	DataDir          string    // data directory path (for disk-space reporting)
+	// BundleRoot is the launcher's install root (state.json lives there); empty when the agent runs without one.
+	BundleRoot string
 	// OnPairRequest, when set, is told about each new approve-on-PC pairing request (desktop notification).
 	OnPairRequest func(PairPrompt)
+	// Events is the push-channel hub behind GET /v1/events. The caller closes it
+	// on shutdown so open streams end; when nil, New makes a private one.
+	Events *events.Hub
 }
 
 // New builds the v1 router and wires all routes.
 func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (http.Handler, error) {
 	ops := fsops.NewWithSettings(cfg.Settings)
 	searchIndex := newIndexBackend(ops)
+
+	if cfg.Events == nil {
+		cfg.Events = events.NewHub()
+	}
+	hub := cfg.Events
+	db.SetAuditHook(func() { hub.Publish(events.KindAudit) })
 
 	thumbRenderer, err := thumbs.New(cfg.ThumbCacheDir)
 	if err != nil {
@@ -59,6 +72,9 @@ func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (h
 	r.Use(middleware.Recoverer)
 
 	nonces := newNonceStore()
+	// One failed-password budget per account, shared by POST /login and the password re-check that pinning an
+	// account server needs, so guesses spread over both still run out.
+	accountFails := newKeyedLimiter(loginAccountFailures, loginAccountFailureWindow)
 
 	r.Route("/v1", func(r chi.Router) {
 		// API responses often contain private file or host metadata. Do not let
@@ -72,14 +88,15 @@ func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (h
 				next.ServeHTTP(w, req)
 			})
 		})
-		registerUnauthRoutes(r, cfg, db, pm, ops, nonces)
+		r.Use(publishOnMutation(hub))
+		registerUnauthRoutes(r, cfg, db, pm, ops, nonces, accountFails)
 
 		// Authenticated, no path jail (non-filesystem endpoints).
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(db))
 			r.Get("/status", statusHandler(cfg))
 			// Transfer history is scoped to the caller inside the handlers:
-			// a non-admin sees only its own sessions (PR-03).
+			// a non-admin sees only its own sessions.
 			r.Get("/transfers/list", listTransfersHandler(db))
 			r.Delete("/transfers/{id}", deleteTransferHandler(db, tm))
 		})
@@ -96,16 +113,21 @@ func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (h
 		// Admin-only control plane: whole-host telemetry, login-account
 		// management, the agent's journal, and process restart. These expose
 		// or mutate state belonging to every device, so an ordinary paired
-		// device (phone app, guest) must not reach them — PR-03.
+		// device (phone app, guest) must not reach them.
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(db))
 			r.Use(adminOnly)
-			r.Get("/metrics", metricsHandler())
-			r.Get("/users", listUsersHandler(db))
-			r.Delete("/users/{username}", deleteUserHandler(db))
+			r.Get("/metrics", metricsHandler(tm))
+			r.With(denyFederated(db)).Get("/users", listUsersHandler(db))
+			r.With(denyFederated(db)).Delete("/users/{username}", deleteUserHandler(db))
 			r.Get("/logs", listLogsHandler())
 			r.Get("/audit", listAuditHandler(db))
+			r.Get("/system/backups", backupsStatusHandler(cfg))
 			r.Post("/agent/restart", restartHandler(db))
+			r.Post("/accounts/assertion", assertionHandler(cfg, db))
+			r.Get("/settings/account-server", getAccountServerSettingsHandler(cfg, db))
+			r.With(denyFederated(db)).Put("/settings/account-server", putAccountServerSettingsHandler(cfg, db, accountFails))
+			r.With(denyFederated(db)).Delete("/settings/account-server", deleteAccountServerTrustHandler(db))
 		})
 
 		// Authenticated sub-router.
@@ -116,6 +138,8 @@ func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (h
 			// in context) and before any handler that resolves paths.
 			r.Use(deviceJailMiddleware(ops))
 
+			// Push channel: needs the browse grant like the listings it tells the client to refetch.
+			r.With(requireFileCapabilities(capBrowse)).Get("/events", eventsHandler(hub, db))
 			registerSettingsAndDeviceRoutes(r, cfg, db, pm)
 			registerShareRoutes(r, cfg, db, ops)
 			r.With(requireFileCapabilities(capBrowse)).Get("/system/drives", drivesHandler(ops))
@@ -141,7 +165,7 @@ func New(cfg Config, db *store.DB, pm *pairing.Manager, tm *transfer.Manager) (h
 // health, pairing, registration, login, the device-identity challenge,
 // browser-session logout, and the single-use share-link fetch (rate-limited
 // and expiring — see docs/r1-share-link-threat-model.md).
-func registerUnauthRoutes(r chi.Router, cfg Config, db *store.DB, pm *pairing.Manager, ops *fsops.Ops, nonces *nonceStore) {
+func registerUnauthRoutes(r chi.Router, cfg Config, db *store.DB, pm *pairing.Manager, ops *fsops.Ops, nonces *nonceStore, accountFails *keyedLimiter) {
 	r.Get("/health", healthHandler(cfg, db))
 	r.Post("/auth/challenge", challengeHandler(nonces, cfg.CertFingerprint))
 	r.Post("/auth/logout", logoutHandler(db))
@@ -150,7 +174,8 @@ func registerUnauthRoutes(r chi.Router, cfg Config, db *store.DB, pm *pairing.Ma
 	r.Post("/pair/request/{id}/reveal", revealPairRequestHandler(cfg, db))
 	r.Get("/pair/request/{id}", pollPairRequestHandler(cfg, db))
 	r.Post("/register", registerHandler(cfg, db, pm, nonces))
-	r.Post("/login", loginHandler(cfg, db, nonces))
+	r.Post("/login", newLoginHandler(cfg, db, nonces, accountFails))
+	r.Get("/accounts/key", accountKeyHandler(cfg, db))
 	r.Get("/share/{token}", serveShareHandler(db, ops, cfg.Settings.IsAllowSharing))
 }
 
@@ -159,12 +184,12 @@ func registerUnauthRoutes(r chi.Router, cfg Config, db *store.DB, pm *pairing.Ma
 // generation).
 func registerSettingsAndDeviceRoutes(r chi.Router, cfg Config, db *store.DB, pm *pairing.Manager) {
 	r.Get("/settings", getSettingsHandler(cfg.Settings))
-	r.Patch("/settings", patchSettingsHandler(cfg.Settings))
+	r.With(denyFederated(db)).Patch("/settings", patchSettingsHandler(cfg.Settings))
 	r.Get("/settings/bandwidth", getBandwidthHandler(cfg.Settings))
 	r.Put("/settings/bandwidth", putBandwidthHandler(cfg.Settings))
 	r.Get("/devices", listDevicesHandler(db))
-	r.Patch("/devices/{id}", setDeviceJailHandler(db, cfg.Settings))
-	r.Delete("/devices/{id}", func(w http.ResponseWriter, req *http.Request) {
+	r.With(denyFederated(db)).Patch("/devices/{id}", setDeviceJailHandler(db, cfg.Settings))
+	r.With(denyFederated(db)).Delete("/devices/{id}", func(w http.ResponseWriter, req *http.Request) {
 		id := chi.URLParam(req, "id")
 		// ?purge=true permanently removes the row (used to clear revoked
 		// devices); otherwise the device is revoked.
@@ -175,10 +200,10 @@ func registerSettingsAndDeviceRoutes(r chi.Router, cfg Config, db *store.DB, pm 
 		revokeDeviceHandler(db)(w, req, id)
 	})
 	r.Post("/wol", wolRelayHandler(db))
-	r.Post("/pairing/generate", generatePairingHandler(pm, cfg.Settings))
-	r.Get("/pair/requests", listPairRequestsHandler(cfg, db))
-	r.Post("/pair/requests/{id}/approve", decidePairRequestHandler(db, true))
-	r.Post("/pair/requests/{id}/reject", decidePairRequestHandler(db, false))
+	r.With(denyFederated(db)).Post("/pairing/generate", generatePairingHandler(pm, cfg.Settings))
+	r.With(denyFederated(db)).Get("/pair/requests", listPairRequestsHandler(cfg, db))
+	r.With(denyFederated(db)).Post("/pair/requests/{id}/approve", decidePairRequestHandler(db, true))
+	r.With(denyFederated(db)).Post("/pair/requests/{id}/reject", decidePairRequestHandler(db, false))
 }
 
 // registerShareRoutes wires the authenticated R1 share-link management
@@ -208,11 +233,13 @@ func registerFsRoutes(r chi.Router, cfg Config, ops *fsops.Ops, recents indexBac
 	r.With(requireFileCapabilities(capModify)).Post("/fs/compress", compressHandler(ops))
 	r.With(requireFileCapabilities(capModify)).Post("/fs/extract", extractHandler(ops))
 	r.With(requireFileCapabilities(capBrowse)).Get("/fs/meta", metaHandler(ops))
+	r.With(requireFileCapabilities(capBrowse)).Get("/fs/media-info", mediaInfoHandler(ops))
 	r.With(requireFileCapabilities(capDownload)).Get("/fs/checksum", checksumHandler(ops))
 	r.With(requireFileCapabilities(capModify)).Post("/fs/chmod", chmodHandler(ops))
 	r.With(requireFileCapabilities(capBrowse)).Get("/fs/archive", archivePeekHandler(ops))
 	r.With(requireFileCapabilities(capDownload)).Post("/fs/checksums", batchChecksumHandler(ops))
 	r.With(requireFileCapabilities(capBrowse)).Get("/fs/recent", recentHandlerWithWalker(ops, recentWalker(recents)))
+	r.With(requireFileCapabilities(capBrowse)).Get("/fs/usage", usageHandler(ops))
 }
 
 // registerTrashRoutes wires the trash list/restore/empty endpoints.
@@ -226,6 +253,8 @@ func registerTrashRoutes(r chi.Router, cfg Config, ops *fsops.Ops) {
 // chunked transfer endpoints in registerTransferRoutes).
 func registerContentRoutes(r chi.Router, cfg Config, ops *fsops.Ops) {
 	r.With(requireFileCapabilities(capDownload)).Get("/content", downloadHandler(ops, cfg.Settings))
+	// Transcoded HLS video at a chosen quality (needs ffmpeg on the PC).
+	r.With(requireFileCapabilities(capDownload)).Get("/stream", streamHandler(ops, func() *hlsManager { m := newHLSManager(); liveHLS.Store(m); return m }()))
 	// Replacing an existing text file is a modification, not an upload.
 	r.With(requireFileCapabilities(capModify)).Put("/content", writeContentHandler(ops))
 }
@@ -233,7 +262,7 @@ func registerContentRoutes(r chi.Router, cfg Config, ops *fsops.Ops) {
 // registerTransferRoutes wires the resumable chunked upload session
 // endpoints. Every route that writes to the filesystem sits behind
 // requireWritable — the resumable upload path used to be the one way around
-// the read-only policy fsops.Ops enforces everywhere else (PR-04).
+// the read-only policy fsops.Ops enforces everywhere else.
 func registerTransferRoutes(r chi.Router, tm *transfer.Manager, cfg Config, ops *fsops.Ops) {
 	r.Get("/transfers/{id}", transferStatusHandler(tm))
 	r.Group(func(r chi.Router) {
@@ -280,15 +309,25 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 
 // writeInternal logs the real error server-side and returns a generic 500 to
 // the client, so absolute paths, DB details, and OS messages don't leak into
-// responses (and, via the web companion, into an HTML sink) — PR-53.
+// responses (and, via the web companion, into an HTML sink).
 func writeInternal(w http.ResponseWriter, context string, err error) {
 	log.Printf("%s: %v", context, err)
 	writeError(w, http.StatusInternalServerError, "INTERNAL", "internal error")
 }
 
-// maxJSONBody bounds JSON request bodies (PR-51). Streaming routes (chunk
+// maxJSONBody bounds JSON request bodies. Streaming routes (chunk
 // upload, content write) set their own, larger limits.
 const maxJSONBody = 1 << 20 // 1 MiB
+
+// tokenBytes is the random size, in bytes, of a bearer or share token; nonceBytes is the size of a challenge nonce.
+const (
+	tokenBytes = 32
+	nonceBytes = 24
+)
+
+// busyRetryAfter is the Retry-After value (seconds) sent with a 429 when a
+// per-handler admission limit is full.
+const busyRetryAfter = "1"
 
 // decodeJSONBody reads exactly one JSON document from r into dst under a size
 // cap. Returns false (after writing 400/413) on malformed, oversized, or
@@ -298,12 +337,7 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(dst); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body too large")
-			return false
-		}
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON body")
+		writeDecodeError(w, err, "invalid JSON body")
 		return false
 	}
 	// More is meaningful only while iterating an array or object; after a
@@ -311,15 +345,20 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	// more and require EOF so ambiguous bodies cannot be interpreted differently
 	// by intermediaries or future handler code.
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body too large")
-			return false
-		}
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "unexpected trailing data")
+		writeDecodeError(w, err, "unexpected trailing data")
 		return false
 	}
 	return true
+}
+
+// writeDecodeError answers a failed body decode: 413 when the size cap was hit, otherwise 400 with badMsg.
+func writeDecodeError(w http.ResponseWriter, err error, badMsg string) {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "request body too large")
+		return
+	}
+	writeError(w, http.StatusBadRequest, codeBadRequest, badMsg)
 }
 
 // --------- health ---------
@@ -334,10 +373,21 @@ var Features = []string{
 	"pairRequest", // /pair/request* (phone-initiated pairing approved on the PC)
 }
 
+// healthFeatures returns Features plus any capability that depends on the PC
+// (hlsTranscode while ffmpeg and ffprobe are installed), sorted.
+func healthFeatures() []string {
+	out := slices.Clone(Features)
+	if _, _, ok := hlsBins(); ok {
+		out = append(out, featureHLS)
+		slices.Sort(out)
+	}
+	return out
+}
+
 // healthHandler is deliberately reachable without a device credential (a phone
 // probing reachability/latency shouldn't need one), but the topology detail
 // below is not: name/OS/version/read-only/addresses/MAC let an unauthenticated
-// caller fingerprint and map the host (PR-61). Every real caller (host-card
+// caller fingerprint and map the host. Every real caller (host-card
 // ping, connection diagnostics, the weekly digest) already has a paired
 // device token and sends it on every request regardless of route, so gating
 // the detail on a valid token is invisible to them; an unpaired caller now
@@ -354,13 +404,18 @@ func healthHandler(cfg Config, db *store.DB) http.HandlerFunc {
 			resp["name"] = cfg.Settings.AgentName()
 			resp["version"] = cfg.Version
 			resp["apiVersion"] = APIVersion
-			resp["features"] = Features
+			resp["features"] = healthFeatures()
 			resp["os"] = runtime.GOOS
 			resp["readOnly"] = cfg.Settings.IsReadOnly()
 			resp["address"] = cfg.Address
 			resp["tailscaleAddress"] = cfg.TailscaleAddress
 			if cfg.MACAddress != "" {
 				resp["macAddress"] = cfg.MACAddress
+			}
+			// Only when the role is on, and only to a paired caller: a peer reads this to offer
+			// "trust this account server" without a second request.
+			if id, _, err := loadAccountIdentity(cfg, db); err == nil && id.enabled {
+				resp["accountServer"] = map[string]any{"name": id.name, "keyFingerprint": id.fp}
 			}
 		}
 		writeJSON(w, http.StatusOK, resp)

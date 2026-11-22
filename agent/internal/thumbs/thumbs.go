@@ -4,11 +4,13 @@
 // which supports JPEG, PNG, and GIF source images (no WebP/HEIC/etc — callers
 // should treat ErrNotSupported as "no thumbnail available" and fall back to a
 // generic icon). Results are cached on disk under <cacheDir> keyed by a hash of
-// the source path, the requested size, and the source file's modification time,
-// so re-rendering only happens when the source changes or the size differs.
+// the source path and its device:inode:change-time, plus the requested size, the source
+// file's modification time and its size, so re-rendering only happens when the
+// source changes or the size differs.
 package thumbs
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/disintegration/imaging"
 )
@@ -35,7 +38,7 @@ var ErrNotSupported = errors.New("thumbnail not available for this file")
 // jpegQuality is the quality used when re-encoding thumbnails.
 const jpegQuality = 80
 
-// Decode bounds (PR-09): reject oversized sources before a full decode so a
+// Decode bounds: reject oversized sources before a full decode so a
 // crafted or huge image can't exhaust memory/CPU, and cap concurrent decodes.
 // imaging registers the jpeg/png/gif/tiff/bmp decoders image.DecodeConfig uses.
 const (
@@ -44,8 +47,22 @@ const (
 	// A conservative estimate for the decoded source plus resize working data.
 	decodeBytesPerPixel  = 8
 	decodeMemoryBudget   = 384 << 20
-	maxConcurrentDecodes = 4
-	maxThumbCacheBytes   = 512 << 20
+	maxConcurrentDecodes = 8
+	// maxConcurrentHeaderDecodes bounds the lightweight config-decoding phase (see headerDecodeSem).
+	maxConcurrentHeaderDecodes = 8
+	maxThumbCacheBytes         = 512 << 20
+	// thumbCacheLowWaterBytes is where pruning stops once the cap is exceeded. Stopping at the cap itself would make
+	// every following write prune (rescan and sort the whole cache) again.
+	thumbCacheLowWaterBytes = maxThumbCacheBytes / 10 * 9
+	// staleTempAge is how old a ".thumb-*.tmp" file must be before pruning treats it as an orphan of a crashed
+	// write and removes it; a younger one may belong to a write still in progress. Writes take well under a
+	// minute, so a short grace keeps a pile of fresh orphans from holding the cache over its cap.
+	staleTempAge = 5 * time.Minute
+	// defaultThumbSize is used when a caller passes no positive maxSize.
+	defaultThumbSize = 256
+	// negativeCacheTTL is how long a render failure is remembered; maxNegativeEntries bounds that memory.
+	negativeCacheTTL   = 5 * time.Minute
+	maxNegativeEntries = 1024
 )
 
 // fullDecodeBudget bounds aggregate memory pressure across simultaneous image
@@ -68,7 +85,7 @@ func acquireDecodeSlot(ctx context.Context, sem chan struct{}) (func(), error) {
 
 // headerDecodeSem bounds the lightweight config-decoding phase too, including
 // work that cannot be interrupted once an image decoder starts reading.
-var headerDecodeSem = make(chan struct{}, 8)
+var headerDecodeSem = make(chan struct{}, maxConcurrentHeaderDecodes)
 
 // Renderer renders and caches image thumbnails on disk.
 type Renderer struct {
@@ -79,6 +96,16 @@ type Renderer struct {
 	cacheBytes int64
 	remote     Remote // optional out-of-process renderer tried before the built-in decoder
 	crashes    crashLog
+	failures   map[string]failedRender // guarded by mu: recent decode failures by cache path
+	failureSeq uint64                  // guarded by mu: orders failures so the oldest is evicted first
+	now        func() time.Time        // test seam for the clock; nil means time.Now
+}
+
+// failedRender is one remembered render failure.
+type failedRender struct {
+	err     error
+	expires time.Time
+	seq     uint64
 }
 
 // renderCall holds the result of one cache miss while concurrent callers for
@@ -247,6 +274,10 @@ func (rn *Renderer) GetFileContext(ctx context.Context, source *os.File, cacheKe
 	}
 
 	rn.mu.Lock()
+	if err := rn.recentFailureLocked(cachePath); err != nil {
+		rn.mu.Unlock()
+		return nil, err
+	}
 	if rn.inFlight == nil {
 		rn.inFlight = make(map[string]*renderCall)
 	}
@@ -291,11 +322,13 @@ func (rn *Renderer) waitForCall(ctx context.Context, cachePath string, call *ren
 func (rn *Renderer) renderCall(cachePath string, source *os.File, maxSize int, call *renderCall) {
 	data, renderErr := rn.safeRenderOpened(call.ctx, source, maxSize)
 	if renderErr == nil && call.ctx.Err() == nil {
-		if err := rn.writeCache(cachePath, data); err != nil {
-			// Cache write failures shouldn't prevent serving the thumbnail.
-		}
+		// Cache write failures shouldn't prevent serving the thumbnail.
+		_ = rn.writeCache(cachePath, data)
 	}
 	rn.mu.Lock()
+	if renderErr != nil && errors.Is(renderErr, ErrNotSupported) && call.ctx.Err() == nil {
+		rn.rememberFailureLocked(cachePath, renderErr)
+	}
 	call.data = data
 	call.err = renderErr
 	call.finished = true
@@ -305,6 +338,50 @@ func (rn *Renderer) renderCall(cachePath string, source *os.File, maxSize int, c
 	close(call.done)
 	call.cancel()
 	rn.mu.Unlock()
+}
+
+// recentFailureLocked returns the remembered failure for cachePath if one is still within negativeCacheTTL, so a
+// file that cannot be decoded is not decoded again on every request. The caller holds rn.mu.
+func (rn *Renderer) recentFailureLocked(cachePath string) error {
+	f, ok := rn.failures[cachePath]
+	if !ok {
+		return nil
+	}
+	if !rn.clock().Before(f.expires) {
+		delete(rn.failures, cachePath)
+		return nil
+	}
+	return f.err
+}
+
+// rememberFailureLocked records a decode failure for negativeCacheTTL, forgetting the oldest entry once
+// maxNegativeEntries are held. The key holds the file's identity and version, so a changed file is not affected.
+// The caller holds rn.mu.
+func (rn *Renderer) rememberFailureLocked(cachePath string, err error) {
+	if rn.failures == nil {
+		rn.failures = make(map[string]failedRender)
+	}
+	if _, exists := rn.failures[cachePath]; !exists && len(rn.failures) >= maxNegativeEntries {
+		var oldest string
+		var oldestSeq uint64
+		first := true
+		for k, f := range rn.failures {
+			if first || f.seq < oldestSeq {
+				oldest, oldestSeq, first = k, f.seq, false
+			}
+		}
+		delete(rn.failures, oldest)
+	}
+	rn.failureSeq++
+	rn.failures[cachePath] = failedRender{err: err, expires: rn.clock().Add(negativeCacheTTL), seq: rn.failureSeq}
+}
+
+// clock returns the current time, from the test seam when one is set.
+func (rn *Renderer) clock() time.Time {
+	if rn.now != nil {
+		return rn.now()
+	}
+	return time.Now()
 }
 
 // safeRenderOpened runs the decoder and turns a panic in it (a crafted image
@@ -343,7 +420,7 @@ func (rn *Renderer) renderOpened(ctx context.Context, cf *os.File, maxSize int) 
 	if rn.remote != nil {
 		if info, err := cf.Stat(); err == nil && info.Mode().IsRegular() {
 			if maxSize <= 0 {
-				maxSize = 256
+				maxSize = defaultThumbSize
 			}
 			if data, final, err := rn.renderWithRemote(ctx, cf, info.Size(), maxSize); final {
 				cf.Close()
@@ -357,13 +434,13 @@ func (rn *Renderer) renderOpened(ctx context.Context, cf *os.File, maxSize int) 
 func renderOpened(ctx context.Context, cf *os.File, maxSize int) ([]byte, error) {
 	defer cf.Close()
 	if maxSize <= 0 {
-		maxSize = 256
+		maxSize = defaultThumbSize
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// Bound the source before decoding (PR-09): on-disk size, then decoded
+	// Bound the source before decoding: on-disk size, then decoded
 	// pixel dimensions read from the header without a full decode.
 	info, err := cf.Stat()
 	if err != nil {
@@ -427,26 +504,11 @@ func renderOpened(ctx context.Context, cf *os.File, maxSize int) ([]byte, error)
 
 	thumb := imaging.Fit(src, maxSize, maxSize, imaging.Lanczos)
 
-	tmp, err := os.CreateTemp("", "rfe-thumb-*.jpg")
-	if err != nil {
-		return nil, fmt.Errorf("create temp file: %w", err)
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-
-	if err := jpeg.Encode(tmp, thumb, &jpeg.Options{Quality: jpegQuality}); err != nil {
-		tmp.Close()
+	var encoded bytes.Buffer
+	if err := jpeg.Encode(&encoded, thumb, &jpeg.Options{Quality: jpegQuality}); err != nil {
 		return nil, fmt.Errorf("encode jpeg: %w", err)
 	}
-	if err := tmp.Close(); err != nil {
-		return nil, fmt.Errorf("close temp file: %w", err)
-	}
-
-	data, err := os.ReadFile(tmpPath)
-	if err != nil {
-		return nil, fmt.Errorf("read encoded thumbnail: %w", err)
-	}
-	return data, nil
+	return encoded.Bytes(), nil
 }
 
 // cachePath returns the on-disk path for a cached thumbnail keyed by the
@@ -487,9 +549,10 @@ type cachedFile struct {
 	modTime int64
 }
 
-// pruneCacheLocked removes the oldest renderer-owned regular files until the
-// cache is at or below its byte cap. Unknown files, directories, and symlinks
-// are never followed or removed.
+// pruneCacheLocked removes stale orphan temp files, then, when the cache is over
+// its byte cap, the oldest renderer-owned regular files until it is at or below
+// the low-water mark. Recent temp files count toward the size but are kept.
+// Unknown files, directories, and symlinks are never followed or removed.
 func (rn *Renderer) pruneCacheLocked() {
 	entries, err := os.ReadDir(rn.cacheDir)
 	if err != nil {
@@ -498,12 +561,21 @@ func (rn *Renderer) pruneCacheLocked() {
 
 	files := make([]cachedFile, 0, len(entries))
 	var total int64
+	now := time.Now()
 	for _, entry := range entries {
-		if !isRendererCacheFile(entry.Name()) {
+		isTemp := isRendererTempFile(entry.Name())
+		if !isTemp && !isRendererCacheFile(entry.Name()) {
 			continue
 		}
 		info, err := entry.Info()
 		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if isTemp {
+			if now.Sub(info.ModTime()) > staleTempAge && os.Remove(filepath.Join(rn.cacheDir, entry.Name())) == nil {
+				continue
+			}
+			total += info.Size()
 			continue
 		}
 		files = append(files, cachedFile{
@@ -523,7 +595,7 @@ func (rn *Renderer) pruneCacheLocked() {
 			return files[i].modTime < files[j].modTime
 		})
 		for _, file := range files {
-			if total <= maxThumbCacheBytes {
+			if total <= thumbCacheLowWaterBytes {
 				break
 			}
 			if err := os.Remove(file.path); err == nil {
@@ -532,6 +604,11 @@ func (rn *Renderer) pruneCacheLocked() {
 		}
 	}
 	rn.cacheBytes = total
+}
+
+// isRendererTempFile reports whether name has the shape writeAtomic gives its temporary files.
+func isRendererTempFile(name string) bool {
+	return len(name) > len(".thumb-.tmp") && strings.HasPrefix(name, ".thumb-") && strings.HasSuffix(name, ".tmp")
 }
 
 func isRendererCacheFile(name string) bool {

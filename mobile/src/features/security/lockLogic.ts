@@ -10,7 +10,6 @@ export function shouldRelockOnResume(enabled: boolean, backgroundedAt: number | 
   return now - backgroundedAt >= graceMs;
 }
 
-
 /**
  * Device auth outcome to lock action. Only a successful check opens the app: no screen lock or no hardware
  * (`unavailable`) keeps it locked too, and the lock screen says to set a screen lock (audit F-19).

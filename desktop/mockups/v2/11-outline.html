@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Outline — one tree across every computer, actions on the row</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d11{--bg:#fbfcfd;--sf:#ffffff;--rz:#eef1f5;--t1:#141a24;--t2:#4a5568;--t3:#6b7686;--line:rgba(20,26,36,.08);--line2:rgba(20,26,36,.14);--ac:#0e7490;--on-ac:#fff;--ac-ink:#0e6680;--ac-soft:rgba(14,116,144,.08);--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;display:flex;flex-direction:column}
+.d11 .top{height:52px;flex:none;display:flex;align-items:center;gap:20px;padding:0 24px;border-bottom:1px solid var(--line)}
+.d11 .top .lg{display:flex;gap:8px;align-items:center;font-weight:500}
+.d11 .top nav{display:flex;gap:16px;font-size:13px}
+.d11 .top nav button{color:var(--t2);height:52px;box-shadow:inset 0 -2px 0 transparent}.d11 .top nav button.on{color:var(--t1);box-shadow:inset 0 -2px 0 var(--t1)}
+.d11 .top nav em{font-style:normal;color:var(--neg);font-family:var(--mono);font-size:12px;margin-left:4px}
+.d11 .top .k-sbox{width:300px;margin-left:auto}
+.d11 .stage{flex:1;overflow:auto;padding:24px 32px;min-height:0}
+.d11 .stage:has(.ol){overflow:hidden;display:flex;padding:0}
+.d11 .ol{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0}
+.d11 .tr{overflow:auto;padding:16px 24px}
+.d11 .n{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;height:34px;padding-right:8px;border-radius:6px;font-size:14px}
+.d11 .n:hover{background:var(--rz)} .d11 .n.sel{background:var(--ac-soft)}
+.d11 .n .l{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+.d11 .n .l small{color:var(--t3);font:12px var(--mono)}
+.d11 .n .m{font:12px var(--mono);color:var(--t3);display:flex;gap:16px;align-items:center}
+.d11 .n .ia{display:none;gap:2px} .d11 .n:hover .ia,.d11 .n.sel .ia{display:flex} .d11 .n:hover .m span,.d11 .n.sel .m span{display:none}
+.d11 .n .ia .k-ib{width:28px;height:28px}
+.d11 .n.pc{height:44px;font-weight:500;margin-top:8px}
+.d11 .n.pc .l small{font-weight:400}
+.d11 .n .tw{width:16px;color:var(--t3);display:inline-flex}
+.d11 .n.note{color:var(--t2);font-size:13px}
+.d11 .side{border-left:1px solid var(--line);padding:20px;overflow:auto}
+.d11 .side h3{font:500 15px var(--font);margin:12px 0 4px}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d11">
+ <header class="top" id="top"></header>
+ <main class="stage" id="st"></main>
+</div>
+<script>
+window.IDEA='There is no separate list of computers and list of files: every computer is the top of one outline, opened in place. Status, the key tag and requests sit on the computer row; download, share, rename and delete appear on the row under the pointer, so most actions are one click without leaving the outline.';
+window.MAP=[['Navigation','Text links at the top; Outline is home',1],['Switch computer','Open another computer in the same outline',1],['Connect and trust','Add a computer, the last row of the outline',1],['Servers and status','Computer row shows state; its … menu has status, diagnostics, roots',1],['Files and preview','Expand in place; the right column previews the selected file',0],['Upload and download','Row buttons, Ctrl U, Ctrl D, or drag from the desktop onto a folder row',1],['Pair a phone','Pair on the computer row, or the QR icon',1],['Pairing requests','A row under the computer: Accept, Reject',1],['Transfers','Progress shows on the row being moved; Transfers link for the list',0],['Search','Search box filters the whole outline',1],['Tools','Tools link; Trash and Share links also under each computer',1],['History and audit','History link',1],['Settings','Settings link',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,D=K.D;
+const P=[['outline','Outline'],['transfers','Transfers<em>3</em>'],['devices','Devices<em>2</em>'],['tools','Tools'],['history','History'],['settings','Settings']];
+function topbar(v){document.getElementById('top').innerHTML=`<span class="lg">${I('key',16)}RFE</span><nav>${P.map(p=>`<button class="${v===p[0]||(v==='files'&&p[0]==='outline')?'on':''}" data-k="go:${p[0]}">${p[1]}</button>`).join('')}</nav>${K.C.searchBox('Filter every computer')}${K.C.actions({no:['refresh']})}`;}
+const ia=(a)=>`<span class="ia">${a.map(x=>K.ib(...x)).join('')}</span>`;
+const fA=ia([['download','Download (Ctrl D)','toast:Downloading to ~/Downloads/RFE Desktop'],['link','Share link…','dlg:share'],['more','Rename, move, delete and more','menu:file']]);
+const n=(d,tw,l,m,cls='',act='',row='')=>`<div class="n ${cls}" style="padding-left:${8+d*24}px" ${row?`data-row="${row}"`:''}><span class="l"><span class="tw">${tw?I(tw==='o'?'chevd':'chevr',14):''}</span>${l}</span><span class="m">${m}</span>${act}</div>`;
+function outline(){const s=D.servers;let h='';
+ h+=n(0,'o',`${K.dot('ok')}${K.E('server',18)}studio-pc ${K.tag('studio')}<small>Fedora 41 · 12 ms LAN</small>`,`<span>812 GB of 2 TB</span>`,'pc',ia([['upload','Upload to studio-pc','dlg:upload'],['more','Status, diagnostics, roots','menu:server']]));
+ h+=n(1,'',`${K.E('phone',16)}Pixel 9 asks to join · match <b class="mono">4829 1307</b>`,`<span>1:42 left</span>`,'note',`<span style="display:flex;gap:4px">${K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})}${K.btn('Reject',{k:'sm ghost'})}</span>`);
+ h+=n(1,'o',`${K.E('home',16)}/home/sam`,`<span>812 GB used</span>`);
+ h+=n(2,'c',`${K.fic('dir')}Documents`,`<span>38 items</span>`);
+ h+=n(2,'o',`${K.fic('dir')}Projects`,`<span>9 items</span>`);
+ h+=n(3,'o',`${K.fic('dir')}garden-plan`,`<span>11 items</span>`,'',ia([['upload','Upload into garden-plan','dlg:upload'],['folder-plus','New folder (Ctrl+Shift+N)','dlg:newfolder']]));
+ D.files.forEach(f=>{h+=n(4,f.k==='dir'?'c':'',`${K.fic(f.k)}${f.n}${f.k==='dir'?`<small>${f.c} items</small>`:''}`,`<span>${f.s||''}</span><span>${f.m}</span>`,f.n===D.sel?'sel':'',f.k==='dir'?ia([['download','Download as .zip'],['more','More','menu:file']]):fA,f.n);
+  if(f.n==='walkthrough.mp4')h+=n(4,'',`${K.fic('vid')}walkthrough-full.mov <small>uploading</small>`,`${K.bar(71)}<b class="mono" style="color:var(--t2)">71%</b>`,'',ia([['pause','Pause'],['x','Cancel']]));});
+ h+=n(1,'c',`${K.E('drive',16)}/srv/media`,`<span>1.1 TB used</span>`)+n(1,'c',`${K.E('wastebasket',16)}Trash`,`<span>5 items</span>`,'',ia([['trash','Empty Trash','dlg:emptytrash']]))+n(1,'c',`${K.E('link',16)}Share links`,`<span>2 live</span>`)+n(1,'c',`${K.E('toolbox',16)}Apps`,`<span>6</span>`);
+ h+=n(0,'c',`${K.dot('ok')}${K.E('laptop',18)}work-laptop ${K.tag('work')}<small>Windows 11 · 48 ms Tailscale</small>`,`<span>402 GB of 512 GB</span>`,'pc',ia([['upload','Upload here','dlg:upload'],['more','More','menu:server']]));
+ h+=n(1,'',`${K.E('laptop',16)}sam-thinkpad wants to take over work-laptop · match <b class="mono">0316 8842</b>`,`<span>1:09 left</span>`,'note',`<span style="display:flex;gap:4px">${K.btn('Review…',{k:'sm',a:'dlg:accept'})}</span>`);
+ h+=n(0,'',`${K.dot('bad')}${K.E('server',18)}nas ${K.tag('nas')}<small>key changed</small>`,`<span class="bad">Not trusted</span>`,'pc',`<span style="display:flex">${K.btn('Compare keys…',{k:'sm',a:'dlg:keychanged'})}</span>`);
+ h+=n(0,'',`${K.dot('off')}${K.E('server',18)}media-mini ${K.tag('mini')}<small>offline · last seen 08:14</small>`,`<span>1 transfer paused</span>`,'pc',`<span style="display:flex">${K.btn('Wake computer',{k:'sm',i:'power'})}</span>`);
+ h+=n(0,'',`${I('plus',14)}Add a computer`,'','pc" data-k="dlg:newconn" style="cursor:pointer;color:var(--t2)');
+ const f=D.files.find(x=>x.n===D.sel);
+ return `<div class="ol"><div class="tr">${h}</div><aside class="side"><div data-k="dlg:preview" style="cursor:zoom-in">${K.photo(2,280,200,8)}</div><h3>${K.E('img',16)}${f.n}</h3><p class="k-sub">3.8 MB · 4032 × 3024 · ${f.m}</p><dl class="k-kv" style="margin-top:12px"><dt>On</dt><dd>studio-pc</dd><dt>Path</dt><dd class="mono">…/Projects/garden-plan</dd><dt>Mode</dt><dd class="mono">rw-r--r--</dd></dl><div class="k-dact" style="margin-top:12px">${K.btn('Download',{i:'download',k:'pri',kc:'Ctrl D'})}<div class="k-row">${K.btn('Share link…',{i:'link',a:'dlg:share'})}${K.ib('more','Offline, properties, checksum, copy path','menu:detmore')}</div></div></aside></div>`;}
+K.mount({stage:document.getElementById('st'),state:{view:'outline'},views:{outline,files:outline,servers:outline},onGo:topbar});
+</script></body></html>

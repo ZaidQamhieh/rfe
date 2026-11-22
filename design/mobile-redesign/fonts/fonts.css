@@ -1,0 +1,6 @@
+/* The desktop app's own fonts, so phone and computer read as one product. */
+@font-face{font-family:Figtree;font-weight:400;src:url(../../../desktop/ui/fonts/figtree-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:Figtree;font-weight:500;src:url(../../../desktop/ui/fonts/figtree-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:Figtree;font-weight:600;src:url(../../../desktop/ui/fonts/figtree-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:400;src:url(../../../desktop/ui/fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:500;src:url(../../../desktop/ui/fonts/jetbrains-mono-latin-500-normal.woff2) format('woff2')}

@@ -1,0 +1,31 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "browse": true,
+    "created": "<created>",
+    "current": false,
+    "delete": false,
+    "download": true,
+    "id": "<id>",
+    "jailRoot": "<ROOT>/docs",
+    "label": "jailed phone",
+    "lastAddress": "",
+    "lastSeen": "<lastSeen>",
+    "lastVersion": "",
+    "launchApps": false,
+    "modify": false,
+    "readOnly": false,
+    "revoked": false,
+    "share": false,
+    "upload": false,
+    "viaLogin": false,
+    "viewApps": false,
+    "wake": false
+  }
+}

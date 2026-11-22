@@ -1,38 +1,48 @@
 /* RFE Tonal - Devices and Tools pages, settings extras, palette commands, on real calls. Needs features.js. */
-(function () {
+rfeModule('fpages', ['features', 'pages'], function () {
   'use strict';
   const A = window.A, E = A.E, U = A.U, S = A.S, $ = A.$, $$ = A.$$, esc = A.esc, ic = A.ic, fic = A.fic, st = A.state, X = A.X, F = A.fx, H = A.fxHandlers;
-  const { rel, left, audit, GRANTS, plural } = F;
-  const hostLabel = (h) => A.hostName(h);
+  const { rel, left, audit, GRANTS, FILE_GRANTS, plural } = F;
   const fail = (e) => A.snack((e && e.message) || String(e), { error: true });
   const stage = () => $('#stage');
-  const online = () => E.servers.filter((s) => s.state === 'online');
-  const STALE = 30000;
+  const online = A.online;
+  const STALE = A.T.stale;
 
   /* ================= Devices ================= */
   const devIcon = (d) => (/android|phone|pixel|galaxy|iphone/i.test(d.name + ' ' + d.ver) ? 'phone' : /desktop|laptop|windows|linux|mac/i.test(d.name) ? 'laptop' : 'phone');
-  const isOnline = (d) => !d.revoked && d.last && E.now() - d.last < 120000;
-  const grantTags = (a) => (a ? ['Browse'].concat(GRANTS.filter((g) => a[g[0]]).map((g) => ({ download: 'Download', upload: 'Upload', modify: 'Modify', delete: 'Delete', share: 'Share', viewApps: 'Apps', launchApps: 'Launch apps' })[g[0]])).concat(a.readOnly ? ['Read-only'] : []).concat(a.jailRoot ? ['Folder limit'] : []) : []);
+  const isOnline = E.isOnline;
+  /* The short tags under a device's name: Browse, what it may do (an account sign-in is not limited by the file grants, so it gets one "All files (account)" tag instead of the five), Read-only, Folder limit. */
+  const grantTags = (a, viaLogin) => (a ? ['Browse'].concat(viaLogin ? ['All files (account)'] : []).concat(GRANTS.filter((g) => !(viaLogin && FILE_GRANTS.includes(g[0])) && a[g[0]]).map((g) => ({ download: 'Download', upload: 'Upload', modify: 'Modify', delete: 'Delete', share: 'Share', wake: 'Wake', viewApps: 'Apps', launchApps: 'Launch apps' })[g[0]])).concat(a.readOnly ? ['Read-only'] : []).concat(a.jailRoot ? ['Folder limit'] : []) : []);
   let appVersion = '';
-  try { const ap = window.__TAURI__ && window.__TAURI__.app; if (ap && ap.getVersion) ap.getVersion().then((v) => { appVersion = v; }).catch(() => {}); } catch (e) { /* not in the app */ }
+  try { const ap = window.__TAURI__ && window.__TAURI__.app; if (ap && ap.getVersion) ap.getVersion().then((v) => { appVersion = v; }).catch(A.noop); } catch (e) { /* not in the app */ }
   A.appVersion = () => appVersion || '';
+
+  /* Draws every waiting pairing request as one compact table (Device, Number, Time left, Allow…/Refuse).
+     The address the request came from stays in a closed "Technical details" fold below the table. */
+  const mmss = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  const pairTable = (reqs) => {
+    if (!reqs.length) return '';
+    const timeLeft = (q) => (typeof q.expiresInSeconds === 'number' ? mmss(Math.max(0, q.expiresInSeconds)) : Number(q.ageSeconds) < 10 ? 'just now' : (Number(q.ageSeconds) || 0) + ' s ago');
+    const rows = reqs.map((q, i) => '<tr><td><div class="prw"><span class="fxi">' + ic('phone') + '</span><div><b>' + esc(q.label) + '</b>' + (q.replaces ? '<small>Replaces ' + esc(q.replaces) + '</small>' : '') + '</div></div></td><td class="prc">' + esc(q.matchCode) + '</td><td class="prl">' + timeLeft(q) + '</td><td class="pra"><button class="btn f sm" data-fx="dev.approve|' + i + '">' + ic('check') + 'Allow…</button><button class="btn e sm" data-fx="dev.deny|' + i + '">' + ic('x-circle') + 'Refuse</button></td></tr>').join('');
+    const tech = reqs.map((q) => '<li><b>' + esc(q.label) + '</b> · ' + (esc(q.address) || 'address unknown') + '</li>').join('');
+    return '<div class="fxc prq"><div class="fxh"><span class="fxi">' + ic('phone') + '</span><div><b>Asking to pair</b><small>' + reqs.length + ' waiting</small></div></div><table class="prt"><thead><tr><th>Device</th><th>Number</th><th>Time left</th><th><span class="prs">Actions</span></th></tr></thead><tbody>' + rows + '</tbody></table><p class="prn">' + ic('info') + 'Allow a device only if it shows the same number.</p><details class="prd"><summary>Technical details</summary><ul>' + tech + '</ul></details></div>';
+  };
 
   A.pageDevices = () => {
     const s = A.pairServer(); const reqs = X.inbox.slice();
     const me = X.devices.find((d) => d.current);
-    const row = (d) => '<div class="dvrow' + (d.revoked ? ' dim' : '') + '"><div class="gi">' + ic(devIcon(d)) + '</div><div class="dm"><b>' + esc(d.name) + (d.current ? ' <span class="tag pri">This app</span>' : '') + '</b><small><i class="dot ' + (isOnline(d) ? 'online' : 'disconnected') + '"></i>' + (d.revoked ? 'Revoked' : isOnline(d) ? 'Online now' : d.last ? 'Last seen ' + rel(d.last) : 'Never seen') + (d.addr ? ' · ' + esc(d.addr) : '') + (d.ver ? ' · ' + esc(d.ver) : '') + '</small><div class="tags">' + (d.revoked ? '<span class="tag">No access</span>' : grantTags(d.a).map((t) => '<span class="tag">' + t + '</span>').join('')) + '</div></div><div class="ac">' + (d.a && !d.revoked ? '<button class="btn sm" data-fx="dev.perm|' + esc(d.id) + '">' + ic('shield-check') + 'Permissions</button>' : '') + '<button class="ib sm" data-fx="dev.menu|' + esc(d.id) + '" aria-label="More for ' + esc(d.name) + '">' + ic('more-v') + '</button></div></div>';
+    const row = (d) => '<div class="dvrow' + (d.revoked ? ' dim' : '') + '"><div class="gi">' + ic(devIcon(d)) + '</div><div class="dm"><b class="dnm"><span class="dnt">' + esc(d.name) + '</span>' + (d.current ? '<span class="tag pri">This app</span>' : '') + '</b><small><i class="dot ' + (isOnline(d) ? 'online' : 'disconnected') + '"></i>' + (d.revoked ? 'Revoked' : isOnline(d) ? 'Online now' : d.last ? 'Last seen ' + rel(d.last) : 'Never seen') + '</small>' + (d.addr || d.ver ? '<details class="adtech"><summary>Technical details</summary><dl>' + (d.addr ? '<dt>Address</dt><dd class="mono">' + esc(d.addr) + '</dd>' : '') + (d.ver ? '<dt>Version</dt><dd class="mono">' + esc(d.ver) + '</dd>' : '') + '<dt>Device id</dt><dd class="mono">' + esc(d.id) + '</dd></dl></details>' : '') + '<div class="tags">' + (d.revoked ? '<span class="tag">No access</span>' : grantTags(d.a, d.viaLogin).map((t) => '<span class="tag">' + t + '</span>').join('')) + '</div></div><div class="ac">' + (d.a && !d.revoked ? '<button class="btn sm" data-fx="dev.perm|' + esc(d.id) + '">' + ic('shield-check') + 'Permissions</button>' : '') + '<button class="ib sm" data-fx="dev.menu|' + esc(d.id) + '" aria-label="More for ' + esc(d.name) + '">' + ic('more-v') + '</button></div></div>';
     const left1 = '<div class="fxc fxpair">' + A.pairInner() + '</div>';
-    const pend = reqs.map((q) => '<div class="fxc warn"><div class="fxh"><span class="fxi">' + ic('phone') + '</span><div><b>' + esc(q.label) + ' wants to pair</b><small>' + esc(q.address || '') + ' · ' + (q.ageSeconds < 10 ? 'just now' : q.ageSeconds + ' s ago') + '</small></div></div><p class="fxp">Accept only if the code matches the one shown on the device asking.</p><div class="fp" style="margin:0 0 .75rem;font-size:1.25rem;letter-spacing:.14em">' + esc(q.matchCode) + '</div><div class="pbtns"><button class="btn f" data-fx="dev.approve|' + X.inbox.indexOf(q) + '">' + ic('check') + 'Accept…</button><button class="btn" data-fx="dev.deny|' + X.inbox.indexOf(q) + '">Deny</button></div></div>').join('');
-    const inboxNote = !s ? '' : X.inboxDenied && X.inboxDenied.has(s.id) ? '<div class="fxc"><div class="fxempty"><span>This login cannot answer pairing requests. Sign out and sign in with the account, or use <span class="mono">rfe pair accept</span> on the PC.</span></div></div>' : reqs.length >= 3 ? '<div class="fxc"><div class="fxempty"><span>The agent holds at most 3 waiting requests. Answer one to let the next device ask.</span></div></div>' : '';
-    const ctl = '';
-    const list = !s ? '<div class="fxempty">' + ic('server', { size: 40 }) + '<b>No connected server</b><span>Devices belong to a server. Connect one first.</span></div>'
+    const pend = A.inboxErrHtml('<button class="btn sm" data-fx="inbox.retry">' + ic('refresh') + 'Try again</button>') + pairTable(reqs);
+    const inboxNote = !s ? '' : X.inboxDenied && X.inboxDenied.has(s.id) ? '<div class="fxc"><div class="fxempty"><span>This login cannot answer pairing requests. Sign out and sign in with the account, or use <span class="mono">rfe pair accept</span> on the PC.</span></div></div>' : reqs.length >= 3 ? '<div class="fxc"><div class="fxempty"><span>The agent holds at most 3 waiting requests. Answer one to let the next device ask.</span></div></div>' : reqs.length || (X.inboxErr && X.inboxErr.size) ? '' : '<div class="fxc prq"><div class="fxempty">' + ic('phone', { size: 40 }) + '<b>No phones are asking to pair</b><span>When one asks, it shows up here with a number to check.</span></div></div>';
+    const list = !s ? '<div class="fxempty">' + ic('server', { size: 40 }) + '<b>No connected computer</b><span>Devices belong to a computer. Connect one first.</span></div>'
       : X.devErr ? '<div class="fxempty">' + ic('alert-circle', { size: 40 }) + '<b>Could not list devices</b><span>' + esc(X.devErr) + '</span></div>'
         : X.devices.length ? X.devices.map(row).join('') : '<div class="fxempty">' + ic('phone', { size: 40 }) + '<b>' + (X.devBusy ? 'Loading…' : 'No paired devices') + '</b></div>';
     const nOn = X.devices.filter(isOnline).length;
     const ev = (X.audit || []).slice(0, 4).map((h) => '<div class="evrow">' + ic('shield-check') + '<span>' + esc(h.text) + '</span><small>' + rel(h.at) + '</small></div>').join('');
-    stage().innerHTML = '<h2 class="pt">Devices</h2>' + (s ? '<p class="ps">Showing devices paired with <b>' + esc(s.name) + '</b>. Pick another server in the pairing card.</p>' : '') + '<div class="dvg">' + left1 + '<div class="dvr">' + pend + inboxNote + ctl +
+    stage().innerHTML = '<h2 class="pt">Devices</h2>' + (s ? '<p class="ps">Showing devices paired with <b>' + esc(s.name) + '</b>. Pick another computer in the pairing card.</p>' : '') + '<div class="dvg">' + left1 + '<div class="dvr">' + pend + inboxNote +
       '<div class="fxc"><div class="fxh"><span class="fxi">' + ic('shield-check') + '</span><div><b>Paired devices</b><small>' + nOn + ' of ' + X.devices.length + ' online' + (X.devForbidden && X.devices.length ? ' · permissions need the owner sign-in' : '') + '</small></div></div>' + list + '</div>' +
-      '' + (ev || X.auditErr ? '<div class="fxc"><div class="fxh"><div><b>Security events</b></div><button class="btn tx sm" style="margin-left:auto" data-fx="hist.audit">View all</button></div>' + (ev || '<div class="fxempty"><span>' + esc(X.auditErr) + '</span></div>') + '</div>' : '') + '</div></div>';
+      (ev || X.auditErr ? '<div class="fxc"><div class="fxh"><div><b>Security events</b></div><button class="btn tx sm" style="margin-left:auto" data-fx="hist.audit">View all</button></div>' + (ev || '<div class="fxempty"><span>' + esc(X.auditErr) + '</span></div>') + '</div>' : '') + '</div></div>';
     if (s && E.now() - X.devAt > STALE && !X.devBusy) A.loadDevices();
     if (s && E.now() - X.auditAt > STALE) A.loadAudit();
     A.ensureCode();
@@ -41,7 +51,7 @@
     const s = A.pairServer(); X.auditAt = E.now(); if (!s) return; X.auditErr = '';
     try { const r = await E.call('audit_page', { host: s.id }); X.audit = r.forbidden ? [] : (r.entries || []).map((e) => ({ at: Date.parse(e.at) || 0, text: [e.action, e.target, e.detail].filter(Boolean).join(' · ') + (e.actor ? ' (' + e.actor + ')' : '') })); X.auditErr = r.forbidden ? 'This login cannot read the audit log or the agent log.' : ''; }
     catch (e) { X.audit = []; X.auditErr = e.message; }
-    if (st.view === 'devices') A.pageDevices();
+    if (A.devPageOpen()) A.pageDevices();
   };
   H['dev.menu'] = (id, a, b) => { const d = X.devices.find((x) => x.id === id); if (!d) return; const r = b.getBoundingClientRect(); A.menu(r.right - 220 * A.u(), r.bottom + 4, [].concat(d.a && !d.revoked ? [{ icon: 'shield-check', label: 'Permissions', onClick: () => H['dev.perm'](id) }] : [], [{ icon: 'clock', label: 'Activity', onClick: () => { st.histFilter = 'audit'; A.go('history'); } }, '-'], d.revoked ? [] : [{ icon: 'x-circle', label: 'Revoke access', danger: true, onClick: () => H['dev.revoke'](id) }], [{ icon: 'trash', label: 'Remove from list', danger: true, onClick: () => H['dev.remove'](id) }])); };
   H['hist.audit'] = () => { st.histFilter = 'audit'; A.go('history'); };
@@ -76,19 +86,19 @@
   A.toolOpened = () => { if (WANT[X.tool]) WANT[X.tool](); };
   const empty = (icn, t, s) => '<div class="fxempty">' + ic(icn, { size: 40 }) + '<b>' + t + '</b>' + (s ? '<span>' + s + '</span>' : '') + '</div>';
   const head = (icn, t, s, right) => '<div class="fxh"><span class="fxi">' + ic(icn) + '</span><div><b>' + t + '</b>' + (s ? '<small>' + s + '</small>' : '') + '</div>' + (right ? '<div style="margin-left:auto;display:flex;gap:.5rem">' + right + '</div>' : '') + '</div>';
-  const noServer = () => empty('server', 'No connected server', 'Connect a server to use this.');
+  const noServer = () => empty('server', 'No connected computer', 'Connect a computer to use this.');
   const errLine = (m) => (m ? '<div class="hint" style="margin:.5rem 0 0;color:var(--err)">' + esc(m) + '</div>' : '');
 
   /* ---- favorites, recents, offline ---- */
   function tFav() {
-    const fav = X.favs.map((f, i) => '<div class="lrow"><div class="gi">' + ic(f.t === 'dir' ? 'star' : 'file') + '</div><div class="dm"><b>' + esc(f.name) + '</b><small>' + esc(hostLabel(f.host)) + ' · ' + esc(f.path) + '</small></div><button class="btn sm" data-fx="fav.open|' + i + '">Open</button><button class="ib sm" data-fx="fav.rm|' + i + '" aria-label="Remove favorite">' + ic('x') + '</button></div>').join('');
-    const rec = X.recents.slice(0, 6).map((r, i) => '<div class="lrow"><div class="gi">' + ic('clock') + '</div><div class="dm"><b>' + esc(r.name) + '</b><small>' + esc(hostLabel(r.host)) + ' · ' + esc(U.parentOf(r.path)) + ' · ' + rel(r.at) + '</small></div><button class="btn sm" data-fx="rec.open|' + i + '">Show</button></div>').join('');
-    const pins = X.pins.map((p, i) => { const pr = A.pinProg(p); const t = p.tid ? E.task(p.tid) : null; const bad = t && t.state === 'failed'; return '<div class="lrow"><div class="gi">' + ic(bad ? 'alert-circle' : pr >= 1 ? 'check-circle' : 'download') + '</div><div class="dm"><b>' + esc(p.name) + '</b><small>' + (bad ? esc(t.msg || 'The download failed') : pr >= 1 ? (t ? 'Available offline · ' : 'Downloaded earlier (not checked now) · ') + U.fmtBytes(p.b) : 'Downloading ' + Math.round(pr * 100) + '% of ' + U.fmtBytes(p.b)) + '</small>' + (pr < 1 ? '<div class="bar" style="margin-top:.375rem"><i style="width:' + pr * 100 + '%"></i></div>' : '') + '</div><button class="btn sm" data-fx="pin.rm|' + i + '">Stop keeping offline</button></div>'; }).join('');
-    return '<div class="tgrid"><div class="fxc">' + head('star', 'Favorites', '', (() => { const m = A.mainPane; const ok = m && m.online() && m.host !== 'local'; return '<button class="btn sm" data-fx="fav.add"' + (ok ? ' title="Adds ' + esc(hostLabel(m.host) + ':' + m.path) + '"' : ' disabled title="Open a folder on a connected server in Files first"') + '>' + ic('plus') + 'Add current folder</button>'; })()) + (fav || empty('star', 'No favorites', 'Open a folder in Files, then come back here and press “Add current folder”.')) + '</div><div class="fxc">' + head('clock', 'Recent files', '') + (rec || empty('clock', 'No recent files', 'Files you preview from a server show up here.')) + '</div><div class="fxc wide">' + head('pin', 'Available offline', '') + (pins || empty('pin', 'Nothing offline', 'Right-click a file on a server in Files and choose “Make available offline”.')) + '</div></div>';
+    const fav = X.favs.map((f, i) => '<div class="lrow"><div class="gi">' + ic(f.t === 'dir' ? 'star' : 'file') + '</div><div class="dm"><b>' + esc(f.name) + '</b><small>' + esc(A.hostName(f.host)) + ' · ' + esc(f.path) + '</small></div><button class="btn sm" data-fx="fav.open|' + i + '">Open</button><button class="ib sm fvrm" data-fx="fav.rm|' + i + '" aria-label="Remove from favorites" title="Remove from favorites">' + ic('trash') + '</button></div>').join('');
+    const rec = X.recents.slice(0, 6).map((r, i) => '<div class="lrow"><div class="gi">' + ic('clock') + '</div><div class="dm"><b>' + esc(r.name) + '</b><small>' + esc(A.hostName(r.host)) + ' · ' + esc(U.parentOf(r.path)) + ' · ' + rel(r.at) + '</small></div><button class="btn sm" data-fx="rec.open|' + i + '">Show</button></div>').join('');
+    const pins = X.pins.map((p, i) => { const pr = A.pinProg(p); const t = p.tid ? E.task(p.tid) : null; const bad = t && t.state === 'failed'; return '<div class="lrow"><div class="gi">' + ic(bad ? 'alert-circle' : pr >= 1 ? 'check-circle' : 'download') + '</div><div class="dm"><div class="pnm"><b>' + esc(p.name) + '</b>' + (pr < 1 ? '<span class="pnp"><span class="bar" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(pr * 100) + '"><i style="width:' + Math.round(pr * 100) + '%"></i></span><em>' + Math.round(pr * 100) + '%</em></span>' : '') + '</div><small>' + (bad ? esc(t.msg || 'The download failed') : pr >= 1 ? (t ? 'Available offline · ' : 'Downloaded earlier (not checked now) · ') + U.fmtBytes(p.b) : 'Downloading ' + Math.round(pr * 100) + '% of ' + U.fmtBytes(p.b)) + '</small></div><button class="btn sm" data-fx="pin.rm|' + i + '">Stop keeping offline</button></div>'; }).join('');
+    return '<div class="tgrid"><div class="fxc">' + head('star', 'Favorites', '', (() => { const m = A.mainPane; const ok = m && m.online() && m.host !== 'local'; return '<button class="btn sm" data-fx="fav.add"' + (ok ? ' title="Adds ' + esc(A.hostName(m.host) + ':' + m.path) + '"' : ' disabled title="Open a folder on a connected computer in Files first"') + '>' + ic('plus') + 'Add current folder</button>'; })()) + (fav || empty('star', 'No favorites', 'Open a folder in Files, then come back here and press “Add current folder”.')) + '</div><div class="fxc">' + head('clock', 'Recent files', '') + (rec || empty('clock', 'No recent files', 'Files you preview from a computer show up here.')) + '</div><div class="fxc wide">' + head('pin', 'Available offline', '') + (pins || empty('pin', 'Nothing offline', 'Right-click a file on a computer in Files and choose “Make available offline”.')) + '</div></div>';
   }
   Object.assign(H, {
     'fav.open': (i) => { const f = X.favs[+i]; A.openPath(f.host, f.path, f.t !== 'dir'); }, 'fav.rm': (i) => { X.favs.splice(+i, 1); F.persist(); A.pageTools(); },
-    'fav.add': () => { const m = A.mainPane; if (!m.online() || m.host === 'local') { A.snack('Open a connected server in Files first.', { error: true }); return; } if (!A.isFav(m.host, m.path)) A.toggleFav(m.host, m.path, U.baseOf(m.path) || hostLabel(m.host), 'dir'); else A.snack('Already a favorite'); },
+    'fav.add': () => { const m = A.mainPane; if (!m.online() || m.host === 'local') { A.snack('Open a connected computer in Files first.', { error: true }); return; } if (!A.isFav(m.host, m.path)) A.toggleFav(m.host, m.path, U.baseOf(m.path) || A.hostName(m.host), 'dir'); else A.snack('Already a favorite'); },
     'rec.open': (i) => { const r = X.recents[+i]; A.openPath(r.host, r.path, true); }, 'pin.rm': (i) => { const p = X.pins[+i]; if (!p) return; const t = p.tid ? E.task(p.tid) : null; if (t && ['running', 'queued', 'paused', 'waiting'].includes(t.state)) E.cancel(t.id); X.pins.splice(+i, 1); F.persist(); A.pageTools(); A.snack('Stopped keeping ' + p.name + ' offline. The copy already on this computer stays where it is.'); }
   });
 
@@ -113,7 +123,7 @@
   }
   function tStore() {
     const s = pickHost('storeHost'); if (!s) return noServer();
-    const on = online(); const gb = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + ' TB' : v.toFixed(v < 10 ? 1 : 0) + ' GB');
+    const on = online(); const gb = A.fmtGB;
     const done = E.tasks.filter((t) => t.state === 'done'); const upB = done.filter((t) => t.dir === 'up').reduce((a, t) => a + (t.bytes || 0), 0), dnB = done.filter((t) => t.dir === 'down').reduce((a, t) => a + (t.bytes || 0), 0);
     const failed = E.tasks.filter((t) => t.state === 'failed').length + E.history.filter((h) => h.kind === 'transfer' && h.error && !(h.tid && E.task(h.tid))).length;
     const stat = (v, l, i) => '<div class="stat">' + ic(i) + '<b>' + v + '</b><small>' + l + '</small></div>';
@@ -139,7 +149,7 @@
       A.dialog({ icon: 'trash', cls: 'danger', title: 'Move ' + plural(older.length, 'copy', 'copies') + ' to Trash?', width: 520, body: 'These files have the same name and size as ' + esc(g[0].path) + '. Their content was not compared.<ul class="legend" style="margin-top:.625rem">' + older.map((f) => '<li class="mono">' + esc(f.path) + '</li>').join('') + '</ul>', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Move to Trash', kind: 'ed', icon: 'trash', cb: async (c) => {
         c.btn.go.disabled = true; let n = 0; const left = [];
         for (const f of older) { try { await E.call('files_trash', { host: X.storeHost, path: f.path }); n++; E.fs.drop(X.storeHost, U.parentOf(f.path)); } catch (e) { fail(e); left.push(f); } }
-        if (n) { audit('Moved ' + plural(n, 'duplicate', 'duplicates') + ' to Trash on ' + hostLabel(X.storeHost)); A.snack('Moved ' + plural(n, 'duplicate', 'duplicates') + ' to Trash', { action: 'Show Trash', onAction: () => { X.tool = 'trash'; X.trashAt = 0; A.go('tools'); } }); X.trashAt = 0; }
+        if (n) { audit('Moved ' + plural(n, 'duplicate', 'duplicates') + ' to Trash on ' + A.hostName(X.storeHost)); A.snack('Moved ' + plural(n, 'duplicate', 'duplicates') + ' to Trash', { action: 'Show Trash', onAction: () => { X.tool = 'trash'; X.trashAt = 0; A.go('tools'); } }); X.trashAt = 0; }
         if (left.length) X.dupes[+gi] = [g[0]].concat(left); else X.dupes.splice(+gi, 1);
         c.close(); A.pageTools(); return false;
       } }] });
@@ -149,30 +159,30 @@
   /* ---- trash ---- */
   function tTrash() {
     const rows = A.trashRows(); const sel = X.trashSel;
-    const sub = 'Deleted items stay here for ' + (S.trashDays || 30) + ' days, then they are removed when you open Trash';
+    const sub = 'Deleted items stay here for ' + (S.trashDays || E.TRASH_DAYS_DEFAULT) + ' days, then they are removed when you open Trash';
     if (!rows.length) return '<div class="fxc">' + head('trash', 'Trash', sub) + (X.trashBusy && !X.trashAt ? empty('trash', 'Loading…', '') : empty('trash', 'Trash is empty', S.trash === false ? 'Trash is turned off in Settings, so deletes are permanent.' : 'Deleted files land here so you can bring them back.')) + errLine(X.trashErr) + '</div>';
     const all = rows.every((r) => sel.has(r.k)); const tot = rows.reduce((a, r) => a + r.n.b, 0);
     return '<div class="fxc">' + head('trash', 'Trash', plural(rows.length, 'item', 'items') + ' · ' + U.fmtBytes(tot), '<button class="btn sm" data-fx="trash.restore"' + (sel.size ? '' : ' disabled') + '>' + ic('undo') + 'Restore' + (sel.size ? ' ' + sel.size : '') + '</button><button class="btn sm e" data-fx="trash.purge"' + (sel.size ? '' : ' disabled') + '>' + ic('x') + 'Delete forever</button><button class="btn sm e" data-fx="trash.empty">' + ic('trash') + 'Empty Trash</button>') + errLine(X.trashErr) +
       '<div class="trh"><button class="ck' + (all ? ' on' : '') + '" data-fx="trash.all" aria-label="Select all">' + (all ? ic('check') : '') + '</button><span>Name</span><span>Deleted from</span><span>Deleted</span><span class="r">Size</span></div>' +
-      rows.map((r) => '<div class="trr' + (sel.has(r.k) ? ' sel' : '') + '"><button class="ck' + (sel.has(r.k) ? ' on' : '') + '" data-fx="trash.pick|' + esc(r.k) + '" aria-label="Select ' + esc(r.n.n) + '">' + (sel.has(r.k) ? ic('check') : '') + '</button><span class="nm">' + fic(r.n) + '<b data-nolocal>' + esc(r.n.n) + '</b></span><span class="mono">' + esc(hostLabel(r.t.host)) + ':' + esc(r.t.dir) + '</span><span>' + (r.t.at ? rel(r.t.at) : '—') + '</span><span class="r">' + (r.n.t === 'dir' ? '—' : U.fmtBytes(r.n.b)) + '</span></div>').join('') + '</div>';
+      rows.map((r) => '<div class="trr' + (sel.has(r.k) ? ' sel' : '') + '"><button class="ck' + (sel.has(r.k) ? ' on' : '') + '" data-fx="trash.pick|' + esc(r.k) + '" aria-label="Select ' + esc(r.n.n) + '">' + (sel.has(r.k) ? ic('check') : '') + '</button><span class="nm">' + fic(r.n) + '<b data-nolocal>' + esc(r.n.n) + '</b></span><span class="mono">' + esc(A.hostName(r.t.host)) + ':' + esc(r.t.dir) + '</span><span>' + (r.t.at ? rel(r.t.at) : '—') + '</span><span class="r">' + (r.n.t === 'dir' ? '—' : U.fmtBytes(r.n.b)) + '</span></div>').join('') + '</div>';
   }
   const selRows = () => A.trashRows().filter((r) => X.trashSel.has(r.k));
   Object.assign(H, {
     'trash.pick': (k) => { X.trashSel.has(k) ? X.trashSel.delete(k) : X.trashSel.add(k); A.pageTools(); },
     'trash.all': () => { const rows = A.trashRows(); if (rows.every((r) => X.trashSel.has(r.k))) X.trashSel.clear(); else rows.forEach((r) => X.trashSel.add(r.k)); A.pageTools(); },
     'trash.restore': () => F.restoreRows(selRows()),
-    'trash.purge': () => { const r = selRows(); if (!r.length) return; A.dialog({ icon: 'trash', cls: 'danger', title: 'Delete ' + plural(r.length, 'item', 'items') + ' forever?', body: esc([...new Set(r.map((x) => hostLabel(x.t.host)))].join(', ')) + ': these ' + plural(r.length, 'item', 'items') + ' will be deleted forever. This can’t be undone.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Delete forever', kind: 'ed', icon: 'trash', cb: () => F.purgeRows(r) }] }); },
-    'trash.empty': () => { const r = A.trashRows(); if (!r.length) { A.snack('Trash is already empty'); return; } A.dialog({ icon: 'trash', cls: 'danger', title: 'Empty Trash?', body: plural(r.length, 'item', 'items') + ' (' + U.fmtBytes(r.reduce((a, x) => a + x.n.b, 0)) + ') on ' + esc([...new Set(r.map((x) => hostLabel(x.t.host)))].join(', ')) + ' will be deleted forever.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Empty Trash', kind: 'ed', icon: 'trash', cb: () => F.purgeRows(r) }] }); }
+    'trash.purge': () => { const r = selRows(); if (!r.length) return; A.dialog({ icon: 'trash', cls: 'danger', title: 'Delete ' + plural(r.length, 'item', 'items') + ' forever?', body: esc([...new Set(r.map((x) => A.hostName(x.t.host)))].join(', ')) + ': these ' + plural(r.length, 'item', 'items') + ' will be deleted forever. This can’t be undone.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Delete forever', kind: 'ed', icon: 'trash', cb: () => F.purgeRows(r) }] }); },
+    'trash.empty': () => { const r = A.trashRows(); if (!r.length) { A.snack('Trash is already empty'); return; } A.dialog({ icon: 'trash', cls: 'danger', title: 'Empty Trash?', body: plural(r.length, 'item', 'items') + ' (' + U.fmtBytes(r.reduce((a, x) => a + x.n.b, 0)) + ') on ' + esc([...new Set(r.map((x) => A.hostName(x.t.host)))].join(', ')) + ' will be deleted forever.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Empty Trash', kind: 'ed', icon: 'trash', cb: () => F.purgeRows(r) }] }); }
   });
 
   /* ---- share links ---- */
   function tShare() {
-    const rows = X.shares.map((s, i) => { const live = s.exp > E.now(); return '<div class="lrow' + (live ? '' : ' dim') + '"><div class="gi">' + ic(live ? 'link' : 'clock') + '</div><div class="dm"><b>' + esc(s.name) + '</b><small>' + esc(hostLabel(s.host)) + ' · ' + (live ? 'expires in ' + left(s.exp - E.now()) : 'expired ' + rel(s.exp)) + ' · <span class="mono">' + esc(U.parentOf(s.path)) + '</span></small></div><button class="btn sm e" data-fx="share.revoke|' + i + '">' + (live ? 'Turn off' : 'Remove') + '</button></div>'; }).join('');
-    return '<div class="fxc">' + head('link', 'Share links', 'Temporary download links for single files', '<button class="btn sm f" data-fx="share.new">' + ic('plus') + 'New link from selection</button>') + errLine(X.sharesErr) + (rows || (X.sharesBusy && !X.sharesAt ? empty('link', 'Loading…', '') : empty('link', 'No links yet', 'Right-click a file in Files and choose “Share link…”. The server keeps only a hash of each link, so a link can be turned off here but not shown again.'))) + '</div>';
+    const rows = X.shares.map((s, i) => { const live = s.exp > E.now(); return '<div class="lrow' + (live ? '' : ' dim') + '"><div class="gi">' + ic(live ? 'link' : 'clock') + '</div><div class="dm"><b>' + esc(s.name) + '</b><small>' + esc(A.hostName(s.host)) + ' · ' + (live ? 'expires in ' + left(s.exp - E.now()) : 'expired ' + rel(s.exp)) + ' · <span class="mono">' + esc(U.parentOf(s.path)) + '</span></small></div><button class="btn sm e" data-fx="share.revoke|' + i + '">' + (live ? 'Turn off' : 'Remove') + '</button></div>'; }).join('');
+    return '<div class="fxc">' + head('link', 'Share links', 'Temporary download links for single files', '<button class="btn sm f" data-fx="share.new">' + ic('plus') + 'New link from selection</button>') + errLine(X.sharesErr) + (rows || (X.sharesBusy && !X.sharesAt ? empty('link', 'Loading…', '') : empty('link', 'No links yet', 'Right-click a file in Files and choose “Share link…”. The computer keeps only a hash of each link, so a link can be turned off here but not shown again.'))) + '</div>';
   }
   Object.assign(H, {
     'share.revoke': (i) => { const s = X.shares[+i]; if (!s) return; const go = () => E.call('share_revoke_link', { host: s.host, tokenHash: s.hash }).then(() => { audit('Share link for ' + s.name + (s.exp > E.now() ? ' turned off' : ' removed')); A.snack((s.exp > E.now() ? 'Turned off the link for ' : 'Removed ') + s.name); X.shares = X.shares.filter((x) => x.hash !== s.hash); A.pageTools(); }).catch(fail); if (s.exp > E.now()) A.dialog({ icon: 'link', cls: 'danger', title: 'Turn off this link?', body: 'Anyone with the link for ' + esc(s.name) + ' will no longer be able to download it. A link can’t be shown again once made.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Turn off', kind: 'ed', cb: () => { go(); } }] }); else go(); },
-    'share.new': () => { const m = A.mainPane; const s = m.selected(); if (!m.online() || m.host === 'local' || s.length !== 1 || s[0].t !== 'file') { A.snack('Select one file on a connected server in Files first.', { error: true, action: 'Open Files', onAction: () => A.go('files') }); return; } A.shareDialog(m.host, m.path, s[0]); }
+    'share.new': () => { const m = A.mainPane; const s = m.selected(); if (!m.online() || m.host === 'local' || s.length !== 1 || s[0].t !== 'file') { A.snack('Select one file on a connected computer in Files first.', { error: true, action: 'Open Files', onAction: () => A.go('files') }); return; } A.shareDialog(m.host, m.path, s[0]); }
   });
 
   /* ---- backup & sync: one-way folder pairs, run by hand through the transfers ---- */
@@ -180,10 +190,10 @@
   function tSync() {
     const nFail = (r) => r.failed || 0;
     const rules = X.rules.map((r) => { const s = ruleState(r); const sv = E.server(r.host); return '<div class="lrow"><div class="gi">' + ic(r.dir === 'up' ? 'upload' : 'download') + '</div><div class="dm"><b>' + esc(r.name) + '</b><small>' + esc(r.local) + ' ' + (r.dir === 'up' ? '→' : '←') + ' ' + esc(sv ? sv.name : r.host) + ':' + esc(r.remote) + '</small><small>' + (s === 'running' ? '<span class="tag pri">Syncing</span>' : r.last ? 'Last run ' + rel(r.last) + (nFail(r) ? ' · ' + plural(nFail(r), 'transfer', 'transfers') + ' failed, see Transfers' : '') : 'Never run') + '</small></div><button class="btn sm f" data-fx="sync.run|' + esc(r.id) + '"' + (s === 'running' ? ' disabled' : '') + '>' + ic('play') + 'Run now</button><button class="ib sm" data-fx="sync.del|' + esc(r.id) + '" aria-label="Delete rule">' + ic('trash') + '</button></div>'; }).join('');
-    return '<div class="tgrid"><div class="fxc wide">' + head('refresh', 'Sync rules', 'One-way folder pairs. Run now copies only files that are new or different in size; nothing is deleted.', '<button class="btn sm f" data-fx="sync.new">' + ic('plus') + 'New rule</button>') + (rules || empty('refresh', 'No rules', 'Create a rule to keep a folder on this computer and a folder on a server in step.')) + '</div></div>';
+    return '<div class="tgrid"><div class="fxc wide">' + head('refresh', 'Sync rules', 'One-way folder pairs. Run now copies only files that are new or different in size; nothing is deleted.', '<button class="btn sm f" data-fx="sync.new">' + ic('plus') + 'New rule</button>') + (rules || empty('refresh', 'No rules', 'Create a rule to keep a folder on this computer and a folder on a computer in step.')) + '</div></div>';
   }
   async function runRule(r) {
-    const sv = E.server(r.host); if (!sv || sv.state !== 'online') { A.snack((sv ? sv.name : r.host) + ' isn’t connected.', { error: true, action: 'Servers', onAction: () => A.go('servers') }); return; }
+    const sv = E.server(r.host); if (!sv || sv.state !== 'online') { A.snack((sv ? sv.name : r.host) + ' isn’t connected.', { error: true, action: 'Computers', onAction: () => A.go('servers') }); return; }
     const src = r.dir === 'up' ? ['local', r.local] : [r.host, r.remote], dst = r.dir === 'up' ? [r.host, r.remote] : ['local', r.local];
     try {
       const [sl, dl] = await Promise.all([E.fs.load(src[0], src[1], true), E.fs.load(dst[0], dst[1], true)]);
@@ -196,14 +206,14 @@
   Object.assign(H, {
     'sync.run': (id) => runRule(X.rules.find((r) => r.id === id)), 'sync.del': (id) => { const gone = X.rules.find((r) => r.id === id); const at = X.rules.indexOf(gone); X.rules = X.rules.filter((r) => r.id !== id); F.persist(); A.pageTools(); if (gone) A.snack('Removed the rule “' + gone.name + '”', { action: 'Undo', onAction: () => { X.rules.splice(Math.min(at, X.rules.length), 0, gone); F.persist(); A.pageTools(); } }); },
     'sync.new': () => {
-      let dir = 'up'; const on = online(); if (!on.length) { A.snack('Connect a server first.', { error: true }); return; }
-      A.dialog({ icon: 'refresh', title: 'New sync rule', width: 520, body: '<div class="fld"><label for="srn">Name</label><input id="srn" placeholder="e.g. Release builds" spellcheck="false"></div><div class="fld"><label for="srh">Server</label><select id="srh">' + on.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div><div class="fld two"><div class="fld" style="margin:0"><label for="srl">This computer</label><input id="srl" value="' + esc(E.settings.downloadDir || (E.local && E.local.path) || '') + '" spellcheck="false"></div><div class="fld" style="margin:0"><label for="srr">On the server</label><input id="srr" value="/" spellcheck="false"></div></div><div class="fld"><label id="srdl">Direction</label><div class="seg" role="group" aria-labelledby="srdl"><button data-d="up" aria-pressed="true" class="on">This computer → server</button><button data-d="down" aria-pressed="false">Server → this computer</button></div></div><span class="err" id="sre" role="alert"></span>', enter: 'go',
+      let dir = 'up'; const on = online(); if (!on.length) { A.snack('Connect a computer first.', { error: true }); return; }
+      A.dialog({ icon: 'refresh', title: 'New sync rule', width: 520, body: '<div class="fld"><label for="srn">Name</label><input id="srn" placeholder="e.g. Release builds" spellcheck="false"></div><div class="fld"><label for="srh">Computer</label><select id="srh">' + on.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div><div class="fld two"><div class="fld" style="margin:0"><label for="srl">This computer</label><input id="srl" value="' + esc(E.settings.downloadDir || (E.local && E.local.path) || '') + '" spellcheck="false"></div><div class="fld" style="margin:0"><label for="srr">On the computer</label><input id="srr" value="/" spellcheck="false"></div></div><div class="fld"><label id="srdl">Direction</label><div class="seg" role="group" aria-labelledby="srdl"><button data-d="up" aria-pressed="true" class="on">This computer → computer</button><button data-d="down" aria-pressed="false">Computer → this computer</button></div></div><span class="err" id="sre" role="alert"></span>', enter: 'go',
         actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Create rule', kind: 'f', cb: (c) => {
           const g = (i) => $(i, c.el).value.trim(); const name = g('#srn') || 'Untitled rule', host = g('#srh'), local = U.norm(g('#srl')), remote = U.norm(g('#srr'));
           let er = $('#sre', c.el); if (!er) { er = document.createElement('div'); er.id = 'sre'; er.className = 'hint bad'; er.setAttribute('role', 'alert'); $('.db', c.el).appendChild(er); } er.textContent = '';
           const lab = c.btn.go.textContent; c.btn.go.disabled = true; c.btn.go.textContent = 'Checking…';
           const chk = (h, p, what) => E.fs.load(h, p).catch((e) => { throw new Error('That folder can’t be opened: ' + p + ' on ' + what + ' (' + e.message + ')'); });
-          Promise.all([chk('local', local, 'this computer'), chk(host, remote, 'the server')]).then(() => { X.rules.push({ id: 'r' + Date.now().toString(36), name, local, host, remote, dir, last: 0, ids: [] }); F.persist(); A.snack('Rule “' + name + '” created'); c.close(); A.pageTools(); })
+          Promise.all([chk('local', local, 'this computer'), chk(host, remote, 'the computer')]).then(() => { X.rules.push({ id: 'r' + Date.now().toString(36), name, local, host, remote, dir, last: 0, ids: [] }); F.persist(); A.snack('Rule “' + name + '” created'); c.close(); A.pageTools(); })
             .catch((e) => { er.textContent = e.message; c.btn.go.disabled = false; c.btn.go.textContent = lab; });
           return false;
         } }],
@@ -212,11 +222,13 @@
   });
 
   /* ---- apps on the server ---- */
-  async function loadApps() {
-    const s = pickHost('appHost'); if (!s) return; const a = X.apps[s.id] = X.apps[s.id] || {}; if (a.busy || (a.at && E.now() - a.at < STALE)) return; a.busy = true; a.err = '';
+  /* Asks one computer for its list of apps (`hid`; without it, the computer the Apps tab shows) and keeps the answer in X.apps. */
+  async function loadApps(hid) {
+    const s = hid ? E.server(hid) : pickHost('appHost'); if (!s) return; const a = X.apps[s.id] = X.apps[s.id] || {}; if (a.busy || (a.at && E.now() - a.at < STALE)) return; a.busy = true; a.err = '';
     try { const r = await E.call('list_host_apps', { host: s.id }); a.cat = r; } catch (e) { a.err = e.message; a.cat = null; }
-    a.busy = false; a.at = E.now(); if (st.view === 'tools' && X.tool === 'apps') A.pageTools();
+    a.busy = false; a.at = E.now(); if (st.view === 'tools' && X.tool === 'apps') A.pageTools(); if (A.v5Files && A.v5Files.later) A.v5Files.later();
   }
+  A.loadApps = loadApps;
   function tApps() {
     const on = online(); if (!on.length) return noServer(); const s = pickHost('appHost'); const a = X.apps[s.id] || {};
     const chips = '<div class="chips" style="padding:0 0 .75rem">' + on.map((x) => '<button class="chip' + (x.id === s.id ? ' on' : '') + '" data-fx="app.host|' + esc(x.id) + '">' + ic('server') + esc(x.name) + '</button>').join('') + '</div>';
@@ -240,16 +252,21 @@
   /* ================= settings extras ================= */
   A.settingsExtra = ({ row, seg, sw }) =>
     '<div class="sg"><h3>Security</h3>' + row('Approve new devices here', '', sw('requireApproval')) + row('Pairing code lifetime', '', seg('pairLife', [[2, '2 min'], [5, '5 min'], [10, '10 min']])) +
-    row('Pinned certificates', plural(E.servers.filter((s) => s.pinned).length, 'server', 'servers'), '<button class="btn" data-sx="pins">View</button>') + row('Sign out all phones', (() => { if (!X.devAt && !X.devTried && A.loadDevices) { X.devTried = true; Promise.resolve(A.loadDevices()).then(() => { if (A.state.view === 'settings') A.pageSettings(); }).catch(() => {}); } const ps = A.pairServer(); return X.devAt ? phones().length + ' paired' + (ps ? ' on ' + ps.name : '') : 'Counting…'; })(), '<button class="btn e" data-sx="revokeall">Sign out</button>') + '</div>' +
+    row('Computers you trust', plural(E.servers.filter((s) => s.pinned).length, 'computer', 'computers'), '<button class="btn" data-sx="pins">View</button>') + row('Sign out all phones', (() => { if (!X.devAt && !X.devTried && A.loadDevices) { X.devTried = true; /* a failed load, or none possible (no computer online), must not leave the hint on "Counting…" */ const redraw = () => { if (A.state.view === 'settings') A.pageSettings(); }; Promise.resolve(A.loadDevices()).then(() => { if (!X.devAt) X.devFail = true; redraw(); }).catch(() => { X.devFail = true; redraw(); }); } const ps = A.pairServer(); return !ps ? 'No computer is connected' : X.devErr || (!X.devAt && X.devFail) ? 'Could not count phones' : X.devAt ? phones().length + ' paired' + (ps ? ' on ' + ps.name : '') : 'Counting…'; })(), '<button class="btn e" data-sx="revokeall">Sign out</button>') + '</div>' +
     '<div class="sg"><h3>Files</h3>' + row('Move deleted items to Trash', 'Off means a delete cannot be undone.', sw('trash')) + row('Keep items in Trash for', 'Only used while Trash is on.', '<div' + (S.trash ? '' : ' style="opacity:.38;pointer-events:none" aria-disabled="true"') + '>' + seg('trashDays', [[7, '7 days'], [30, '30 days'], [90, '90 days']]).replace(/<button /g, S.trash ? '<button ' : '<button disabled ') + '</div>') + '</div>' +
-    '<div class="sg"><h3>About</h3>' + row('RFE Desktop' + (appVersion ? ' ' + appVersion : ''), 'Tauri · talks to rfe over a pinned TLS connection', '<span style="display:flex;gap:.5rem"><button class="btn" data-sx="about">' + ic('info') + 'Details</button><button class="btn" data-sx="update">' + ic('refresh') + 'Check for updates</button></span>') + '</div>';
+    '<div class="sg"><h3>About</h3>' + row(A.APP_NAME + (appVersion ? ' ' + appVersion : ''), 'Connects to your computers over a private, checked connection.' + A.techBox([['Built with', 'Tauri'], ['Connection', 'Talks to rfe over a pinned TLS connection']]), '<span style="display:flex;gap:.5rem"><button class="btn" data-sx="about">' + ic('info') + 'Details</button><button class="btn" data-sx="update">' + ic('refresh') + 'Check for updates</button></span>') + '</div>';
   /* the devices that signed in with a code or were approved: phones, not owner logins */
   const phones = () => (X.devices || []).filter((d) => !d.viaLogin && !d.current && !d.revoked);
+  /* Runs the Settings buttons of the Security and About rows (trusted computers, sign out all phones, details); returns true when it handled the button. Sign-out first checks that a computer is connected and the phone count was really read. */
   A.settingsAction = (a) => {
-    if (a === 'pins') { A.dialog({ icon: 'shield-check', title: 'Pinned certificates', width: 560, body: E.servers.filter((s) => s.pinned).map((s) => '<div class="kv2"><div><b>' + esc(s.name) + '</b><small class="mono">SHA-256 ' + esc(s.fp) + '</small></div><button class="ib sm" data-copy="' + esc(s.fp) + '" aria-label="Copy fingerprint">' + ic('copy') + '</button></div>').join('') || '<div class="fxempty"><span>No server is pinned yet.</span></div>', actions: [{ label: 'Close', kind: 'f' }], onOpen: (c) => c.el.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) { A.copy(b.dataset.copy); A.snack('Fingerprint copied'); } }) }); return true; }
+    if (a === 'pins') { A.dialog({ icon: 'shield-check', title: 'Computers you trust', width: 560, body: E.servers.filter((s) => s.pinned).map((s) => '<div class="kv2"><div><b>' + esc(s.name) + '</b><small class="mono">SHA-256 ' + esc(s.fp) + '</small></div><button class="ib sm" data-copy="' + esc(s.fp) + '" aria-label="Copy fingerprint">' + ic('copy') + '</button></div>').join('') || '<div class="fxempty"><span>You do not trust any computer yet.</span></div>', actions: [{ label: 'Close', kind: 'f' }], onOpen: (c) => c.el.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) { A.copy(b.dataset.copy); A.snack('Fingerprint copied'); } }) }); return true; }
     if (a === 'revokeall') {
       const ph = phones(); const srv = A.pairServer();
-      if (!ph.length || !srv) { A.snack('No phones are paired'); return true; }
+      /* Say what is true: "none paired" only when the list was read and is empty; a failed or unfinished count, or no computer to ask, gets its own message. */
+      if (!srv) { A.snack('No computer is connected'); return true; }
+      if (X.devErr || X.devFail && !X.devAt) { A.snack('Could not check paired phones'); return true; }
+      if (!X.devAt) { A.snack('Still checking paired phones. Try again in a moment.'); return true; }
+      if (!ph.length) { A.snack('No phones are paired'); return true; }
       A.dialog({ icon: 'shield', cls: 'danger', title: 'Sign out ' + ph.length + ' phone' + (ph.length === 1 ? '' : 's') + '?', width: 440, body: 'They lose access to ' + esc(srv.name) + ' immediately and must be paired again.', enter: 'go', actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Sign out', kind: 'ed', cb: async () => {
         let n = 0; for (const d of ph) { try { await E.call('revoke_device', { host: srv.id, id: d.id, confirmSelf: false }); n++; } catch (e) { fail(e); } }
         if (n) { audit('All phones signed out of ' + srv.name + ' (' + n + ')'); A.snack('Signed out ' + plural(n, 'phone', 'phones')); } A.loadDevices(); A.pageSettings();
@@ -264,13 +281,13 @@
     C('phone', 'Pair a phone (QR code)…', () => A.pairDialog()); 
     C('trash', 'Open Trash', () => { X.tool = 'trash'; A.go('tools'); }); C('link', 'Share links', () => { X.tool = 'share'; A.go('tools'); }); C('refresh', 'Backup & sync', () => { X.tool = 'sync'; A.go('tools'); }); C('zap', 'Host apps', () => { X.tool = 'apps'; A.go('tools'); }); C('pie', 'Storage and duplicates', () => { X.tool = 'store'; A.go('tools'); });
     C('sun', 'Theme: Light', () => A.setTheme('light')); C('moon', 'Theme: Dark', () => A.setTheme('dark')); C('monitor', 'Theme: Match system', () => A.setTheme('system'));
-    X.favs.forEach((f) => C('star', 'Favorite: ' + f.name, () => A.openPath(f.host, f.path, f.t !== 'dir'), '', hostLabel(f.host)));
+    X.favs.forEach((f) => C('star', 'Favorite: ' + f.name, () => A.openPath(f.host, f.path, f.t !== 'dir'), '', A.hostName(f.host)));
   }];
 
   /* live refresh: offline copies and sync rules show their transfer */
   E.on((t) => { if (t === 'tick' && st.view === 'tools' && !A.paused && ((X.tool === 'sync' && X.rules.some((r) => (r.ids || []).length)) || (X.tool === 'fav' && X.pins.some((p) => A.pinProg(p) < 1)))) { if (!A.fxT || Date.now() - A.fxT > 900) { A.fxT = Date.now(); A.pageTools(); } } });
   /* the Devices page depends on which server is online: redraw when that changes */
   let devKey = '';
-  E.on((t) => { if (t !== 'servers') return; const k = online().map((x) => x.id).join(); if (k === devKey) return; devKey = k; if (st.view === 'devices') { clearTimeout(A.devT); A.devT = setTimeout(() => { A.pageDevices(); A.loadDevices(); }, 150); } });
+  E.on((t) => { if (t !== 'servers') return; const k = online().map((x) => x.id).join(); if (k === devKey) return; devKey = k; if (A.devPageOpen()) { clearTimeout(A.devT); A.devT = setTimeout(() => { A.pageDevices(); A.loadDevices(); }, A.T.settle); } });
   A.renderRail();
-})();
+});

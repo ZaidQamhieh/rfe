@@ -52,7 +52,7 @@ func cmdSetup(args []string) error {
 	}
 
 	dataDir := defaultDataDir()
-	standardDataDir := filepath.Join(home, ".rfe")
+	standardDataDir := filepath.Join(home, dataDirName)
 	if filepath.Clean(dataDir) != filepath.Clean(standardDataDir) {
 		return fmt.Errorf("the automatic service setup uses the standard data folder %q; clear RFE_DATA_DIR or use the manual daemon/service commands", standardDataDir)
 	}
@@ -75,6 +75,13 @@ func cmdSetup(args []string) error {
 		return fmt.Errorf("create agent data folder: %w", err)
 	}
 
+	// The identity is created before the database: LoadOrCreateCert refuses to create one next to an
+	// existing agent.db, since that would mean a lost certificate, not a first run.
+	cert, err := security.LoadOrCreateCert(dataDir)
+	if err != nil {
+		return fmt.Errorf("create host identity: %w", err)
+	}
+
 	db, err := store.Open(dataDir)
 	if err != nil {
 		return fmt.Errorf("initialize agent database: %w", err)
@@ -90,10 +97,6 @@ func cmdSetup(args []string) error {
 	}
 	if err := db.Close(); err != nil {
 		return fmt.Errorf("close initial agent database: %w", err)
-	}
-	cert, err := security.LoadOrCreateCert(dataDir)
-	if err != nil {
-		return fmt.Errorf("create host identity: %w", err)
 	}
 
 	fmt.Printf("Initial folder access: %s\n", root)
@@ -155,8 +158,11 @@ func setupRootCandidate(value, home string) (string, error) {
 	return filepath.Clean(absolute), nil
 }
 
+// defaultFilesFolderName is the folder under the user's home that a new agent shares by default.
+const defaultFilesFolderName = "RFE Files"
+
 func defaultSetupRoot(home string) string {
-	return filepath.Join(home, "RFE Files")
+	return filepath.Join(home, defaultFilesFolderName)
 }
 
 func ensureDefaultShareRoot(root string) error {

@@ -1,0 +1,101 @@
+/* v4 base: window grid and every fixed part (navigation, Files, Settings, Overview, Servers, Devices, Transfers, Tools, History).
+   Designs set the tokens and style their own top, bottom and rail; they do not restyle these parts. */
+.rfe { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.rfe > .side { border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; background: var(--sf); min-height: 0; overflow: auto; }
+.rfe > .side .lg { display: flex; gap: 8px; align-items: center; font-weight: 500; padding: 4px 8px 16px; }
+.rfe > .side h4 { font: 500 12px var(--font); color: var(--t3); margin: 20px 8px 8px; }
+.rfe > .side .pc { display: flex; gap: 8px; align-items: center; height: 32px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: var(--t2); }
+.rfe > .side .pc:hover { background: var(--rz); } .rfe > .side .pc small { margin-left: auto; font: 11px var(--mono); color: var(--t3); }
+.rfe > .side .gap { flex: 1; }
+.rfe .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.rfe .top:empty, .rfe .bot:empty, .rfe .rail:empty { display: none; }
+.rfe .body { flex: 1; display: flex; min-height: 0; }
+.rfe .stage { flex: 1; overflow: auto; padding: 24px 28px; min-width: 0; min-height: 0; }
+.rfe .stage:has(.ol) { padding: 0; overflow: hidden; display: flex; }
+.rfe .k-files { flex: 1; }
+
+/* file system */
+.rfe .ol { flex: 1; display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+.rfe .tr { overflow: auto; padding: 16px 24px; }
+.rfe .n { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; height: 34px; padding-right: 8px; border-radius: 6px; font-size: 14px; }
+.rfe .n:hover { background: var(--rz); } .rfe .n.sel { background: var(--ac-soft); }
+.rfe .n .l { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
+.rfe .n .l small { color: var(--t3); font: 12px var(--mono); }
+.rfe .n .m { font: 12px var(--mono); color: var(--t3); display: flex; gap: 16px; align-items: center; }
+.rfe .n .ia { display: none; gap: 2px; } .rfe .n:hover .ia, .rfe .n.sel .ia { display: flex; } .rfe .n:hover .m span, .rfe .n.sel .m span { display: none; }
+.rfe .n .ia .k-ib { width: 28px; height: 28px; }
+.rfe .n.pc { height: 44px; font-weight: 500; margin-top: 8px; }
+.rfe .n.pc .l small { font-weight: 400; }
+.rfe .n .tw { width: 16px; color: var(--t3); display: inline-flex; }
+.rfe .n.note { color: var(--t2); font-size: 13px; }
+.rfe .olside { border-left: 1px solid var(--line); padding: 20px; overflow: auto; }
+.rfe .olside h3 { font: 500 15px var(--font); margin: 12px 0 4px; display: flex; gap: 8px; align-items: center; }
+
+/* empty states */
+.b-empty { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 56px 24px; max-width: 520px; margin: 24px auto; }
+.b-empty b { font-weight: 500; font-size: 16px; } .b-empty p { margin: 0 0 8px; color: var(--t2); }
+.b-empty.left { justify-items: start; text-align: left; margin: 24px 0; }
+.b-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 10px; color: var(--t2); font-size: 13px; }
+.b-steps b { color: var(--t1); font-weight: 500; }
+
+/* viewer: one design shown twice */
+body.mk.inframe { padding: 0; background: transparent; display: block; min-height: 0; }
+body.mk.inframe .win { border-radius: 0; box-shadow: none; }
+.mk-pair { display: grid; gap: 12px; justify-items: center; }
+.mk-pair h2 { font: 500 13px system-ui; color: #c9cbcf; margin: 16px 0 0; width: 1280px; }
+.mk-pair h2 span { color: #8f9297; font-weight: 400; margin-left: 8px; }
+.mk-pair iframe { width: 1280px; height: 800px; border: 0; border-radius: 12px; box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); background: #111; }
+
+/* only the side and the main column take grid space; overlays never add a row */
+.rfe { grid-template-rows: minmax(0, 1fr); }
+.rfe > :where(#dock, #pop) { position: absolute; }
+.rfe .top .k-btn { flex: none; white-space: nowrap; }
+
+/* Overview (v3 design 2) */
+.rfe .db { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.rfe .db .stat { grid-column: span 3; background: var(--sf); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); padding: 16px 20px; }
+.rfe .db .stat small { color: var(--t3); font-size: 12px; } .rfe .db .stat b { display: block; font: 500 28px/1.2 var(--mono); margin: 8px 0 4px; white-space: nowrap; } .rfe .db .stat span { font-size: 12px; color: var(--t2); }
+.rfe .db .chart { grid-column: span 8; background: var(--sf); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); padding: 16px 20px; position: relative; }
+.rfe .db h2 { font: 500 14px var(--font); margin: 0; display: flex; align-items: center; gap: 12px; } .rfe .db h2 small { color: var(--t3); font-weight: 400; }
+.rfe .db .chart > svg { display: block; width: 100%; height: 232px; margin-top: 12px; } .rfe .db .chart > svg text { font: 11px var(--mono); fill: var(--t3); }
+.rfe .db .chart .ov { position: absolute; inset: 48px 20px 20px; display: grid; place-items: center; color: var(--t3); font-size: 13px; }
+.rfe .db .card { grid-column: span 4; background: var(--sf); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; } .rfe .db .card.w { grid-column: span 6; }
+.rfe .db .need { display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: center; font-size: 13px; } .rfe .db .need small { display: block; color: var(--t3); font-size: 12px; }
+.rfe .db .pcr { display: grid; grid-template-columns: 12px 1fr 120px 64px; gap: 12px; align-items: center; font-size: 13px; height: 36px; cursor: pointer; } .rfe .db .pcr small { color: var(--t3); font: 12px var(--mono); } .rfe .db .pcr .k-bar { margin: 0; } .rfe .db .pcr span .k-e { margin-right: 6px; }
+.rfe .db .rc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .rfe .db .rc div { font-size: 12px; color: var(--t2); } .rfe .db .rc svg { border-radius: 8px; display: block; width: 100%; height: auto; margin-bottom: 6px; } .rfe .db .rc b { display: block; color: var(--t1); font-weight: 500; font-size: 13px; }
+.rfe .db .nil { color: var(--t3); font-size: 13px; display: grid; gap: 12px; justify-items: start; } .rfe .db .nil small { color: var(--t3); }
+
+/* Servers, Devices, Transfers, History: list and inspector (v3 design 4) */
+.rfe .rail { width: 340px; flex: none; border-left: 1px solid var(--line); padding: 20px; overflow: auto; background: var(--sf); }
+.rfe .rail h2 { font: 500 18px var(--font); margin: 8px 0 4px; display: flex; gap: 10px; align-items: center; } .rfe .rail .k-sub { margin-bottom: 16px; }
+.rfe .rail .k-dact { margin-top: 8px; } .rfe .rail .k-dact .k-btn { width: 100%; }
+.rfe .li { display: grid; gap: 2px; }
+.rfe .ro { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; min-height: 52px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.rfe .ro:hover { background: var(--rz); } .rfe .ro.sel { background: var(--ac-soft); box-shadow: inset 2px 0 0 var(--ac); } .rfe .ro b { font-weight: 500; } .rfe .ro small { display: block; color: var(--t3); font-size: 12px; } .rfe .ro .st { font: 12px var(--mono); color: var(--t2); display: flex; gap: 6px; align-items: center; }
+
+/* History */
+.rfe .b-filt { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: var(--rz); margin-bottom: 8px; }
+.rfe .b-fr { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.rfe .b-fq { width: 280px; background: var(--sf); }
+.rfe .b-filt .k-chip small { margin-left: 6px; color: var(--t3); font: 11px var(--mono); }
+.rfe .b-fs { display: grid; gap: 4px; } .rfe .b-fs small { font-size: 11px; color: var(--t3); } .rfe .b-fs .k-sel { background: var(--sf); }
+.rfe .b-fsum { font-size: 12px; color: var(--t3); margin: 12px 0 0; }
+.rfe .b-day { font: 500 12px var(--font); color: var(--t3); margin: 16px 0 4px; }
+.rfe .b-ev { display: grid; grid-template-columns: 48px 22px 1fr auto; gap: 10px; align-items: center; min-height: 48px; padding: 4px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.rfe .b-ev:hover { background: var(--rz); } .rfe .b-ev.sel { background: var(--ac-soft); box-shadow: inset 2px 0 0 var(--ac); }
+.rfe .b-ev time { color: var(--t3); font-size: 12px; } .rfe .b-ev small { display: block; color: var(--t3); font-size: 12px; }
+.b-out { font: 12px var(--mono); color: var(--t2); } .b-out.ok { color: var(--pos); } .b-out.bad { color: var(--neg); } .b-out.warn { color: var(--warn); }
+
+/* search menu: designs place and style it; base only opens and closes it */
+.b-sr { display: none; z-index: 60; position: absolute; inset: 0; } .b-sr > .m { position: absolute; } .b-sr.open { display: block; }
+.b-kbd { font: 11px var(--mono); color: var(--t3); padding: 1px 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line2); background: var(--sf); }
+.b-sr mark { background: var(--ac-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+.rfe .top .b-st { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--t2); font-size: 13px; }
+.rfe .top .b-st:hover { background: var(--rz); color: var(--t1); }
+.rfe .b-fsel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); } .rfe .b-fs .k-sel { width: 100%; min-width: 0; }
+.rfe .b-fsum { display: flex; align-items: center; gap: 12px; }
+
+/* History filters: one line, never wraps */
+.rfe .b-filt { display: flex; flex-wrap: nowrap; gap: 6px; padding: 8px; align-items: center; }
+.rfe .b-filt .b-fq { width: auto; flex: 1 1 120px; min-width: 96px; }
+.rfe .b-filt .b-fs { flex: 0 1 auto; min-width: 0; } .rfe .b-filt .k-sel { height: 32px; font-size: 13px; max-width: 132px; }

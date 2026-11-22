@@ -1,0 +1,48 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Desks — one desk per computer, each with its own pins</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d17{--bg:#faf9f7;--sf:#ffffff;--rz:#f2f0ec;--t1:#1c1917;--t2:#57534e;--t3:#78716c;--line:rgba(28,25,23,.08);--line2:rgba(28,25,23,.14);--ac:#9a3412;--on-ac:#fff;--ac-ink:#9a3412;--ac-soft:rgba(154,52,18,.07);--font:"DM Sans",system-ui,sans-serif;--mono:"DM Mono",ui-monospace,monospace;display:grid;grid-template-columns:112px 1fr}
+.d17 .desks{background:var(--rz);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:8px}
+.d17 .dk{border-radius:12px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;color:var(--t2);position:relative}
+.d17 .dk:hover{background:rgba(28,25,23,.04)} .d17 .dk.on{background:var(--sf);color:var(--t1);box-shadow:0 1px 2px rgba(28,25,23,.08),0 0 0 1px var(--line)}
+.d17 .dk .sc{width:56px;height:40px;border-radius:6px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line2);display:grid;place-items:center;color:var(--t3);position:relative}
+.d17 .dk.on .sc{box-shadow:inset 0 0 0 1.5px var(--ac);color:var(--ac)}
+.d17 .dk .sc .k-dot{position:absolute;right:-3px;bottom:-3px;box-shadow:0 0 0 2px var(--rz)}
+.d17 .dk kbd{font-size:10px} .d17 .dk b{font-weight:500}
+.d17 .dk.add{color:var(--t3)} .d17 .desks .gap{flex:1}
+.d17 .main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.d17 .hd{padding:16px 24px 0;display:flex;align-items:flex-start;gap:16px}
+.d17 .hd h1{font:500 22px var(--font);margin:0;display:flex;gap:12px;align-items:center;letter-spacing:-.01em}
+.d17 .hd p{margin:4px 0 0;color:var(--t3);font-size:13px}
+.d17 .hd .r{margin-left:auto;display:flex;gap:4px;align-items:center}
+.d17 .pins{display:flex;gap:8px;padding:16px 24px 0;align-items:center;flex-wrap:wrap}
+.d17 .pin{display:flex;gap:8px;align-items:center;height:32px;padding:0 12px;border-radius:8px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);font-size:13px}
+.d17 .pin.on{box-shadow:inset 0 0 0 1px var(--t1)} .d17 .pin small{color:var(--t3);font-family:var(--mono)}
+.d17 .pin.add{box-shadow:inset 0 0 0 1px var(--line2);background:none;color:var(--t3);border:0}
+.d17 .tabs{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid var(--line);margin-top:12px;font-size:13px}
+.d17 .tabs button{height:40px;color:var(--t2);box-shadow:inset 0 -2px 0 transparent}.d17 .tabs button.on{color:var(--t1);box-shadow:inset 0 -2px 0 var(--ac)}
+.d17 .tabs em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--t3);margin-left:4px}
+.d17 .tabs .sp{flex:1} .d17 .tabs .g{color:var(--t3)}
+.d17 .stage{flex:1;overflow:auto;padding:16px 24px;min-height:0}
+.d17 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d17 .k-files{flex:1}
+.d17 .k-dockwrap{position:absolute;right:16px;bottom:16px;width:520px;display:none;z-index:40}.d17 .k-dockwrap.open{display:block}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d17">
+ <aside class="desks" id="desks"></aside>
+ <div class="main"><header class="hd" id="hd"></header><div class="pins" id="pins"></div><nav class="tabs" id="tabs"></nav><main class="stage" id="st"></main></div>
+ <div class="k-dockwrap" id="dock"></div>
+</div>
+<script>
+window.IDEA='Each computer is a desk you switch to with Ctrl 1 to 4, like virtual desktops. A desk remembers its own pinned folders, last folder and open page, so moving between the home PC and the work laptop puts you back exactly where you were on each. App-wide pages (transfers, history, settings) sit at the right of the tab row.';
+window.MAP=[['Navigation','Tabs for the desk; app-wide pages at the right of the tab row',1],['Switch computer','Ctrl 1 to 4, or click a desk',1],['Connect and trust','+ desk at the foot of the strip',1],['Servers and status','Desk header: state, key, disk; Status in its menu',1],['Files and preview','Files tab with the details panel; right-click for every action',0],['Upload and download','Upload, Ctrl U, Ctrl D, or drag onto another desk',1],['Pair a phone','Pair a phone in the desk header',1],['Pairing requests','Devices tab of the desk, with the count',1],['Transfers','Transfers at the right of the tab row; pill opens the dock',1],['Search','Search tab, or /',1],['Tools','Trash, Share links, Apps are desk tabs; Tools for the rest',1],['History and audit','History at the right of the tab row',1],['Settings','Settings at the right of the tab row',1],['Tray and notifications','Bell in the desk header',1]];
+const I=K.I,D=K.D;
+document.getElementById('desks').innerHTML=D.servers.map((s,i)=>`<button class="dk${i===0?' on':''}" data-k="${s.dot==='ok'?'go:files':s.dot==='bad'?'dlg:keychanged':'menu:server'}"><span class="sc">${K.mach(s,26)}${K.dot(s.dot)}</span><b>${s.name}</b><kbd>Ctrl ${i+1}</kbd></button>`).join('')+`<button class="dk add" data-k="dlg:newconn"><span class="sc">${I('plus',18)}</span>New desk</button><span class="gap"></span><button class="dk" data-k="go:files"><span class="sc">${K.E('laptop',26)}</span>This computer</button>`;
+document.getElementById('hd').innerHTML=`<div><h1>studio-pc ${K.tag('studio')}</h1><p>${K.dot('ok')} Connected over LAN · 12 ms · Fedora 41 · 812 GB of 2 TB · signed in as sam</p></div><div class="r">${K.btn('Pair a phone…',{i:'qr',k:'sm',a:'dlg:pairphone'})}${K.ib('more','Status, diagnostics, roots, edit, forget','menu:server')}<button class="k-xpill" data-k="dock">${K.C.ring(71)}2</button>${K.ib('bell','Notifications','menu:notes','<i class="k-nb"></i>')}<button class="k-av" data-k="menu:account">S</button></div>`;
+document.getElementById('pins').innerHTML=[['garden-plan','11',1],['Photos','1,204'],['Documents','38'],['/srv/media','2,911']].map(p=>`<button class="pin${p[2]?' on':''}" data-k="go:files">${K.E('dir',16)}${p[0]}<small>${p[1]}</small></button>`).join('')+`<button class="pin add">${I('pin',14)}Pin this folder</button>`;
+document.getElementById('dock').innerHTML=K.C.dock();
+const TB=[['files','Files'],['devices','Devices<em>2</em>'],['search','Search'],['trash','Trash<em>5</em>'],['share','Share links<em>2</em>'],['apps','Apps'],['storage','Storage']];
+function tabs(v){const t=K.state.tool;const cur=v==='tools'?t==='store'?'storage':t:v;document.getElementById('tabs').innerHTML=TB.map(x=>`<button class="${cur===x[0]?'on':''}" data-k="${['trash','share','apps'].includes(x[0])?'tool:'+x[0]:x[0]==='storage'?'tool:store':'go:'+x[0]}">${x[1]}</button>`).join('')+`<span class="sp"></span>`+[['transfers','Transfers<em>3</em>'],['history','History'],['tools','More tools'],['settings','Settings']].map(x=>`<button class="g${v===x[0]&&!['trash','share','apps','store'].includes(t)?' on':''}" data-k="go:${x[0]}">${x[1]}</button>`).join('');}
+K.mount({stage:document.getElementById('st'),onGo:tabs});
+</script></body></html>

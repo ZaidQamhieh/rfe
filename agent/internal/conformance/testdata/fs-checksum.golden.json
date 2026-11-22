@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "algorithm": "sha256",
+    "checksum": "9cfe7faff7054298ca87557e15a10262de8d3eee77827417fbdfea1c41b9ec23",
+    "path": "<ROOT>/data/range.txt"
+  }
+}

@@ -1,9 +1,10 @@
-import { CloudOff, HardDrive, ShieldCheck, ShieldX } from 'lucide-react-native';
+import { HardDrive, ShieldX } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import type { AgentStatus, Drive, Health } from '../../core/api/models';
 import { formatSize } from '../../core/format';
+import { ignoreError } from '../../core/log';
 import type { Host } from '../../core/models/host';
 import { EmptyState, OfflineBanner, ErrorRetry, ListingSkeleton, Loading, PageHead, Pressable, StatePill, Text, TopBar } from '../../design/components';
 import { LumenSize, LumenType } from '../../design/lumen';
@@ -12,8 +13,9 @@ import { Spacing } from '../../design/tokens';
 import { AgentApiError } from '../../core/api/agentClient';
 import { CertPinMismatch } from '../../core/api/pin';
 import { clientForHost, keyValue } from '../../services';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { t } from '../../i18n';
+import { ConnectionPill } from './Bars';
 import { folderLabel } from './paths';
 import { resolveRoots, type RootResolution } from './rootResolution';
 import { loadRoots, saveRoots } from './rootsCache';
@@ -34,7 +36,7 @@ export function HostRootView({ host, health, initialPath, onSelectRoot }: { host
         const settings: AgentStatus = await client.status();
         const r = resolveRoots(settings, health, initialPath);
         const drives = r.kind === 'drives' ? await client.drives() : null;
-        if (!settings.accessDenied) await saveRoots(keyValue, host.id, { roots: settings.roots, os: health?.os, drives: drives ?? undefined }).catch(() => {});
+        if (!settings.accessDenied) await saveRoots(keyValue, host.id, { roots: settings.roots, os: health?.os, drives: drives ?? undefined }).catch(ignoreError('save roots'));
         return { r, drives, offline: false };
       } catch (e) {
         // Unreachable host: fall back to what it last allowed, so cached listings stay browsable.
@@ -62,7 +64,7 @@ export function HostRootView({ host, health, initialPath, onSelectRoot }: { host
   }, [host, health, initialPath, onSelectRoot]);
   useEffect(() => load(), [load]);
 
-  if (error) return <Shell host={host} title="Files" offline untrusted={untrusted}><ErrorRetry
+  if (error) return <Shell host={host} title={t('filesTabTitle')} offline untrusted={untrusted}><ErrorRetry
           message={t('errorLabel', { error })}
           onRetry={() => {
             setError(null);
@@ -71,18 +73,18 @@ export function HostRootView({ host, health, initialPath, onSelectRoot }: { host
             load();
           }}
         /></Shell>;
-  if (!res) return <Shell host={host} title="Files"><Loading /></Shell>;
-  if (res.kind === 'denied') return <Shell host={host} title="Files"><Denied /></Shell>;
+  if (!res) return <Shell host={host} title={t('filesTabTitle')}><Loading /></Shell>;
+  if (res.kind === 'denied') return <Shell host={host} title={t('filesTabTitle')}><Denied /></Shell>;
   const banner = offline ? <OfflineBanner text={t('offlineBannerText')} /> : null;
-  if (res.kind === 'drives') return <Shell host={host} title="Drives" subtitle={drives ? `${drives.length} ${drives.length === 1 ? 'drive' : 'drives'}` : undefined} offline={offline}>{banner}{drives === null ? <ListingSkeleton /> : drives.length === 0 ? <EmptyState /> : <DrivesList drives={drives} onSelect={(p) => onSelectRoot(p)} />}</Shell>;
-  if (res.kind === 'roots') return <Shell host={host} title="Shared folders" subtitle={`${res.roots.length} ${res.roots.length === 1 ? 'folder' : 'folders'}`} offline={offline}>{banner}<Roots roots={res.roots} unavailablePath={res.unavailablePath} onSelect={(r) => onSelectRoot(r)} /></Shell>;
+  if (res.kind === 'drives') return <Shell host={host} title={t('drivesTitle')} subtitle={drives ? t('drivesCount', { count: drives.length }) : undefined} offline={offline}>{banner}{drives === null ? <ListingSkeleton /> : drives.length === 0 ? <EmptyState /> : <DrivesList drives={drives} onSelect={(p) => onSelectRoot(p)} />}</Shell>;
+  if (res.kind === 'roots') return <Shell host={host} title={t('sharedFoldersTitle')} subtitle={t('foldersCount', { count: res.roots.length })} offline={offline}>{banner}<Roots roots={res.roots} unavailablePath={res.unavailablePath} onSelect={(r) => onSelectRoot(r)} /></Shell>;
   return null;
 }
 
 function Shell({ host, title, subtitle, offline, untrusted, children }: { host: Host; title: string; subtitle?: string; offline?: boolean; untrusted?: boolean; children: React.ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
-      <TopBar context={`${host.label} · Files`} sub="Workspace" right={untrusted ? <StatePill label="Not trusted" tone="warn" icon={ShieldX} /> : offline ? <StatePill label="Offline" tone="warn" icon={CloudOff} /> : <StatePill label="Connected" tone="safe" icon={ShieldCheck} />} />
+      <TopBar context={t('hostFilesContext', { host: host.label })} sub={t('workspaceLabel')} right={untrusted ? <StatePill label={t('notTrustedBadge')} tone="warn" icon={ShieldX} /> : <ConnectionPill offline={offline} />} />
       <PageHead title={title} subtitle={subtitle} />
       <View style={{ flex: 1 }}>{children}</View>
     </View>
@@ -94,7 +96,7 @@ function Denied() {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, gap: Spacing.md }}>
       <ShieldX size={48} color={c.error} />
-      <Text style={{ textAlign: 'center' }}>This device has no file access on this computer.</Text>
+      <Text style={{ textAlign: 'center' }}>{t('noDriveAccess')}</Text>
     </View>
   );
 }
@@ -105,7 +107,7 @@ function CollectionCard({ icon, name, meta, onPress }: { icon?: React.ReactNode;
   const roles = useRoles();
   return (
     <Pressable onPress={onPress} accessibilityLabel={name}>
-      <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, padding: LumenSize.cardPadding, borderRadius: LumenSize.cardRadius, backgroundColor: c.surfaceContainer }}>
+      <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: Spacing.md2, padding: LumenSize.cardPadding, borderRadius: LumenSize.cardRadius, backgroundColor: c.surfaceContainer }}>
         {icon}
         <View style={{ flex: 1 }}>
           <Text style={LumenType.title} color={roles.folder} numberOfLines={1}>{name}</Text>
@@ -121,7 +123,7 @@ function Roots({ roots, unavailablePath, onSelect }: { roots: string[]; unavaila
   const sorted = [...roots].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 18, gap: 10 }}>
-      {unavailablePath ? <Text style={LumenType.meta} color={c.error}>This saved location is no longer available to this device. Choose a shared folder below.</Text> : null}
+      {unavailablePath ? <Text style={LumenType.meta} color={c.error}>{t('savedLocationGone')}</Text> : null}
       {sorted.map((r) => (
         <CollectionCard key={r} name={folderLabel(r)} meta={r} onPress={() => onSelect(r)} />
       ))}
@@ -146,7 +148,7 @@ function DrivesList({ drives, onSelect }: { drives: Drive[]; onSelect: (p: strin
               </View>
             }
             name={label}
-            meta={cap ? `${formatSize(d.freeBytes)} free of ${formatSize(d.totalBytes)}  ·  ${d.path}` : d.path}
+            meta={cap ? `${t('placeDriveFree', { free: formatSize(d.freeBytes), total: formatSize(d.totalBytes) })}  ·  ${d.path}` : d.path}
             onPress={() => onSelect(d.path)}
           />
         );

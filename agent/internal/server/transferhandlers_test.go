@@ -20,7 +20,7 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/transfer"
 )
 
-// TestTransferStatus_ForeignDeviceGets404 is the PR-11 regression: a paired
+// TestTransferStatus_ForeignDeviceGets404 is a regression: a paired
 // device that did not open a transfer cannot observe it — the response is
 // indistinguishable from "no such transfer".
 func TestTransferStatus_ForeignDeviceGets404(t *testing.T) {
@@ -254,7 +254,7 @@ func TestOpenTransferHandler_ChunkSizeAtCapIsAllowed(t *testing.T) {
 // TestUploadChunkHandler_OversizedBodyIs413 verifies a chunk body larger than
 // the session's chunkSize is rejected with 413, using the error envelope.
 func TestUploadChunkHandler_OversizedBodyIs413(t *testing.T) {
-	tm, ops := newTestTransferManager(t)
+	tm, _ := newTestTransferManager(t)
 
 	target := filepath.Join(t.TempDir(), "out.bin")
 	const chunkSize = 16
@@ -264,7 +264,6 @@ func TestUploadChunkHandler_OversizedBodyIs413(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	_ = ops // ops unused beyond constructing tm in this subtest
 
 	// Body larger than chunkSize.
 	oversized := make([]byte, chunkSize+1)
@@ -377,7 +376,7 @@ func TestUploadChunkHandler_ExactSizeIsAccepted(t *testing.T) {
 	}
 }
 
-// TestRequireWritable is the PR-04 regression: the resumable-upload routes
+// TestRequireWritable is a regression: the resumable-upload routes
 // used to be the one way around read-only. The gate must honour both the
 // global setting and the per-device ops the jail middleware installs.
 func TestRequireWritable(t *testing.T) {
@@ -414,7 +413,7 @@ func TestRequireWritable(t *testing.T) {
 	}
 }
 
-// TestRegisterTransferRoutes_ReadOnlyWiring proves the PR-04 gate is actually
+// TestRegisterTransferRoutes_ReadOnlyWiring proves the read-only gate is actually
 // wired onto the mutating routes (the middleware being correct is useless if
 // the routes bypass it), and that read status stays reachable.
 func TestRegisterTransferRoutes_ReadOnlyWiring(t *testing.T) {

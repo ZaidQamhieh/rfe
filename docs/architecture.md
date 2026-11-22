@@ -140,6 +140,15 @@ Port notes and gaps: `docs/rn-migration/ledger.md`. The old Flutter source is in
 | Package / file | Responsibility |
 |----------------|----------------|
 | `cmd/agent/main.go` | Daemon dispatcher + `runServe`; `defaultDataDir()` (`-data` > `$RFE_DATA_DIR` > `~/.rfe`). |
+| `cmd/rfe-launcher/` | Stable launcher (stdlib + internal/launcher, no SQLite): runs the version named in `state.json`, exit code 75 = restart into pending; `bundle` subcommand builds a version dir. |
+| `cmd/rfe-sign/` | Signs an update manifest (`manifest.json` + `.sig`, Ed25519; `-genkey` makes a key). Public keys live in `tools/update-keys.env`; `tools/package-agent.sh` bakes them into the agent. |
+| `cmd/agent/install_launcher.go` | `rfe install -launcher`: copies the launcher and builds the bundle in `~/.rfe-app`, then registers the launcher with the OS supervisor. |
+| `internal/backup` (`PruneOffsite`) | Keeps the newest 14 off-device copies. Status for `GET /v1/system/backups` (old agent and agent-next `daemon/backups.go`); shown in the desktop app at Settings → Troubleshooting → Backup status (`desktop/src-tauri/src/backups.rs`). |
+| `internal/launcher/` | `state.json` state machine (atomic writes, `.bak`), lock file, health monitor (120 s start, 10 min probation, TLS fingerprint probe), rollback. |
+| `internal/bundle/` | Release bundle `manifest.json` (file hashes): Build, Verify, VerifyFile. |
+| `internal/hostupdate/` | Ed25519-signed release manifest (primary + spare key, injected at build), native-arch pick, disk check, download, safe extract, staging into `versions/`. |
+| `internal/upgrade/` | Apply (snapshot, set pending, exit 75), Downgrade, RestoreSnapshot, snapshot trial; `health/` heartbeat protocol. |
+| `internal/backup/` | Snapshot (VACUUM INTO), archive + manifest, Verify, Restore into a new dir, Prune, scheduler, encrypted off-device copy, `backup-status.json`; served at admin `GET /v1/system/backups`. |
 | `cmd/agent/admin.go` | Admin CLI subcommands: `pair`, `devices`, `revoke`, `remove`, `status`. |
 | `cmd/agent/install{,_darwin,_linux,_windows}.go` | `install`/`uninstall` CLI: registers the agent as an auto-start service (systemd --user / launchd / a Windows equivalent) — no root/admin required. |
 | `internal/server/server.go` | chi router wiring — where every route is mounted. |
@@ -151,6 +160,7 @@ Port notes and gaps: `docs/rn-migration/ledger.md`. The old Flutter source is in
 | `internal/server/archive_handler.go` | Compress/extract endpoints (fronts `fsops/archive.go`). |
 | `internal/server/chmod_handler.go` | chmod endpoint. |
 | `internal/server/dupfinder_handler.go` | Batch-checksum endpoint backing the app's duplicate finder. |
+| `internal/server/usage.go`, `internal/next/files/fsextra_usage.go` | `GET /v1/fs/usage`: per-child sizes under a folder, largest first, 2 scans at once, time-budgeted (mobile: `StorageUsageScreen`). |
 | `internal/server/recent.go` | Recent-files endpoint — jail-scoped live recursive walks with a five-second cache for complete results, not a persistent index. |
 | `internal/server/transferhandlers.go` | Upload-session + chunk PUT + download-range endpoints. |
 | `internal/server/search.go` | Search endpoint (indexed fast path, bounded recursive fallback before the first build). |
@@ -160,9 +170,13 @@ Port notes and gaps: `docs/rn-migration/ledger.md`. The old Flutter source is in
 | `internal/server/apps_handlers.go` + `apps_{linux,windows,darwin,other}.go` | Per-device app catalog/launch routes and OS-specific current-user app inventory/launch adapters. |
 | `internal/server/update_handlers.go` | `/v1/app/latest` + `/v1/app/download` (serves APKs from `updates/`). |
 | `internal/server/pair.go` | Pairing endpoint (consumes a DB code, issues a token). |
+| `internal/server/stream_hls.go` (+ `stream_input_*.go`) | `GET /v1/stream`: ffmpeg HLS fMP4 transcode (480p-2160p), max 3 sessions, 501 `TRANSCODE_UNAVAILABLE` without ffmpeg. |
+| `internal/server/events.go`, `internal/events/` | `GET /v1/events` SSE hub (heartbeat, 64-subscriber cap); the desktop (`desktop/src-tauri/src/events.rs`), the web companion (`webui/web/src/lib/events.ts`) and the mobile explorer (`mobile/src/core/agentEvents.ts` over `EventStream.kt`) subscribe. |
+| `internal/server/accounts.go`, `internal/store/accountserver.go`, `federated_session.go` | Optional account server: signed login assertions, pinned trust, 24h federated sessions, `rfe accounts ...` (design: `docs/account-server-design.md`). |
+| `mobile/src/features/pairing/AccountServerForm.tsx`, `app/pair/account-server.tsx` | Mobile "Sign in with account server". |
+| `mobile/src/features/preview/videoQuality.ts`, `hlsStream.ts` | Video quality selector and HLS URL builder. |
 | `internal/server/ratelimit.go` | Pairing, app-catalog, and app-launch rate limiters. |
 | `internal/server/share_handlers.go` | One-time share-link mint/serve/revoke/list — see `docs/r1-share-link-threat-model.md`. |
-| `internal/server/sse_handler.go` | Server-sent-events endpoint — server-side half of the PR-59 finding (client parser lives in the frozen `app/lib` tree). |
 | `internal/server/status_handlers.go` + `status_disk_{unix,windows}.go` | `/v1/health`/status endpoint, incl. OS-specific disk-space lookup. |
 | `internal/server/metrics_{linux,other}.go` | CPU/RAM for `/metrics` — read from `/proc` on Linux, zero on other OSes. |
 | `internal/server/agent_control.go` + `agent_control_{linux,other}.go` | `/agent/restart` handler; OS-specific process restart. |
@@ -187,6 +201,25 @@ Port notes and gaps: `docs/rn-migration/ledger.md`. The old Flutter source is in
 | `internal/netinfo/netinfo.go` | LAN + Tailscale address detection. |
 | `internal/mdns/mdns.go` | Agent-side mDNS/DNS-SD advertisement (`_rfe._tcp`) consumed by Android's explicit local-network discovery scan. |
 | `internal/webui/` (`webui.go`, `web/`, `dist/`) | Browser-based web companion (control/status/settings/file-browsing), embedded static bundle served at `/`. The Vite + React + TypeScript source lives in `web/`; run `npm run build` there to generate `dist/`, which Go embeds into the agent binary. Edit `web/src/` and rebuild; treat `dist/` as generated output. |
+| `internal/next/rootfs/` | Symlink-safe filesystem layer: a `Set` of allowed folders held as `os.Root` handles, with a protected data folder, a per-device jail and read-only mode. |
+| `internal/next/files/` | File service over a `rootfs.Set`: list, metadata, checksums, write, rename, copy, move, permanent delete, compress/extract, trash and drive list. |
+| `internal/next/transfer/` | Resumable chunked upload engine: sessions with declared size, chunk size and whole-file SHA-256; chunks in any order; atomic publish through the file service. Uploads only; downloads are `GET /content` in the api package (HTTP Range). |
+| `internal/next/store/` | v3 SQLite database (`agent-v3.db`): accounts, devices, share links, upload sessions, audit log, settings. Tokens stored only as SHA-256 hashes; SQL only. |
+| `internal/next/legacyimport/` | One-time import of an old `agent.db` (PRAGMA `user_version` 0 to 9) into `agent-v3.db`: snapshot, convert, verify, fsync, then rename. The old file is never written. |
+| `internal/next/settings/` | Owner settings (roots, read-only, display name, share switch, photo-backup destination, bandwidth limits) in the v3 settings table; validated, then written in one transaction. |
+| `internal/next/audit/` | Trail of account, device and share events (file operations are deliberately not recorded); keeps the newest `Retention` entries. |
+| `internal/next/share/` | Share links: one file per link, token stored as a SHA-256 hash; a fetch re-checks that the minting device still exists, is not revoked and still holds its grants. |
+| `internal/next/search/` | Name and content search below a `rootfs.Set`: a live walk (default and oracle), an optional rfe-indexd Indexer seam for the first page, and cursor paging in depth-first order. |
+| `internal/next/thumbs/` | Thumbnail service: reads sources through a `rootfs.Set`, keeps a bounded on-disk cache keyed by path, size, mtime and device/inode; pure-Go renderer by default, with the rfe-thumbd sidecar optionally in front. |
+| `internal/next/system/` | Health, status and metrics service with no HTTP; every data source is injected behind an interface. |
+| `internal/next/pairing/` | Pairing (one-time code or approve-on-PC), registration, login and revocable device bearer tokens; code and approval devices start browse-only. |
+| `internal/next/apps/` | Installed-apps list and launch: an app is named only by an opaque id, resolved against a fresh listing; only the host's fixed launcher programs run. |
+| `internal/next/authz/` | Pure device-capability decisions over values (no DB, filesystem or clock), reproducing the old agent's rules. |
+| `internal/next/api/` | The agent-next HTTP server: route table (authentication and authorization per route), handlers for every route in `protocol/openapi.yaml` (no route answers 501), the domain-error to status/code map, bandwidth throttling of content and chunk bodies. |
+| `internal/next/hostops/` | Host operations behind `/logs`, `/agent/restart`, `/wol` and `/app/latest`, `/app/download`; restart, log source and WoL sender are injectable. |
+| `internal/next/daemon/` | Wiring: builds every agent-next service, production adapters, sidecar supervisor, web companion, legacy import (`import --check`). `cmd/agent-next` is its entry point. |
+
+agent-next (`agent/internal/next/`) is the parallel rewrite of the backend; the old agent (`agent/internal/server` and the rest of the tree above) stays the oracle only for pairing, TOFU, auth, jail and transfer integrity until cutover (`agent/internal/conformance`); intentional differences are listed in `docs/agent-next-differences.md`.
 
 ### Rust sidecars — `agent-rs/`
 
@@ -202,9 +235,9 @@ and every path it returns is re-checked against the jail.
 | `agent/internal/server/sidecar_index.go` | Index backend over rfe-indexd, recents walker, thumbnail hookup. |
 | `agent/internal/server/sidecar_locate.go` | Finds sidecars, verifies `rfe-sidecars.txt` (sha256 + version), `RFE_SIDECARS` switch, status report. |
 | `agent/internal/thumbs/remote.go` | `Remote` interface and sidecar renderer with Go fallback. |
-| `tools/package-agent.sh` | Builds the agent and archives it with the sidecars and manifest (used by `agent-release.yml`). |
+| `tools/package-agent.sh` | Builds the agent and archives it with the sidecars and manifest (used by `host-release.yml`). |
 
-## Test → source map (used by `scripts/test-affected.sh`)
+## Test → source map
 
 Go tests sit beside their package (`*_test.go`), so a changed Go file maps to `go test` on its
 own directory. For `mobile/`, run the affected jest files (`npx jest <path>`); trust CI for the rest. A change to `protocol/openapi.yaml` is

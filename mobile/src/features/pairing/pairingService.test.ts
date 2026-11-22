@@ -5,7 +5,9 @@ import { MemorySecureStore } from '../../core/security/secureStore';
 import { HostStore, MemoryKeyValueStore } from '../../core/storage/hostStore';
 import { sha256 } from '@noble/hashes/sha2.js';
 
-import { awaitPairing, checkKnownPin, humanizeError, loginWithAccount, PairExpired, pairWithCode, PairRejected, parsePairingQr, proofMessage, registerAccount, requestPairing, type PairingDeps } from './pairingService';
+import { humanizeError } from '../../core/humanizeError';
+import { AgentClient } from '../../core/api/agentClient';
+import { awaitPairing, checkKnownPin, loginWithAccount, loginWithAccountServer, PairExpired, pairWithCode, PairRejected, parsePairingQr, proofMessage, registerAccount, requestPairing, type PairingDeps } from './pairingService';
 
 const PIN = 'ab'.repeat(32);
 const rnd = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i * 5 + 1) & 255);
@@ -48,6 +50,32 @@ describe('pairWithCode', () => {
     expect(host).toMatchObject({ id: 'dev-9', label: 'My PC', address: '10.0.0.2:8765', tailscaleAddress: '100.1.1.1:8765' });
     expect(await store.getPin('dev-9')).toBe(PIN);
     expect(await store.getToken('dev-9')).toBe('tok');
+  });
+
+  it('clears the stale refused transfers of the computer it just paired, and a failing cleanup does not fail the pairing', async () => {
+    const { deps, store } = setup(okHandler);
+    await store.commitPairing({ id: 'old-id', label: 'Desk', address: '10.0.0.9:8765' }, { token: 'old-tok', fingerprint: PIN });
+    const cleared: string[] = [];
+    await pairWithCode({ ...deps, clearStaleTransfers: async (id) => void cleared.push(id) }, { address: '10.0.0.2:8765', fingerprint: PIN }, 'CODE');
+    expect(cleared).toEqual(['old-id']);
+    const failing = await pairWithCode({ ...deps, clearStaleTransfers: async () => { throw new Error('native down'); } }, { address: '10.0.0.2:8765', fingerprint: PIN }, 'CODE');
+    expect(failing.id).toBe('old-id');
+  });
+
+  it('pairing the same computer again (new device id) keeps its saved entry instead of adding a second', async () => {
+    const { deps, store } = setup(okHandler);
+    await store.commitPairing({ id: 'old-id', label: 'Desk', address: '10.0.0.9:8765', macAddress: 'aa:bb' }, { token: 'old-tok', fingerprint: PIN });
+    const host = await pairWithCode(deps, { address: '10.0.0.2:8765', fingerprint: PIN }, 'CODE');
+    expect(host).toMatchObject({ id: 'old-id', label: 'Desk', address: '10.0.0.2:8765', macAddress: 'aa:bb' });
+    expect((await store.listHosts()).map((h) => h.id)).toEqual(['old-id']);
+    expect(await store.getToken('old-id')).toBe('tok');
+  });
+
+  it('a different computer (other certificate) is added as its own entry', async () => {
+    const { deps, store } = setup(okHandler);
+    await store.commitPairing({ id: 'other', label: 'Other', address: '10.0.0.9:8765' }, { token: 't', fingerprint: 'cd'.repeat(32) });
+    await pairWithCode(deps, { address: '10.0.0.2:8765', fingerprint: PIN }, 'CODE');
+    expect((await store.listHosts()).map((h) => h.id).sort()).toEqual(['dev-9', 'other']);
   });
 
   it('a pin mismatch sends nothing further and stores nothing', async () => {
@@ -112,7 +140,7 @@ describe('humanizeError', () => {
   it('leaves other messages alone', () => expect(humanizeError(new Error('boom'))).toBe('boom'));
   it('explains a raw native connection failure instead of echoing the host name', () => {
     const e = Object.assign(new Error('not'), { code: 'ERR_CONNECTION' });
-    expect(humanizeError(e)).toMatch(/^Could not reach the computer\. Check the address and port/);
+    expect(humanizeError(e)).toMatch(/^Could not reach the computer\. Check the address, that RFE/);
     expect(humanizeError(Object.assign(new Error('handshake'), { code: 'ERR_TLS' }))).toMatch(/secure connection/);
   });
   it('says what a bare 403 from a download means instead of showing the status', () => {
@@ -126,7 +154,8 @@ describe('humanizeError', () => {
   });
   it('says a bare 401 means this computer no longer accepts the phone', () => {
     expect(humanizeError(new AgentApiError(401, 'UNKNOWN', 'HTTP 401'))).toMatch(/no longer accepts this phone/);
-    expect(humanizeError(new AgentApiError(401, 'UNAUTHORIZED', 'token expired'))).toBe('token expired');
+    expect(humanizeError(new AgentApiError(401, 'UNAUTHORIZED', 'invalid or revoked token'))).toMatch(/no longer accepts this phone/);
+    expect(humanizeError(new AgentApiError(401, 'SOMETHING_ELSE', 'token expired'))).toBe('token expired');
   });
   it('explains a certificate mismatch as a changed computer identity', () => {
     const m = humanizeError(new CertPinMismatch());
@@ -240,5 +269,55 @@ describe("credentials are only sent to a computer this phone trusts", () => {
     expect(await checkKnownPin(deps, { address: '10.0.0.2:8765', fingerprint: PIN })).toBe('new');
     await store.commitPairing(host(PIN), { token: 't', fingerprint: PIN });
     expect(await checkKnownPin(deps, { address: '10.0.0.2:8765', fingerprint: PIN })).toBe('known');
+  });
+});
+
+describe('loginWithAccountServer', () => {
+  const MEMBER = 'cd'.repeat(32);
+  const accountClient = (handler: (body: unknown) => unknown) => {
+    const calls: { url: string; body: unknown; auth?: string }[] = [];
+    const transport: Transport = {
+      async request(a) {
+        const body = a.bodyText ? JSON.parse(a.bodyText) : null;
+        calls.push({ url: a.url, body, auth: a.headers.Authorization });
+        const r = handler(body);
+        if (r instanceof Error) throw r;
+        return { status: 200, headers: {}, bodyText: JSON.stringify(r) };
+      },
+    };
+    const client = new AgentClient({ id: 'srv', label: 'Server', address: 's:1', certFingerprint: PIN }, { transport, deviceToken: 'srv-tok', pinnedFingerprint: PIN });
+    return { client, calls };
+  };
+
+  it('gets the member challenge, has the account server sign for this key, and logs in with the assertion only', async () => {
+    const { deps, calls, store } = setup(okHandler);
+    const acct = accountClient(() => ({ assertion: 'pay.sig', exp: 1 }));
+    const host = await loginWithAccountServer(deps, { address: 'm:1', fingerprint: MEMBER.toUpperCase() }, acct.client);
+    expect(calls.map((c) => c.url.split('/v1')[1])).toEqual(['/auth/challenge', '/login']);
+    const login = calls[1].body as Record<string, unknown>;
+    expect(login).toMatchObject({ assertion: 'pay.sig', nonce: 'n-1', deviceId: 'android-id-1' });
+    expect(login).not.toHaveProperty('username');
+    expect(login).not.toHaveProperty('password');
+    expect(acct.calls[0].url.endsWith('/v1/accounts/assertion')).toBe(true);
+    expect(acct.calls[0].auth).toBe('Bearer srv-tok');
+    expect(acct.calls[0].body).toEqual({ audience: MEMBER, devicePublicKey: login.devicePublicKey, memberNonce: 'n-1' });
+    expect(await store.getToken(host.id)).toBe('tok'); // member token stored for the member, not the server
+  });
+
+  it('a refused assertion (not a password session, role off) never reaches the member login', async () => {
+    const { deps, calls, store } = setup(okHandler);
+    const acct = accountClient(() => Object.assign(new Error('forbidden'), { code: 'FORBIDDEN' }));
+    await expect(loginWithAccountServer(deps, { address: 'm:1', fingerprint: MEMBER }, acct.client)).rejects.toThrow();
+    expect(calls.map((c) => c.url.split('/v1')[1])).toEqual(['/auth/challenge']);
+    expect(await store.listHosts()).toEqual([]);
+  });
+
+  it('refuses a member saved under another certificate before any request', async () => {
+    const { deps, calls, store } = setup(okHandler);
+    await store.commitPairing({ id: 'x', label: 'X', address: 'm:1' }, { token: 't', fingerprint: PIN });
+    const acct = accountClient(() => ({ assertion: 'a', exp: 1 }));
+    await expect(loginWithAccountServer(deps, { address: 'm:1', fingerprint: MEMBER }, acct.client)).rejects.toBeInstanceOf(CertPinMismatch);
+    expect(calls).toHaveLength(0);
+    expect(acct.calls).toHaveLength(0);
   });
 });

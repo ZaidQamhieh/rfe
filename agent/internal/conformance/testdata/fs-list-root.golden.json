@@ -1,0 +1,59 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "entries": [
+      {
+        "childCount": 6,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "data",
+        "path": "<ROOT>/data",
+        "size": "<dirSize>"
+      },
+      {
+        "created": "<created>",
+        "isDir": false,
+        "isSymlink": false,
+        "mimeType": "text/plain; charset=utf-8",
+        "mode": "-rw-r--r--",
+        "modified": "<modified>",
+        "name": "delete-me.txt",
+        "path": "<ROOT>/delete-me.txt",
+        "size": 9
+      },
+      {
+        "created": "<created>",
+        "isDir": false,
+        "isSymlink": false,
+        "mimeType": "text/plain; charset=utf-8",
+        "mode": "-rw-r--r--",
+        "modified": "<modified>",
+        "name": "delete-perm.txt",
+        "path": "<ROOT>/delete-perm.txt",
+        "size": 19
+      },
+      {
+        "childCount": 3,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "docs",
+        "path": "<ROOT>/docs",
+        "size": "<dirSize>"
+      }
+    ],
+    "nextCursor": null,
+    "path": "<ROOT>"
+  }
+}

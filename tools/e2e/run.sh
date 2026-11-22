@@ -38,10 +38,11 @@ done
 
 # One verdict per case: a missing case is NOT RUN, a duplicate is a harness fault.
 cat "$E2E_RUN"/cases-*.log | rg '^REQ [0-9]+ ' >"$E2E_RUN/verdicts.txt"
+ncases=$(grep -c '^### REQ-' "$HERE/cases.md")
 {
 	echo "| Case | Status | Evidence |"
 	echo "|---|---|---|"
-	for n in $(seq 1 41); do
+	for n in $(seq 1 "$ncases"); do
 		lines=$(rg "^REQ $n " "$E2E_RUN/verdicts.txt")
 		count=$(printf '%s' "$lines" | rg -c '^REQ' || true)
 		if [ -z "$lines" ]; then

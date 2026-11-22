@@ -1,0 +1,55 @@
+/* v5 Settings and Tools: the mockup's pages (mockups/v5/kit.css .k-settings, .k-set, .k-ttabs ...) are already in v5-kit.css;
+   this file only holds the few app-only parts the mockup has no markup for: the real controls the settings rows reuse
+   (switch buttons, selects), the dimmed expired/disabled rows and the error line. Colours come from the v5 tokens only,
+   so light and dark both follow. rem only. */
+:where(.d5) .stage.page:has(> .v5pg) { padding: 1.5rem 1.75rem 5.5rem; }
+:where(.d5) .v5pg { max-width: none; }
+
+/* settings: the old switch is a button, the mockup's is a span; same look, no browser button chrome */
+:where(.d5) .k-sbody button.k-sw { border: 0; padding: 0; flex: none; }
+:where(.d5) .k-sbody button.k-sw:focus-visible, :where(.d5) .k-sbody .k-seg button:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: 0.125rem; }
+:where(.d5) .k-sbody .k-seg[data-sx-group] { flex-wrap: wrap; }
+:where(.d5) .k-sbody .k-set > div:last-child > div { display: flex; gap: 0.5rem; align-items: center; }
+:where(.d5) .k-sbody .k-set small .b-tech { margin-top: 0.5rem; }
+:where(.d5) .k-sbody .k-set small .b-tech .k-kv { grid-template-columns: 8rem 1fr; }
+:where(.d5) .k-sbody .k-set .k-seg[aria-disabled="true"], :where(.d5) .k-sbody .k-set > div[aria-disabled="true"] { opacity: .45; }
+:where(.d5) .k-sbody .k-set > div:first-child { min-width: 0; }
+:where(.d5) .k-sbody .k-keys kbd { margin: 0; }
+
+/* a row menu stays on top: while one is open, the little name tag of the button that opened it (or of any button under
+   it) would paint over the menu's first lines, so the tags wait until the menu is closed */
+body:has(#layer .menu) :where(.d5) [data-tip]:hover::after { display: none; }
+:where(.d5) .k-banner .k-btn { flex: none; }
+:where(.d5) .v5pg .k-tbl .tr:focus-visible, :where(.d5) .v5pg .k-list > .k-lrow:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: -0.125rem; }
+
+/* tools */
+:where(.d5) .v5pg .k-ttabs .k-chip .cnt { color: var(--t3); font: 400 0.75rem var(--mono); }
+:where(.d5) .v5pg .k-chip.on .cnt { color: inherit; opacity: .7; }
+:where(.d5) .v5pg .k-lrow.dim { opacity: .55; }
+:where(.d5) .v5pg .k-lrow[data-fx] { cursor: pointer; }
+:where(.d5) .v5pg .k-lrow .k-ib { flex: none; }
+:where(.d5) .v5pg .k-lrow .k-btn { flex: none; }
+:where(.d5) .v5pg .v5err { margin: 0 0 0.75rem; color: var(--neg); font-size: 0.8125rem; }
+:where(.d5) .v5pg .v5sub { margin: 0 0 0.75rem; color: var(--t3); font-size: 0.8125rem; }
+:where(.d5) .v5pg .k-empty .k-e { margin-bottom: 0.25rem; }
+:where(.d5) .v5pg .k-in.sm input { width: 14rem; }
+:where(.d5) .v5pg .k-fbar { margin-bottom: 1rem; }
+:where(.d5) .v5pg .k-stats { margin-bottom: 1rem; }
+:where(.d5) .v5pg .k-trash .tr { cursor: pointer; }
+:where(.d5) .v5pg .k-trash .tr .dn b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:where(.d5) .v5pg .k-tbl .k-ck { display: inline-grid; place-items: center; color: var(--bg); }
+:where(.d5) .v5pg .k-tbl .th .k-ck { cursor: pointer; }
+:where(.d5) .v5pg .k-tbl .th .k-ck.on, :where(.d5) .v5pg .k-tbl .tr.sel .k-ck { background: var(--ac); box-shadow: none; }
+:where(.d5) .v5pg .k-dup { display: grid; gap: 0.125rem; }
+:where(.d5) .v5pg .k-dup small.keep { color: var(--pos); }
+:where(.d5) .v5pg .k-app[data-busy="1"] { opacity: .7; }
+:where(.d5) .v5pg .k-offb .bad { color: var(--neg); }
+
+/* the language button: current language and a chevron; the menu under it lists every language */
+:where(.d5) .k-lang { display: inline-flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 11rem; height: 2.25rem; padding: 0 0.75rem 0 0.875rem; border-radius: var(--r); background: var(--sf); box-shadow: inset 0 0 0 1px var(--line); color: var(--t1); font-size: 0.875rem; }
+:where(.d5) .k-lang::after { content: ""; width: 0.4375rem; height: 0.4375rem; border-right: 1.5px solid var(--t3); border-bottom: 1.5px solid var(--t3); transform: translateY(-0.125rem) rotate(45deg); flex: none; }
+.menu.k-langmenu { max-height: min(22rem, calc(100vh - 6rem)); }
+.menu.k-langmenu .mi { height: 2.5rem; }
+
+/* Settings buttons never shrink below their text: a row's right side keeps each button at its full width with its own padding (About: Show the welcome screen, Check now, Details). */
+:where(.d5) .k-sbody .k-set .k-btn { flex: none; justify-content: center; padding-inline: 1rem; }

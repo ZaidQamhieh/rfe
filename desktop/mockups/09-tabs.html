@@ -1,0 +1,65 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tabs — browse computers like web pages</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.bt{background:#dee1e6;color:#202124;font-family:system-ui,"Segoe UI",Roboto,sans-serif;font-size:13px}
+.bt .tabs{height:40px;display:flex;align-items:flex-end;padding:0 10px;gap:2px;background:#dee1e6}
+.bt .tabs .dots{display:flex;gap:7px;align-self:center;margin-right:12px}.bt .tabs .dots i{width:11px;height:11px;border-radius:50%;background:#b5b9bf}
+.bt .tab{height:32px;width:210px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:10px 10px 0 0;color:#3c4043;position:relative}
+.bt .tab .fav{width:14px;height:14px;border-radius:4px;flex:none}
+.bt .tab .x{margin-left:auto;color:#80868b;font-size:12px}
+.bt .tab.on{background:#fff}
+.bt .tab:not(.on)+.tab:not(.on)::before{content:"";position:absolute;left:-1px;top:8px;bottom:8px;width:1px;background:#b5b9bf}
+.bt .plus{align-self:center;margin-left:6px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#5f6368;font-size:18px}
+.bt .omni{height:46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fff;border-bottom:1px solid #e8eaed}
+.bt .omni .nb{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#5f6368;font-size:15px}
+.bt .addr{flex:1;height:32px;background:#f1f3f4;border-radius:16px;display:flex;align-items:center;padding:0 14px;gap:8px;color:#5f6368}
+.bt .addr .lock{color:#188038;font-size:12px}.bt .addr b{color:#202124;font-weight:400}
+.bt .addr .star{margin-left:auto}
+.bt .ext{display:flex;gap:4px}.bt .ext span{height:30px;padding:0 10px;border-radius:15px;display:flex;align-items:center;gap:6px;color:#3c4043}
+.bt .ext span:hover{background:#f1f3f4}
+.bt .ext .ring{width:14px;height:14px;border-radius:50%;background:conic-gradient(#1a73e8 0 70%,#e8eaed 0)}
+.bt .ext .bdg{background:#d93025;color:#fff;border-radius:8px;padding:0 5px;font-size:10px;font-weight:700}
+.bt .marks{height:32px;display:flex;align-items:center;gap:4px;padding:0 12px;background:#fff;border-bottom:1px solid #e8eaed;font-size:12px;color:#3c4043}
+.bt .marks span{padding:4px 10px;border-radius:12px}.bt .marks span:hover{background:#f1f3f4}
+.bt .page{flex:1;background:#fff;display:flex;flex-direction:column;min-height:0;padding:0 28px}
+.bt .page h1{font:400 24px system-ui;margin:20px 0 4px}.bt .page .meta{color:#5f6368;font-size:12.5px;margin-bottom:12px}
+.bt table{width:100%;border-collapse:collapse}
+.bt th{text-align:left;font:500 12px system-ui;color:#5f6368;padding:8px 10px;border-bottom:1px solid #e8eaed}
+.bt td{padding:9px 10px;border-bottom:1px solid #f1f3f4}
+.bt td:first-child{display:flex;align-items:center;gap:10px}
+.bt td .i{width:18px;height:18px;border-radius:4px;background:#e8f0fe}.bt td .i.d{background:#fbbc04}
+.bt tr:hover td{background:#f8f9fa}
+.bt td a{color:#1a73e8;text-decoration:none}
+.bt .ctx{position:absolute;right:58px;top:118px;width:300px;background:#fff;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:10px 0;font-size:13px}
+.bt .ctx h6{margin:4px 16px 8px;font:500 12px system-ui;color:#5f6368}
+.bt .ctx .r{display:grid;grid-template-columns:1fr 70px;gap:10px;padding:7px 16px;align-items:center}
+.bt .ctx .r small{color:#5f6368;font-size:11px}
+.bt .ctx .pb{grid-column:1/-1;height:4px;background:#e8eaed;border-radius:2px;overflow:hidden;margin-top:-3px}.bt .ctx .pb i{display:block;height:100%;background:#1a73e8}
+.bt .ctx .f{border-top:1px solid #e8eaed;margin-top:6px;padding:8px 16px 0;color:#1a73e8}
+</style></head><body class="mk">
+<div class="win bt">
+ <div class="tabs"><span class="dots"><i></i><i></i><i></i></span>
+  <div class="tab on"><span class="fav" style="background:#34a853"></span>studio-pc · launch-kit<span class="x">✕</span></div>
+  <div class="tab"><span class="fav" style="background:#4285f4"></span>work-laptop · Documents<span class="x">✕</span></div>
+  <div class="tab"><span class="fav" style="background:#80868b"></span>This PC · Downloads<span class="x">✕</span></div>
+  <div class="tab"><span class="fav" style="background:#ea4335"></span>Devices · studio-pc<span class="x">✕</span></div>
+  <span class="plus">+</span></div>
+ <div class="omni"><span class="nb">←</span><span class="nb">→</span><span class="nb">↑</span>
+  <div class="addr"><span class="lock">🔒 pinned</span><b>rfe://studio-pc/home/sam/Projects/launch-kit</b><span style="color:#9aa0a6"> — or type to search</span><span class="star">☆</span></div>
+  <div class="ext"><span><i class="ring"></i>2</span><span>☍ <i class="bdg">1</i></span><span>⋮</span></div></div>
+ <div class="marks"><span>★ Inbox (studio-pc)</span><span>★ Photos (nas-box)</span><span>★ Thesis (work-laptop)</span><span>★ Trash</span><span>★ Share links</span><span>★ Apps on studio-pc</span></div>
+ <div class="page"><h1>launch-kit</h1><div class="meta">studio-pc · 9 items · 412 GB free · drop files on this page to upload</div>
+  <table><tr><th>Name</th><th>Size</th><th>Modified</th><th>Permissions</th></tr>
+   <tr><td><i class="i d"></i><a href="#">assets</a></td><td>42 items</td><td>Today</td><td>rwxr-xr-x</td></tr>
+   <tr><td><i class="i d"></i><a href="#">drafts</a></td><td>7 items</td><td>Yesterday</td><td>rwxr-xr-x</td></tr>
+   <tr><td><i class="i"></i>hero-final.png</td><td>4.2 MB</td><td>Today 09:12</td><td>rw-r--r--</td></tr>
+   <tr><td><i class="i"></i>brief.md</td><td>8 KB</td><td>Oct 29</td><td>rw-r--r--</td></tr>
+   <tr><td><i class="i"></i>budget-q4.xlsx</td><td>212 KB</td><td>Oct 27</td><td>rw-r--r--</td></tr>
+   <tr><td><i class="i"></i>launch-video.mp4</td><td>1.4 GB</td><td>Oct 20</td><td>rw-r--r--</td></tr>
+   <tr><td><i class="i"></i>press-release.pdf</td><td>680 KB</td><td>Oct 18</td><td>rw-r--r--</td></tr></table></div>
+ <div class="ctx"><h6>Transfers — like a browser's downloads</h6>
+  <div class="r">raw-footage-day3.mov ↑<small>71% · 3 min</small><div class="pb"><i style="width:71%"></i></div></div>
+  <div class="r">tax-2025.pdf ↓<small>✓ verified</small></div>
+  <div class="r">thesis-v12.docx ↑<small>waiting</small></div>
+  <div class="f">Show all transfers (Ctrl J)</div></div>
+</div></body></html>

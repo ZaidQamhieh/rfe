@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Host } from '../core/models/host';
 import { ErrorRetry, Loading } from '../design/components';
 import { CrossHostSearchScreen } from '../features/search/CrossHostSearchScreen';
-import { humanizeError } from '../features/pairing/pairingService';
+import { humanizeError } from '../core/humanizeError';
 import { hostStore } from '../services';
 
 /** Search every paired computer. */

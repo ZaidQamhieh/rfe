@@ -14,12 +14,13 @@
   const FAST = /[?&]fast=1/.test(location.search);
   const delay = (v, ms) => (FAST ? Promise.resolve(v) : new Promise((r) => setTimeout(() => r(v), ms || 0)));
   const err = (msg) => Promise.reject(msg);
-  const state = { rid: 0, xfers: [], trash: [], shares: [], online: {}, prefs: { parallel: 2, limitMbps: 0, onConflict: 'keep', verify: true } };
+  const state = { rid: 0, xfers: [], trash: [], shares: [], online: {}, prefs: { parallel: 2, limitMbps: 0, onConflict: 'keep', verify: true }, acct: { enabled: false, name: 'studio-pc', trusted: null } };
 
   function simHost(h) { if (h == null || h === '') return 'nas'; return SIM_OF[h] || h; }
   function node(host, path) { return Sim.fs.get(host, path); }
 
   const cmds = {
+    events_sync() { return null; }, /* the core follows each computer's event stream; the stand-in has none */
     list_hosts() {
       return Sim.servers.map((s, i) => ({ key: IDS[s.id], name: s.name, host: IDS[s.id], fingerprint: hex(s), username: 'zaid', signedIn: ['online', 'lost', 'offline'].includes(s.state) && s.id !== 'mac', active: i === 0 }));
     },
@@ -75,7 +76,8 @@
     files_recent() { return delay([{ name: 'notes.txt', path: '/srv/notes.txt', isDir: false, size: 10, modified: iso(Date.now() - 600e3), mode: '-rw-r--r--' }], 5); },
     files_read_text({ host, path }) { const n = node(simHost(host), path); if (!n || n.t === 'dir') return err('this file is not text, or is too large to open here'); return delay({ path, text: n.content == null ? '' : n.content, modified: iso(n.mod), size: (n.content || '').length }, 5); },
     files_write_text({ host, path, text }) { const n = node(simHost(host), path); if (n) { n.content = text; n.b = text.length; n.mod = Date.now(); } return delay(entry(n, path), 5); },
-    files_thumb() { return err('no thumbnail'); },
+    /* Dev only: a flat sample garden picture as a data: URL (the real agent returns the file's own thumbnail). */
+    files_thumb() { return delay('data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 110" preserveAspectRatio="xMidYMid slice"><rect width="160" height="110" fill="#cfd6dc"/><circle cx="114" cy="26" r="9" fill="#efe6cf"/><path d="M0 62 Q40 48 80 58 T160 52 V110 H0Z" fill="#7f9a85"/><path d="M0 78 Q50 66 100 76 T160 72 V110 H0Z" fill="#5c7766"/><rect y="88" width="160" height="22" fill="#a38463"/><g fill="#5c7766"><rect x="32" y="80" width="30" height="8" rx="2"/><rect x="84" y="82" width="44" height="6" rx="2"/></g></svg>'), 5); },
     files_checksum({ path, algo }) { return delay({ path, algorithm: algo, checksum: '9f2c4e0a7b3d1c9e5a8f6b21d41e83aa'.repeat(2) }, 20); },
     files_checksums({ paths }) { return delay(paths.map((p) => ({ path: p, hash: '9f2c4e0a7b3d1c9e5a8f6b21d41e83aa'.repeat(2), error: '' })), 20); },
     files_chmod({ host, path, mode }) { const n = node(simHost(host), path); return delay(entry(n, path), 5); },
@@ -93,7 +95,7 @@
     transfer_upload_tree({ host, localPath, remoteDir }) { return startX(host, 'upload', localPath, remoteDir, false); },
     transfer_download_tree({ host, remotePath, isDir }) { return startX(host, 'download', remotePath, '', isDir); },
     transfer_list() { stepX(); return state.xfers.map((x) => ({ id: x.id, direction: x.direction, state: x.state, name: x.name, remotePath: x.remotePath, localPath: x.localPath, done: Math.round(x.done), total: x.total, error: x.error, verified: x.state === 'done', host: x.host, conflict: x.conflict || null })); },
-    desktop_set_prefs(p) { state.desktop = Object.assign({}, p); return null; }, desktop_has_tray() { return true; }, desktop_set_scale({ zoom }) { return zoom; }, desktop_autostart_state() { return !!state.autostart; },
+    desktop_set_prefs(p) { state.desktop = Object.assign({}, p); return null; }, desktop_has_tray() { return true; }, desktop_set_scale({ zoom }) { return zoom; }, desktop_limits() { return { maxVideoBytes: 256 * 1024 * 1024, maxBatch: 1000, maxTextBytes: 1 << 20, maxName: 255, maxImageBytes: 8 << 20 }; }, desktop_autostart_state() { return !!state.autostart; },
     desktop_set_autostart({ on }) { state.autostart = !!on; return state.autostart; }, desktop_notify(n) { (state.notified = state.notified || []).push(n); return true; },
     update_check({ channel }) { return delay({ current: '1.0.0', latest: channel === 'beta' ? '1.2.0-rc.1' : '1.1.0', available: true, prerelease: channel === 'beta', notes: ['Faster folders', 'A fix'], page: 'https://github.com/x/y/releases', package: { name: 'RFE-Desktop_1.1.0_amd64.deb', size: 8800000 } }, 20); },
     update_download({ version, name }) { return delay('/home/zaid/Downloads/RFE Desktop/' + name, 20); },
@@ -109,6 +111,14 @@
     local_delete({ path }) { const dir = path.slice(0, path.lastIndexOf('/')) || '/'; try { Sim.fs.remove('local', dir, [path.slice(path.lastIndexOf('/') + 1)]); } catch (e) { return err(e.message); } return delay(null, 3); },
     rename_host() { return null; }, remove_host() { return { wasActive: false }; }, switch_host() { return {}; }, sign_out() { return {}; },
     generate_pairing_code() { return delay({ status: 'ok', code: '482913', expiresInSeconds: 600, qr: JSON.stringify({ address: '192.168.1.20:7443', certFingerprint: 'AB', code: '482913' }) }, 20); },
+    local_agent_admin({ args }) {
+      const now = Math.floor(Date.now() / 1000);
+      if (args[0] === 'devices') return delay(JSON.stringify([{ id: 'e13a4291', label: 'Mobile App', created: now - 86400 * 3, revoked: false, readOnly: false, lastSeen: now - 60, lastAddress: '192.168.1.109', jailRoot: '', canBrowse: true, canDownload: true, canUpload: false, canModify: false, canDelete: false, canShare: false, viewApps: false, launchApps: false }, { id: 'b77c02aa', label: 'Pixel 8', created: now - 86400 * 20, revoked: false, readOnly: true, lastSeen: now - 86400, lastAddress: '192.168.1.55', jailRoot: '/home/zaid/Photos', canBrowse: true, canDownload: true, canUpload: true, canModify: false, canDelete: false, canShare: false, viewApps: true, launchApps: false }]), 20);
+      if (args[0] === 'pair' && args[1] === 'requests') return delay(JSON.stringify([{ id: 'r1aa22bb', label: 'Galaxy S24', matchCode: '4821 7730', remoteIp: '192.168.1.71', replaces: '', expiresAt: new Date(Date.now() + 240e3).toISOString() }]), 20);
+      if (args[0] === 'audit') return delay(JSON.stringify([{ id: 2, at: iso(Date.now() - 3600e3), action: 'device_paired', actor: 'Mobile App', target: 'e13a4291', detail: '' }, { id: 1, at: iso(Date.now() - 7200e3), action: 'login', actor: 'zaid', target: '', detail: 'password' }]), 20);
+      return delay('', 20);
+    },
+    generate_local_pairing_code() { return delay({ status: 'ok', code: 'DB5QZMHJ', expiresInSeconds: 600, qr: JSON.stringify({ address: '192.168.1.100:8765', certFingerprint: 'AB', pairingCode: 'DB5QZMHJ' }) }, 20); },
     list_devices() { return delay([], 5); }, list_pair_requests() { return delay({ requests: [] }, 5); },
     list_host_apps() { return delay({ apps: [] }, 5); },
     discover_agents() { return delay([], 400); },
@@ -123,10 +133,18 @@
     pick_files() { return delay(['/home/zaid/Documents/notes.txt'], 5); }, pick_folder() { return delay('/home/zaid/Documents', 5); },
     local_read_text({ path }) { const n = node('local', path); return n && n.t !== 'dir' ? delay({ path, text: n.content == null ? '' : n.content, size: n.b }, 4) : err('this file is not text, or is too large to open here'); },
     local_read_image() { return err('not an image'); }, local_open() { return null; },
+    /* Dev only: the stand-in has no video bytes to hand over. */
+    files_video() { return err('The dev stand-in has no video to play.'); }, local_read_video() { return err('The dev stand-in has no video to play.'); },
     local_save_text({ dir, name }) { return delay(dir + '/' + name, 4); },
     transfer_pause({ id }) { const x = state.xfers.find((q) => q.id === id); if (x && (x.state === 'running' || x.state === 'queued')) x.state = 'paused'; return null; },
     set_log_level({ level }) { return level; }, check_keystore() { return delay(null, 20); }, reset_device_key() { return delay(null, 20); },
+    backups_status() { return delay({ forbidden: false, lastBackup: { time: '2026-10-05T03:00:00Z', ok: true, size: 1234 }, lastVerification: { time: '2026-10-05T03:05:00Z', ok: true }, offsite: { configured: false }, scheduler: { enabled: true }, launcher: { current: '1.0.0', bad: [] } }, 10); },
     agent_log() { return delay({ forbidden: false, lines: [{ ts: '2026-10-05T10:00:00Z', message: 'agent started' }, { ts: '2026-10-05T10:01:00Z', message: 'login ok' }] }, 10); },
+    account_server_status() { return delay({ enabled: state.acct.enabled, name: state.acct.name, keyFingerprint: state.acct.enabled ? 'EF56 7890 AB12 CD34' : null, trustedServer: state.acct.trusted, offered: null }, 5); },
+    account_server_key({ hostPort }) { return delay({ hostPort, name: 'Office PC', publicKey: 'Zm9vYmFy', keyFingerprint: 'AB12 CD34 EF56 7890' }, 10); },
+    account_server_enable({ enabled }) { state.acct.enabled = !!enabled; return delay({ enabled: state.acct.enabled, name: state.acct.name, keyFingerprint: state.acct.enabled ? 'EF56 7890 AB12 CD34' : null, trustedServer: state.acct.trusted, offered: null }, 5); },
+    account_server_trust({ name, publicKey, keyFingerprint }) { state.acct.trusted = { name, publicKey, keyFingerprint }; return delay({ enabled: state.acct.enabled, name: state.acct.name, keyFingerprint: state.acct.enabled ? 'EF56 7890 AB12 CD34' : null, trustedServer: state.acct.trusted, offered: null }, 5); },
+    account_server_untrust() { state.acct.trusted = null; return delay({ enabled: state.acct.enabled, name: state.acct.name, keyFingerprint: state.acct.enabled ? 'EF56 7890 AB12 CD34' : null, trustedServer: null, offered: null }, 5); },
     app_settings() { return { logLevel: 'info', version: '1.0.0' }; }
   };
   function startX(host, dir, path, other, isDir) {
@@ -147,8 +165,23 @@
     }
   }
   root.StubBackend = {
-    invoke(cmd, args) { const f = cmds[cmd]; if (!f) return Promise.reject('unknown command ' + cmd); try { return Promise.resolve(f(args || {})); } catch (e) { return Promise.reject(String(e && e.message || e)); } },
-    cmds, state
+    invoke(cmd, args) { this.calls.push(cmd); const f = cmds[cmd]; if (!f) return Promise.reject('unknown command ' + cmd); try { return Promise.resolve(f(args || {})); } catch (e) { return Promise.reject(String(e && e.message || e)); } },
+    cmds, state,
+    /* Every command name asked of the stub, in order (a test reads and clears it). */
+    calls: [],
+    /* The page's Tauri event listeners by event name; `emit` plays an event from the core, `listening` asks whether one is registered. */
+    handlers: {},
+    emit(name, payload) { for (const f of (this.handlers[name] || []).slice()) f({ event: name, payload }); },
+    listening(name) { return (this.handlers[name] || []).length > 0; }
   };
-  root.__TAURI__ = { core: { invoke: (c, a) => root.StubBackend.invoke(c, a) } };
+  root.__TAURI__ = {
+    core: { invoke: (c, a) => root.StubBackend.invoke(c, a) },
+    event: { listen: (name, cb) => { const h = root.StubBackend.handlers; (h[name] = h[name] || []).push(cb); return Promise.resolve(() => { h[name].splice(h[name].indexOf(cb), 1); }); } }
+  };
+  /* Dev only: ?seed=v5 or ?seed=v5-empty swaps the sample data for the v5 mockup's own (mapped by v5-seed.js, which
+     reads mockups/v5/kit.js and base.js). The scripts are written into the page so they run before engine.js. Without
+     the parameter nothing changes. */
+  if (typeof document !== 'undefined' && document.readyState === 'loading' && /[?&]seed=v5(-empty)?(&|$)/.test(location.search)) {
+    document.write('<script src="../mockups/v5/kit.js"><\/script><script src="../mockups/v5/base.js"><\/script><script src="v5-seed.js"><\/script>');
+  }
 })(typeof window !== 'undefined' ? window : globalThis);

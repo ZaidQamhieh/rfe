@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Inspector — tree, list and a large inspector, with a work panel below</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d08{--ac:#1d4ed8;--ac-ink:#1d4ed8;--ac-soft:rgba(29,78,216,.08);--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;--row:30px;--fs:13px;--r:6px;--rc:10px;
+  display:grid;grid-template-columns:48px 232px 1fr 340px;grid-template-rows:40px 1fr 188px 24px}
+.d08 .bar{grid-column:1/5;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);background:var(--sf)}
+.d08 .bar .k-sbox{width:420px;height:28px;margin:0 auto} .d08 .bar .k-ib{width:28px;height:28px} .d08 .bar .k-av{width:24px;height:24px;font-size:11px}
+.d08 .act{grid-row:2/4;background:var(--rz);display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-right:1px solid var(--line)}
+.d08 .act .k-navi{width:48px;height:40px;justify-content:center;box-shadow:inset 2px 0 0 transparent}
+.d08 .act .k-navi.on{box-shadow:inset 2px 0 0 var(--ac);color:var(--t1)}
+.d08 .act .k-badge{position:absolute;top:4px;right:6px;margin:0;font-size:10px;line-height:14px;min-width:14px}
+.d08 .act .gap{flex:1}
+.d08 .tree{grid-row:2/4;border-right:1px solid var(--line);overflow:auto;padding:8px 6px;background:var(--bg)}
+.d08 .tree h4{font:500 12px var(--font);color:var(--t3);margin:12px 8px 4px;display:flex;justify-content:space-between;align-items:center}
+.d08 .tn{display:flex;align-items:center;gap:6px;height:26px;padding:0 6px;border-radius:5px;width:100%;color:var(--t2);font-size:13px;white-space:nowrap}
+.d08 .tn:hover{background:var(--rz)} .d08 .tn.on{background:var(--ac-soft);color:var(--t1)}
+.d08 .tn .i{color:var(--t3)} .d08 .tn small{margin-left:auto;color:var(--t3);font:11px var(--mono)}
+.d08 .stage{overflow:auto;padding:12px 16px;min-height:0}
+.d08 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d08 .k-files{flex:1}
+.d08 .stage.wide{grid-column:3/5}
+.d08 .insp{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.d08 .insp .k-tabs{padding:0 12px;margin:0} .d08 .insp .b{padding:16px;overflow:auto;flex:1}
+.d08 .insp .ph{width:100%;height:auto;display:block}
+.d08 .insp h3{font:500 15px var(--font);margin:12px 0 8px}
+.d08 .work{grid-column:3/5;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--sf)}
+.d08 .work .k-tabs{padding:0 12px;margin:0;font-size:12px} .d08 .work .k-tabs button{height:32px}
+.d08 .work .b{overflow:auto;padding:8px 12px;flex:1}
+.d08 .work .k-xc{padding:6px 10px;margin-bottom:4px;box-shadow:none;background:var(--rz)}
+.d08 .work .k-xm{grid-template-columns:200px 1fr 1fr;align-items:center;gap:12px} .d08 .work .k-xm .k-bar{margin:0}
+.d08 .status{grid-column:1/5;display:flex;align-items:center;gap:16px;padding:0 12px;background:var(--rz);border-top:1px solid var(--line);font:12px var(--mono);color:var(--t2)}
+.d08 .status .sp{flex:1}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d08">
+ <header class="bar" id="bar"></header>
+ <nav class="act" id="act"></nav>
+ <aside class="tree" id="tree"></aside>
+ <main class="stage" id="st"></main>
+ <aside class="insp" id="insp"></aside>
+ <section class="work" id="work"></section>
+ <footer class="status" id="sbar"></footer>
+</div>
+<script>
+window.IDEA='A dense workbench for people who manage several PCs. The tree spans every computer, the list is in the middle, and a large inspector shows the selected item’s preview, properties, who may reach it and what happened to it. Transfers, pairing requests, the audit log and the agent log sit in a work panel below, always one tab away.';
+window.MAP=[['Navigation','Activity bar on the left; the tree for places',1],['Switch computer','Click a computer in the tree',1],['Connect and trust','+ beside Computers in the tree',1],['Servers and status','Servers in the activity bar; status bar shows the pinned key',1],['Files and preview','Centre list; the inspector Preview tab; right-click for everything',0],['Upload and download','Upload, Ctrl U, Ctrl D, or drag to This computer in the tree',1],['Pair a phone','QR icon in the title bar',1],['Pairing requests','Requests tab of the work panel',1],['Transfers','Transfers tab of the work panel, always visible',0],['Search','Search box in the title bar, or /',1],['Tools','Tools in the activity bar',2],['History and audit','Audit and Agent log tabs of the work panel',1],['Settings','Settings at the foot of the activity bar',1],['Tray and notifications','Bell in the title bar',1]];
+const I=K.I;let wt='Transfers',it='Preview';
+document.getElementById('bar').innerHTML=`${I('key',16)}<b style="font-weight:500">RFE</b>${K.C.searchBox('Search all connected computers')}${K.C.actions()}`;
+document.getElementById('tree').innerHTML=`<h4>Computers ${K.ib('plus','New connection','dlg:newconn')}</h4>`+K.D.servers.map(s=>`<button class="tn${s.id==='studio'?'':''}" data-k="${s.state==='Connected'?'go:files':s.state==='Key changed'?'dlg:keychanged':'menu:server'}">${I(s.id==='studio'?'chevd':'chevr',12)}${K.dot(s.dot)}${K.mach(s,16)}${s.name}<small>${s.ms?s.ms+' ms':s.state==='Offline'?'off':'key'}</small></button>`+(s.id==='studio'?['home','Documents','Photos','Projects'].map((n,i)=>`<button class="tn" style="padding-left:${i?40:24}px" data-k="go:files">${I(i?'chevr':'chevd',12)}${K.E(i?'dir':'home',16)}${i?n:'/home/sam'}</button>`).join('')+`<button class="tn on" style="padding-left:56px" data-k="go:files">${K.E('open_file_folder',16)}garden-plan</button>`:'')).join('')+`<h4>This computer</h4><button class="tn" data-k="panel:local">${K.E('inbox_tray',16)}Downloads</button><button class="tn">${K.E('home',16)}Home</button><h4>Pinned</h4>`+K.D.favs.map(f=>`<button class="tn" data-k="go:files">${K.E('dir',16)}${f[0]}<small>${f[1]}</small></button>`).join('');
+function insp(){const f=K.D.files.find(x=>x.n===K.D.sel);const b={Preview:`<div data-k="dlg:preview" style="cursor:zoom-in">${K.photo(2,308,200,6)}</div><h3>${K.E('img',16)}${f.n}</h3><p class="k-sub">3.8 MB · 4032 × 3024 · ${f.m}</p><div class="k-dact" style="margin-top:12px">${K.btn('Download',{i:'download',k:'pri',kc:'Ctrl D'})}<div class="k-row">${K.btn('Share link…',{i:'link',a:'dlg:share'})}${K.ib('more','Offline, properties, checksum, copy path','menu:detmore')}</div></div>`,Info:`<dl class="k-kv"><dt>Size</dt><dd>3,984,211 bytes</dd><dt>Modified</dt><dd>1 Nov 2026 09:12</dd><dt>Mode</dt><dd class="mono">644 rw-r--r--</dd><dt>Path</dt><dd class="mono">/home/sam/Projects/garden-plan</dd><dt>SHA-256</dt><dd class="mono">6c1f92ad…a09e</dd></dl>${K.btn('Properties…',{k:'sm',a:'dlg:props'})} ${K.btn('Checksum…',{k:'sm',a:'dlg:checksum'})}`,Access:`<p class="k-sub" style="margin-bottom:12px">Devices that can reach this folder</p><div class="k-list">${K.D.devices.slice(0,4).map(d=>`<div class="k-lrow">${K.E(d.kind,20)}<span><b>${d.n}</b><small>${d.may}</small></span></div>`).join('')}</div>${K.btn('Manage in Devices',{k:'sm ghost',a:'go:devices'})}`,Activity:`<div class="k-evs">${[['09:12','Modified','by desk-linux'],['Tue','Share link made','24 hours'],['12 Oct','Uploaded','from Pixel 8']].map(e=>`<div class="k-ev" style="grid-template-columns:48px 1fr"><time class="mono">${e[0]}</time><span><b>${e[1]}</b> · ${e[2]}</span></div>`).join('')}</div>`};
+ document.getElementById('insp').innerHTML=`<div class="k-tabs">${Object.keys(b).map(k=>`<button class="${k===it?'on':''}" data-k="it:${k}">${k}</button>`).join('')}</div><div class="b">${b[it]}</div>`;}
+function work(){const b={Transfers:K.V.xgroups(['attention','active','queued']),'Requests 2':K.V.requests(),Audit:K.V.events(6),'Agent log':`<pre class="k-log mono" style="margin:0">${K.D.agentlog.join('\n')}</pre>`};
+ document.getElementById('work').innerHTML=`<div class="k-tabs">${Object.keys(b).map(k=>`<button class="${k===wt?'on':''}" data-k="wt:${k}">${k}</button>`).join('')}<span class="sp"></span>${K.ib('pause','Pause all transfers')}</div><div class="b">${b[wt]}</div>`;}
+document.getElementById('sbar').innerHTML=`<span>${K.dot('ok')} studio-pc · pinned 9F3A 1EC4</span><span>account sam</span><span class="sp"></span><span>↑ 71% · 52.4 MB/s</span><span>2 requests</span><span>812 GB free</span>`;
+insp();work();
+K.mount({stage:document.getElementById('st'),state:{panel:false},views:{files:()=>K.V.files({panel:false})},on:(a,b)=>{if(a==='wt'){wt=b;work()}if(a==='it'){it=b;insp()}},
+ onGo:v=>{document.getElementById('act').innerHTML=K.C.nav(v,{icons:1,skip:['settings']})+`<span class="gap"></span><button class="k-navi${v==='settings'?' on':''}" data-k="go:settings" aria-label="Settings">${I('sliders',18)}</button>`;const w=v!=='files';document.getElementById('insp').style.display=w?'none':'';document.getElementById('st').classList.toggle('wide',w);}});
+</script></body></html>

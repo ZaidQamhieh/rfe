@@ -1,0 +1,13 @@
+{
+  "status": 400,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "INVALID_MAC",
+    "message": "MAC must be 6-byte colon-separated"
+  }
+}

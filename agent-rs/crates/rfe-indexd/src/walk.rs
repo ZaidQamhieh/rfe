@@ -126,13 +126,20 @@ pub fn rel_join(rel: &str, name: &str) -> String {
     }
 }
 
+/// Name prefix of the hidden temp file the agent copies an upload into before it takes its final name.
+/// Same value as the Go agent's `fsops.PublishTempPrefix`.
+pub const PUBLISH_TEMP_PREFIX: &str = ".rfe-upload-";
+
+/// True for the name of an in-flight upload temp; the index and recents never list one (any type, any depth).
+pub fn is_publish_temp(name: &str) -> bool {
+    name.starts_with(PUBLISH_TEMP_PREFIX)
+}
+
 /// Directories a walk prunes (never the root itself): Linux pseudo-filesystems, hidden directories and
 /// dependency caches. Same rule as the Go agent's `shouldSkipVirtualDir`.
 pub fn should_skip_dir(name: &str, full_path: &str) -> bool {
-    #[cfg(target_os = "linux")]
-    if matches!(full_path, "/proc" | "/sys" | "/dev" | "/sysroot") {
+    if cfg!(target_os = "linux") && matches!(full_path, "/proc" | "/sys" | "/dev" | "/sysroot") {
         return true;
     }
-    let _ = full_path;
     (name.len() > 1 && name.starts_with('.')) || name == "node_modules"
 }

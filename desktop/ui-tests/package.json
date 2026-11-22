@@ -2,7 +2,7 @@
   "name": "rfe-desktop-ui-tests",
   "private": true,
   "type": "module",
-  "description": "Tests of the desktop window. Only window.test.mjs needs a package (jsdom); the others run on plain node.",
+  "description": "Tests of the desktop window. window.test.mjs needs jsdom; the visual-*.test.mjs files need playwright-core, pixelmatch and pngjs (and skip when the chromium binary is missing); the others run on plain node.",
   "scripts": { "test": "node --test *.test.mjs" },
-  "devDependencies": { "jsdom": "26.1.0" }
+  "devDependencies": { "jsdom": "26.1.0", "playwright-core": "1.64.1", "pixelmatch": "8.0.0", "pngjs": "7.0.0" }
 }

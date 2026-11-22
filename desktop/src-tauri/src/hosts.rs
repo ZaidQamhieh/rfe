@@ -339,7 +339,7 @@ pub fn list(dir: &Path, store: &dyn SecretStore) -> Result<Vec<HostView>, String
     Ok(out)
 }
 
-const NOT_SAVED: &str = "this server is not in the saved list";
+const NOT_SAVED: &str = "this computer is not in the saved list";
 
 /// Makes `key` the active host: its pin, account name, device id and login become the active
 /// session. The login of the host that was active is parked first, and nothing is lost if that
@@ -506,5 +506,9 @@ pub async fn rename_host(app: tauri::AppHandle, key: String, name: String) -> Re
 #[tauri::command]
 pub async fn remove_host(app: tauri::AppHandle, key: String) -> Result<Removed, String> {
     let dir = data_dir(&app)?;
-    keystore().run(move |s| remove(&dir, s, &key)).await
+    let stream = key.clone();
+    let removed = keystore().run(move |s| remove(&dir, s, &key)).await?;
+    // Stop following the removed computer's event stream at once, whatever the window does next.
+    crate::events::stop(&app, &stream);
+    Ok(removed)
 }

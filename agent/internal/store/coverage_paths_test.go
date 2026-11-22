@@ -212,8 +212,10 @@ ELSE terminal_at END`, cutoff-1, cutoff-1, cutoff, cutoff+1); err != nil {
 	}
 }
 
-// retentionMigrationBase is the schema version just before migrateTransferHistoryRetention.
-var retentionMigrationBase = len(migrations) - 3
+// retentionMigrationBase is the schema version just before migrateTransferHistoryRetention: it is the
+// 7th step from the end of the chain as it stood when that step was last appended to, so every step added
+// after it moves this offset by one (now 11, with migrateOwnerRevokeAndAccountDeny).
+var retentionMigrationBase = len(migrations) - 11
 
 func TestTransferHistoryMigrationBackfillsOnce(t *testing.T) {
 	db := openCoverageDB(t)

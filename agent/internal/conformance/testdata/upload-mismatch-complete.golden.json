@@ -1,0 +1,13 @@
+{
+  "status": 422,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "HASH_MISMATCH",
+    "message": "whole-file sha256 mismatch: got 84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882 want a07224d9bfbcc5f13a1127ee55d4b89ae91057c0c26c462a28765b976a257b82"
+  }
+}

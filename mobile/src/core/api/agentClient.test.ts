@@ -1,4 +1,4 @@
-import { AgentClient, ERR_CERT_PIN_MISMATCH, ERR_CONNECTION, type Transport } from './agentClient';
+import { AgentClient, ERR_CERT_PIN_MISMATCH, ERR_CONNECTION, ERR_PATH_NOT_FOUND, PAIR_NONCE_HEADER, PAIR_NONCE_QUERY, type Transport } from './agentClient';
 import { canManageHost, hasAppCapabilities, hasFileCapabilities, parseAuditEntry, parseStatus } from './models';
 import { CertPinMismatch, MissingCertPin } from './pin';
 import type { Host } from '../models/host';
@@ -242,6 +242,17 @@ describe('AgentClient search, recent and share links', () => {
 });
 
 describe('AgentClient settings, devices, bandwidth and audit', () => {
+  it('treats removing an unknown device as done and still reports other failures', async () => {
+    const reply = (status: number): AgentClient =>
+      new AgentClient(host, {
+        transport: { async request() { return { status, headers: {}, bodyText: JSON.stringify({ code: 'NOT_FOUND', message: 'x' }) }; } },
+        deviceToken: 't',
+        pinnedFingerprint: PIN,
+      });
+    await expect(reply(404).deleteDevice('gone')).resolves.toBeUndefined();
+    await expect(reply(403).deleteDevice('other')).rejects.toBeDefined();
+  });
+
   const rec = (body: unknown) => {
     const calls: { url: string; method: string; body: unknown }[] = [];
     const transport: Transport = {
@@ -340,5 +351,215 @@ describe('AgentClient 2xx replies that are not JSON (F-139)', () => {
 
   it('an error status with a non-JSON body keeps its status code', async () => {
     await expect(make({ status: 502, headers: {}, bodyText: '<html>bad gateway</html>' }).drives()).rejects.toMatchObject({ statusCode: 502, code: 'UNKNOWN' });
+  });
+});
+
+describe('AgentClient v2 and v3 agents (compat C1, C3)', () => {
+  const rec = (body: unknown) => {
+    const calls: { url: string; method: string; headers: Record<string, string> }[] = [];
+    const transport: Transport = {
+      async request(a) {
+        calls.push({ url: a.url, method: a.method, headers: a.headers });
+        return { status: 200, headers: {}, bodyText: JSON.stringify(body) };
+      },
+    };
+    return { client: new AgentClient(host, { transport, deviceToken: 't', pinnedFingerprint: PIN }), calls };
+  };
+
+  it('C3: the pair poll sends the nonce in the header and the query, so a v2 and a v3 agent both read it', async () => {
+    const { client, calls } = rec({ status: 'pending' });
+    await client.pairRequestStatus('r1', 'abc 1');
+    expect(calls[0].url.split('/v1')[1]).toBe(`/pair/request/r1?${PAIR_NONCE_QUERY}=abc%201`);
+    expect(calls[0].headers[PAIR_NONCE_HEADER]).toBe('abc 1');
+  });
+
+  it('C3: other calls carry no nonce header', async () => {
+    const { client, calls } = rec([]);
+    await client.drives();
+    expect(calls[0].headers[PAIR_NONCE_HEADER]).toBeUndefined();
+  });
+
+  it('C1: a path already gone (v3 per-item PATH_NOT_FOUND) is a success, not a failed item', async () => {
+    const { client } = rec({
+      results: [
+        { path: '/a', ok: true },
+        { path: '/gone', ok: false, error: { code: ERR_PATH_NOT_FOUND, message: 'no such path' } },
+        { path: '/b', ok: false, error: { code: 'PERMISSION_DENIED', message: 'nope' } },
+      ],
+    });
+    for (const permanent of [true, false]) {
+      const res = await client.delete(['/a', '/gone', '/b'], { permanent });
+      expect(res.results.map((r) => [r.path, r.ok])).toEqual([['/a', true], ['/gone', true], ['/b', false]]);
+      expect(res.failed.map((r) => r.path)).toEqual(['/b']);
+    }
+  });
+
+  it('C1: a v2 reply (no entry for a missing path) is unchanged', async () => {
+    const { client } = rec({ results: [{ path: '/a', ok: true }] });
+    const res = await client.delete(['/a', '/gone']);
+    expect(res.failed).toEqual([]);
+  });
+
+  it('C1: PATH_NOT_FOUND from a copy or move is still a failure', async () => {
+    const { client } = rec({ results: [{ path: '/s', ok: false, error: { code: ERR_PATH_NOT_FOUND, message: 'x' } }] });
+    expect((await client.copy(['/s'], '/d')).failed).toHaveLength(1);
+    expect((await client.move(['/s'], '/d')).failed).toHaveLength(1);
+  });
+});
+
+describe('AgentClient pairing requests, phone folders and media info', () => {
+  const rec = (body: unknown) => {
+    const calls: { url: string; method: string; body: unknown }[] = [];
+    const transport: Transport = {
+      async request(a) {
+        calls.push({ url: a.url, method: a.method, body: a.bodyText ? JSON.parse(a.bodyText) : null });
+        return { status: 200, headers: {}, bodyText: JSON.stringify(body) };
+      },
+    };
+    return { client: new AgentClient(host, { transport, deviceToken: 't', pinnedFingerprint: PIN }), calls };
+  };
+  const shape = (calls: { url: string; method: string; body: unknown }[]) => calls.map((c) => `${c.method} ${c.url.split('/v1')[1]} ${JSON.stringify(c.body)}`);
+
+  it('lists waiting phones, reading the expiry as a time and tolerating missing fields', async () => {
+    const { client, calls } = rec({ requests: [{ id: 'r/1', label: 'Mum', matchCode: '6150 2283', remoteIp: '10.0.0.5', replaces: 'Old', expiresAt: '2026-11-10T12:00:00Z' }, { id: 'r2' }] });
+    const list = await client.listPairRequests();
+    expect(shape(calls)).toEqual(['GET /pair/requests null']);
+    expect(list[0]).toEqual({ id: 'r/1', label: 'Mum', matchCode: '6150 2283', remoteIp: '10.0.0.5', replaces: 'Old', expiresAt: Date.parse('2026-11-10T12:00:00Z') });
+    expect(list[1]).toEqual({ id: 'r2', label: '', matchCode: '', remoteIp: '', replaces: '', expiresAt: 0 });
+  });
+
+  it('an answer without a requests list is an empty list', async () => {
+    expect(await rec({}).client.listPairRequests()).toEqual([]);
+    expect(await rec(null).client.listPairRequests()).toEqual([]);
+  });
+
+  it('allows and refuses a waiting phone by its encoded id', async () => {
+    const { client, calls } = rec({});
+    await client.approvePairRequest('r/1');
+    await client.rejectPairRequest('r 2');
+    expect(shape(calls)).toEqual(['POST /pair/requests/r%2F1/approve null', 'POST /pair/requests/r%202/reject null']);
+  });
+
+  it('keeps a phone inside a folder, and an empty string is sent to clear it', async () => {
+    const { client, calls } = rec({});
+    await client.updateDeviceJailRoot('d1', '/srv/leila');
+    await client.updateDeviceJailRoot('d1', '');
+    expect(shape(calls)).toEqual(['PATCH /devices/d1 {"jailRoot":"/srv/leila"}', 'PATCH /devices/d1 {"jailRoot":""}']);
+  });
+
+  it('reads media info, and an empty answer gives an empty object', async () => {
+    const full = rec({ width: 4000, height: 3000, takenAt: '2026-05-01T10:00:00Z', durationMs: 1500 });
+    expect(await full.client.mediaInfo('/p/a.jpg')).toEqual({ width: 4000, height: 3000, takenAt: Date.parse('2026-05-01T10:00:00Z'), durationMs: 1500 });
+    expect(shape(full.calls)).toEqual(['GET /fs/media-info?path=%2Fp%2Fa.jpg null']);
+    expect(await rec({}).client.mediaInfo('/folder')).toEqual({});
+    expect(await rec({ width: 'x', takenAt: 'not a date' }).client.mediaInfo('/f')).toEqual({});
+  });
+
+  describe('media info abort signal', () => {
+    const hanging = () => {
+      const seen: (AbortSignal | undefined)[] = [];
+      const transport: Transport = {
+        request(a) {
+          seen.push(a.signal);
+          return new Promise(() => undefined);
+        },
+      };
+      return { client: new AgentClient(host, { transport, deviceToken: 't', pinnedFingerprint: PIN }), seen };
+    };
+
+    it('hands the signal to the transport', async () => {
+      const seen: (AbortSignal | undefined)[] = [];
+      const transport: Transport = {
+        async request(a) {
+          seen.push(a.signal);
+          return { status: 200, headers: {}, bodyText: '{}' };
+        },
+      };
+      const client = new AgentClient(host, { transport, deviceToken: 't', pinnedFingerprint: PIN });
+      const ctl = new AbortController();
+      await client.mediaInfo('/a.mp4', ctl.signal);
+      expect(seen).toEqual([ctl.signal]);
+    });
+
+    it('rejects with an AbortError when aborted while the request is waiting', async () => {
+      const { client, seen } = hanging();
+      const ctl = new AbortController();
+      const p = client.mediaInfo('/a.mp4', ctl.signal);
+      await Promise.resolve();
+      expect(seen).toHaveLength(1);
+      ctl.abort();
+      await expect(p).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('rejects at once, sending nothing, when the signal is already aborted', async () => {
+      const { client, seen } = hanging();
+      const ctl = new AbortController();
+      ctl.abort();
+      await expect(client.mediaInfo('/a.mp4', ctl.signal)).rejects.toMatchObject({ name: 'AbortError' });
+      expect(seen).toHaveLength(0);
+    });
+  });
+
+  it('mints a share link of one hour unless told otherwise', async () => {
+    const { client, calls } = rec({ token: 't' });
+    await client.mintShareLink('/f');
+    await client.mintShareLink('/f', 604800);
+    expect(calls.map((c) => c.body)).toEqual([{ path: '/f', expiresInSeconds: 3600 }, { path: '/f', expiresInSeconds: 604800 }]);
+  });
+});
+
+describe('account server calls', () => {
+  const FP = 'cd'.repeat(32);
+  function recorded(handler: (path: string) => unknown) {
+    const calls: { url: string; method: string; headers: Record<string, string>; body: unknown; pin: string | null }[] = [];
+    const transport: Transport = {
+      async request(a) {
+        calls.push({ url: a.url, method: a.method, headers: a.headers, body: a.bodyText ? JSON.parse(a.bodyText) : null, pin: a.pin });
+        return ok(handler(a.url.split('/v1')[1])) as never;
+      },
+    };
+    return { transport, calls };
+  }
+
+  it('accountKey reads and validates GET /accounts/key', async () => {
+    const { transport, calls } = recorded(() => ({ name: 'Home', publicKey: 'AAAA', keyFingerprint: FP.toUpperCase(), algorithm: 'Ed25519' }));
+    const k = await new AgentClient(host, { transport, pinnedFingerprint: PIN }).accountKey();
+    expect(k).toEqual({ name: 'Home', publicKey: 'AAAA', keyFingerprint: FP });
+    expect(calls[0]).toMatchObject({ method: 'GET', pin: PIN });
+  });
+
+  it('accountKey rejects a malformed key reply', async () => {
+    for (const bad of [{}, { publicKey: 'A', keyFingerprint: 'short', algorithm: 'Ed25519' }, { publicKey: 'A', keyFingerprint: FP, algorithm: 'RSA' }]) {
+      const { transport } = recorded(() => bad);
+      await expect(new AgentClient(host, { transport, pinnedFingerprint: PIN }).accountKey()).rejects.toThrow();
+    }
+  });
+
+  it('accountAssertion posts the audience, key and nonce with the bearer token', async () => {
+    const { transport, calls } = recorded(() => ({ assertion: 'p.s', exp: 1700000000 }));
+    const c = new AgentClient(host, { transport, deviceToken: 'tok', pinnedFingerprint: PIN });
+    expect(await c.accountAssertion({ audience: FP, devicePublicKey: 'pk', memberNonce: 'n' })).toEqual({ assertion: 'p.s', exp: 1700000000 });
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { audience: FP, devicePublicKey: 'pk', memberNonce: 'n' } });
+    expect(calls[0].url.endsWith('/v1/accounts/assertion')).toBe(true);
+    expect(calls[0].headers.Authorization).toBe('Bearer tok');
+  });
+
+  it('accountAssertion rejects a reply without an assertion', async () => {
+    const { transport } = recorded(() => ({ exp: 1 }));
+    const c = new AgentClient(host, { transport, deviceToken: 'tok', pinnedFingerprint: PIN });
+    await expect(c.accountAssertion({ audience: FP, devicePublicKey: 'pk', memberNonce: 'n' })).rejects.toThrow();
+  });
+
+  it('login sends the assertion and no username or password', async () => {
+    const { transport, calls } = recorded(() => ({ deviceToken: 't', deviceId: 'd', agentName: 'A' }));
+    await new AgentClient(host, { transport, pinnedFingerprint: PIN }).login({ assertion: 'p.s', deviceLabel: 'L', devicePublicKey: 'pk', nonce: 'n', signature: 'sig' });
+    expect(calls[0].body).toEqual({ assertion: 'p.s', deviceLabel: 'L', devicePublicKey: 'pk', nonce: 'n', signature: 'sig' });
+  });
+
+  it('health exposes the account-server hint only for a valid fingerprint', async () => {
+    const good = recorded(() => ({ status: 'ok', accountServer: { name: 'Home', keyFingerprint: FP } }));
+    expect((await new AgentClient(host, { transport: good.transport }).health()).accountServer).toEqual({ name: 'Home', keyFingerprint: FP });
+    const bad = recorded(() => ({ status: 'ok', accountServer: { name: 'x', keyFingerprint: 'zz' } }));
+    expect((await new AgentClient(host, { transport: bad.transport }).health()).accountServer).toBeUndefined();
   });
 });

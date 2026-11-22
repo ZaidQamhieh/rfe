@@ -1,8 +1,9 @@
 // Package server — recent-files handler.
 //
-// Like search.go, this is a live recursive walk rather than a persistent
-// index (personal-use agent, normal-sized home folder — see search.go's doc
-// comment for the full reasoning). Unlike search, a recent-files walk can't
+// Without rfe-indexd, like search.go, this is a live recursive walk rather than
+// a persistent index (personal-use agent, normal-sized home folder — see search.go's
+// doc comment for the full reasoning). When the index runs on rfe-indexd, recentWalker
+// (sidecar_index.go) walks through the sidecar instead. Unlike search, a recent-files walk can't
 // stop early once it has `limit` candidates — the Nth file visited in
 // directory-walk order isn't necessarily among the N most recently
 // modified — so it keeps a bounded min-heap of the best `limit` candidates
@@ -12,11 +13,9 @@ package server
 import (
 	"container/heap"
 	"context"
-	"errors"
 	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,13 +26,12 @@ import (
 )
 
 const (
-	recentDefaultLimit       = 100
-	recentMaxLimit           = 500
 	recentMaxConcurrentScans = 2
-	recentBusyRetryAfter     = "1"
-	recentTimeBudget         = 15 * time.Second
 	recentCacheTTL           = 5 * time.Second
 )
+
+// recentTimeBudget is search's walk budget; sidecar_index.go reads it by this name.
+const recentTimeBudget = searchTimeBudget
 
 // recentResultCache keeps one short-lived result for the current jail and
 // query. Recent-file reads are usually repeated by refresh/rebuild flows; a
@@ -105,13 +103,9 @@ func (h recentHeap) sortedNewestFirst() []fsops.Entry {
 	return out
 }
 
-// recentHandler lists the most recently modified files (not directories)
+// recentHandlerWithWalker lists the most recently modified files (not directories)
 // under the agent's configured roots — GET /v1/fs/recent?limit=&root=.
-func recentHandler(ops *fsops.Ops) http.HandlerFunc {
-	return recentHandlerWithWalker(ops, walkForRecentWithOps)
-}
-
-// recentHandlerWithWalker applies a per-handler admission limit to the
+// It applies a per-handler admission limit to the
 // expensive recursive walks. A server registers one handler for this route,
 // so the limit is shared by concurrent requests to /fs/recent.
 func recentHandlerWithWalker(ops *fsops.Ops, walk func(context.Context, *fsops.Ops, string, int, *recentHeap)) http.HandlerFunc {
@@ -121,15 +115,7 @@ func recentHandlerWithWalker(ops *fsops.Ops, walk func(context.Context, *fsops.O
 		ops := opsFromContext(r.Context(), ops)
 		query := r.URL.Query()
 
-		limit := recentDefaultLimit
-		if l := query.Get("limit"); l != "" {
-			if n, err := strconv.Atoi(l); err == nil && n > 0 {
-				limit = n
-			}
-		}
-		if limit > recentMaxLimit {
-			limit = recentMaxLimit
-		}
+		limit := parseLimit(query.Get("limit"), searchDefaultLimit, searchMaxLimit)
 
 		var roots []string
 		if root := strings.TrimSpace(query.Get("root")); root != "" {
@@ -140,12 +126,7 @@ func recentHandlerWithWalker(ops *fsops.Ops, walk func(context.Context, *fsops.O
 			}
 			roots = []string{resolved}
 		} else {
-			roots = ops.Roots()
-			if len(roots) == 0 && !ops.IsDenyAll() {
-				if home, err := os.UserHomeDir(); err == nil && home != "" {
-					roots = []string{home}
-				}
-			}
+			roots = liveWalkRoots(ops)
 		}
 		cacheKey := recentCacheKey(roots, limit)
 		if r.Context().Err() == nil {
@@ -159,12 +140,12 @@ func recentHandlerWithWalker(ops *fsops.Ops, walk func(context.Context, *fsops.O
 		case scans <- struct{}{}:
 			defer func() { <-scans }()
 		default:
-			w.Header().Set("Retry-After", recentBusyRetryAfter)
+			w.Header().Set("Retry-After", busyRetryAfter)
 			writeError(w, http.StatusTooManyRequests, "RECENT_BUSY", "recent-file scan capacity is full; retry shortly")
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), recentTimeBudget)
+		ctx, cancel := context.WithTimeout(r.Context(), searchTimeBudget)
 		defer cancel()
 
 		h := &recentHeap{}
@@ -188,53 +169,14 @@ func recentHandlerWithWalker(ops *fsops.Ops, walk func(context.Context, *fsops.O
 	}
 }
 
-// walkForRecent recursively walks root, maintaining h as the top-`limit`
+// walkForRecentWithOps recursively walks rootPath, maintaining h as the top-`limit`
 // most recently modified files seen so far (directories are never included
 // — recents is a files feature). Permission-denied directories are skipped
 // silently; other walk errors are ignored too, matching search.go's
 // best-effort behavior.
-func walkForRecent(ctx context.Context, root string, limit int, h *recentHeap) {
-	openedRoot, err := os.OpenRoot(root)
-	if err != nil {
-		return
-	}
-	defer openedRoot.Close()
-	walkForRecentRoot(ctx, openedRoot, root, limit, h)
-}
-
 func walkForRecentWithOps(ctx context.Context, ops *fsops.Ops, rootPath string, limit int, h *recentHeap) {
-	openedRoot, err := ops.OpenDir(rootPath)
-	if err != nil {
-		return
-	}
-	defer openedRoot.Close()
-	walkForRecentRoot(ctx, openedRoot, rootPath, limit, h)
-}
-
-func walkForRecentRoot(ctx context.Context, root *os.Root, rootPath string, limit int, h *recentHeap) {
-	_ = fs.WalkDir(root.FS(), ".", func(relPath string, d fs.DirEntry, err error) error {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-			if d != nil && d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
+	walkLiveRoot(ctx, ops, rootPath, func(root *os.Root, relPath string, d fs.DirEntry) error {
 		if d.IsDir() {
-			if relPath != "." {
-				dirPath := filepath.Join(rootPath, filepath.FromSlash(relPath))
-				if shouldSkipVirtualDir(dirPath) {
-					return fs.SkipDir
-				}
-			}
 			return nil
 		}
 

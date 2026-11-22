@@ -1,13 +1,19 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import type { AgentClient } from '../../core/api/agentClient';
+import { AgentApiError, HTTP_UNAUTHORIZED, type AgentClient } from '../../core/api/agentClient';
 import type { BatchItemResult, BatchResult, Entry } from '../../core/api/models';
+import { CertPinMismatch } from '../../core/api/pin';
+import { phoneRemovedMessage } from '../../core/humanizeError';
+import { ignoreError } from '../../core/log';
+import { t } from '../../i18n';
 import type { ListingCache } from '../../core/storage/listingCache';
 import { isEntryHidden, type VisibilityPrefs } from '../../core/visibility';
 import { invalidNameReason } from './nameValidation';
 import { basenameOf, buildPathStackWithinRoot, joinRemotePath, renameDestination } from './paths';
 import { rangePaths } from './selectionLogic';
-import { sortEntries, type SortOrder } from './sort';
+import type { SortOrder } from '../../core/models/sort';
+import { listAllEntries } from '../../core/api/listAll';
+import { sortEntries } from './sort';
 import type { UndoOp } from './undoPlan';
 
 export type ExplorerState = {
@@ -32,6 +38,9 @@ export type ExplorerState = {
   showHidden: boolean;
 };
 
+/** Pages a quiet refresh will re-read to keep rows the user already scrolled to; beyond this the list ends and scrolling loads the rest again. */
+const QUIET_REFRESH_MAX_PAGES = 50;
+
 export type ExplorerDeps = {
   hostId: string;
   rootPath: string;
@@ -42,21 +51,20 @@ export type ExplorerDeps = {
 
 export const currentPath = (s: ExplorerState) => s.pathStack[s.pathStack.length - 1];
 export const atRoot = (s: ExplorerState) => s.pathStack.length === 1;
-export const multiSelect = (s: ExplorerState) => s.selected.size > 0;
 
 /** Sorted entries and the hidden-path set; the visible list is derived at display time so revealed hidden items keep their sorted position. */
-export function deriveDisplay(s: Pick<ExplorerState, 'entries' | 'showHidden'>, sort: SortOrder, vis: VisibilityPrefs) {
-  const sorted = sortEntries(s.entries, sort);
+export function deriveDisplay(s: Pick<ExplorerState, 'entries' | 'showHidden'>, sort: SortOrder, vis: VisibilityPrefs, foldersFirst = true) {
+  const sorted = sortEntries(s.entries, sort, foldersFirst);
   const hidden = new Set(sorted.filter((e) => isEntryHidden(e, vis)).map((e) => e.path));
   return { sorted, hidden, display: s.showHidden ? sorted : sorted.filter((e) => !hidden.has(e.path)), hiddenCount: hidden.size };
 }
+
+const errorCodeOf = (e: unknown): string | null => (typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : null);
 
 /**
  * Explorer state machine ported from ExplorerNotifier. Every load takes a generation number so a
  * stale result of an overlapping same-path load (A -> B -> A) can never clobber the fresh one (PR-34).
  */
-const errorCodeOf = (e: unknown): string | null => (typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : null);
-
 export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Explorer {
   const store = createStore<ExplorerState>(() => ({
     pathStack: [deps.rootPath],
@@ -99,17 +107,53 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
       shownPath = path;
       set({ loading: false, entries: listing.entries, stale: false, offline: false, error: null, errorCode: null, nextCursor: listing.nextCursor ?? null });
       // A good listing stays on screen even if the local cache cannot be written.
-      await deps.cache.put(deps.hostId, path, listing.entries).catch(() => {});
+      await deps.cache.put(deps.hostId, path, listing.entries).catch(ignoreError('listing cache write'));
     } catch (e) {
       if (gen !== generation) return;
-      if (cached) set({ loading: false, stale: true, offline: true });
-      else set({ loading: false, error: deps.humanize(e), errorCode: errorCodeOf(e) });
+      // A refused token (401) is not "offline": the computer answered and no longer accepts this phone, so say that.
+      const refused = e instanceof AgentApiError && e.statusCode === HTTP_UNAUTHORIZED;
+      // A changed identity is not "offline" either: the answer came from a different computer, so show the identity message.
+      const impostor = e instanceof CertPinMismatch;
+      const blocked = refused || impostor;
+      if (cached && !blocked) set({ loading: false, stale: true, offline: true });
+      // A refused phone or changed identity also drops the cached rows: the screen shows the message only when there is nothing to list.
+      else set({ loading: false, error: refused ? phoneRemovedMessage() : deps.humanize(e), errorCode: errorCodeOf(e), ...(blocked ? { entries: [], stale: false, offline: false } : {}) });
     }
   };
 
   const api: Explorer = {
     load,
     refresh: load,
+    async quietRefresh() {
+      const s = get();
+      // Nothing to patch while a load is running or failed, or when the list is cached/offline: a full load owns those states.
+      if (s.loading || s.loadingMore || s.error || s.offline || s.stale) return;
+      const path = currentPath(s);
+      const gen = ++generation;
+      try {
+        const client = await deps.getClient();
+        if (gen !== generation) return;
+        // Pages the user already scrolled through are read again, so rows below the first page do not vanish.
+        const wanted = s.entries.length;
+        let listing = await client.list(path);
+        if (gen !== generation) return;
+        let entries = listing.entries;
+        let nextCursor = listing.nextCursor ?? null;
+        for (let page = 1; nextCursor !== null && entries.length < wanted && page < QUIET_REFRESH_MAX_PAGES; page++) {
+          listing = await client.list(path, { cursor: nextCursor });
+          if (gen !== generation) return;
+          entries = [...entries, ...listing.entries];
+          nextCursor = listing.nextCursor ?? null;
+        }
+        // The user's selection survives; only paths that no longer exist drop out of it.
+        const here = new Set(entries.map((e) => e.path));
+        const selected = new Set([...get().selected].filter((p) => here.has(p)));
+        set({ entries, nextCursor, selected });
+        await deps.cache.put(deps.hostId, path, entries).catch(ignoreError('listing cache write'));
+      } catch {
+        // A change hint is only an optimisation: a failed quiet refresh leaves the list as it is.
+      }
+    },
     async loadMore(o) {
       const s = get();
       if (s.loading || s.loadingMore || s.nextCursor === null) return;
@@ -125,7 +169,7 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
         if (gen !== generation) return;
         const merged = [...get().entries, ...listing.entries];
         set({ entries: merged, loadingMore: false, nextCursor: listing.nextCursor ?? null });
-        await deps.cache.put(deps.hostId, path, merged).catch(() => {});
+        await deps.cache.put(deps.hostId, path, merged).catch(ignoreError('listing cache write'));
       } catch (e) {
         if (gen === generation) set({ loadingMore: false, loadMoreError: deps.humanize(e) });
       }
@@ -171,6 +215,8 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
       set({ selected: new Set([...all].filter((p) => !cur.has(p))), anchor: null });
     },
     async createFolder(name, o = {}) {
+      const bad = invalidNameReason(name);
+      if (bad) throw new Error(bad);
       const target = joinRemotePath(currentPath(get()), name);
       await (await deps.getClient()).createFolder(target);
       if (o.open) {
@@ -179,6 +225,8 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
       await load();
     },
     async createFile(name) {
+      const bad = invalidNameReason(name);
+      if (bad) throw new Error(bad);
       await (await deps.getClient()).createFile(joinRemotePath(currentPath(get()), name));
       await load();
     },
@@ -210,7 +258,7 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
         else {
           let refused = 0;
           for (const g of op.groups) refused += (await client.move(g.paths, g.destDir, {})).failed.length;
-          if (refused > 0) throw new Error(`${refused} could not go back: a file with that name already exists there, or it was changed since`);
+          if (refused > 0) throw new Error(t('undoRefusedCount', { count: refused }));
         }
       } finally {
         await load();
@@ -286,11 +334,11 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
           continue;
         }
         if (blocked.has(i)) {
-          results.push({ path: r.path, ok: false, errorCode: 'TARGET_EXISTS', errorMessage: `"${r.newName}" already exists in this folder` });
+          results.push({ path: r.path, ok: false, errorCode: 'TARGET_EXISTS', errorMessage: t('renameTargetExists', { name: r.newName }) });
           continue;
         }
         if ((counts.get(dst) ?? 0) > 1) {
-          results.push({ path: r.path, ok: false, errorCode: 'DUPLICATE_TARGET', errorMessage: `Another selected item is also being renamed to "${r.newName}"` });
+          results.push({ path: r.path, ok: false, errorCode: 'DUPLICATE_TARGET', errorMessage: t('renameDuplicateTarget', { name: r.newName }) });
           continue;
         }
         const tmp = renameDestination(r.path, `.rfe-rn-${i}-${r.newName}`);
@@ -312,7 +360,7 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
             await client.rename(tmp, orig);
             results.push(fail(orig, e));
           } catch {
-            results.push({ path: tmp, ok: false, errorCode: 'RENAME_STRANDED', errorMessage: `Could not rename it, and could not restore the name ${orig}: it was left as ${tmp}. ${deps.humanize(e)}` });
+            results.push({ path: tmp, ok: false, errorCode: 'RENAME_STRANDED', errorMessage: t('renameStranded', { orig, tmp, error: deps.humanize(e) }) });
           }
         }
       }
@@ -322,13 +370,7 @@ export function createExplorer(deps: ExplorerDeps): StoreApi<ExplorerState> & Ex
     /** Basenames of [sourcePaths] that already exist in [destDir]; pages the whole destination so late collisions are not missed. */
     async collidingBasenames(destDir, sourcePaths) {
       const client = await deps.getClient();
-      const names = new Set<string>();
-      let cursor: string | undefined;
-      do {
-        const l = await client.list(destDir, { cursor });
-        for (const e of l.entries) names.add(e.name);
-        cursor = l.nextCursor;
-      } while (cursor);
+      const names = new Set((await listAllEntries((cursor) => client.list(destDir, { cursor }))).map((e) => e.name));
       return new Set([...sourcePaths].map(basenameOf).filter((n) => names.has(n)));
     },
   };
@@ -340,6 +382,8 @@ type CollisionOpts = { sources?: string[]; duplicate?: boolean; overwrite?: bool
 export interface Explorer {
   load(): Promise<void>;
   refresh(): Promise<void>;
+  /** Refetches the first page without a spinner or losing the selection (an agent change hint); a no-op unless the list is showing fresh data. */
+  quietRefresh(): Promise<void>;
   loadMore(o?: { retry?: boolean }): Promise<void>;
   navigate(path: string): void;
   popDirectory(): boolean;

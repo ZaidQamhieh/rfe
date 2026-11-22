@@ -3,30 +3,208 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
+	"sync/atomic"
 )
 
-// migrations are applied in order, each in its own transaction, after which
-// PRAGMA user_version is bumped to its 1-based index. A step therefore either
-// lands completely or not at all — the previous chain ran bare ALTERs one by
-// one, so a failure halfway left a schema no version number described (PR-46).
-//
-// Every step must stay IDEMPOTENT. Databases predating user_version report 0
-// and so replay the whole list, and the baseline step is exactly the old chain:
-// CREATE TABLE IF NOT EXISTS, addColumn's duplicate tolerance, and
-// CREATE INDEX IF NOT EXISTS. Append new steps; never renumber or edit a
-// shipped one.
-var migrations = []func(*sql.Tx) error{
-	migrateBaseline,
-	migrateChunkTable,
-	migrateAuditLog,
-	migrateDeviceAppPermissions,
-	migrateLoginDeviceBindings,
-	migrateDeviceFilePermissions,
-	migrateTransferHistoryRetention,
-	migratePairRequests,
-	migratePairingHardening,
+// migration is one schema step. Steps are applied in order, each in its own transaction, after which
+// PRAGMA user_version is set to the step's 1-based index. A step therefore either lands completely or not
+// at all; the previous chain ran bare ALTERs one by one, so a failure halfway left a schema no version
+// number described.
+type migration struct {
+	up func(*sql.Tx) error
+	// breaking marks a step that older code cannot work against (it drops or renames a table or column).
+	// Such a step also raises the database's min_compatible to its own 1-based index, in the same
+	// transaction, so an agent with fewer steps refuses the file instead of misreading it. Additive steps
+	// (new tables, new columns with defaults, new indexes) leave min_compatible alone, which is what lets a
+	// rollback to the previous agent open a database the newer one already migrated.
+	breaking bool
+}
+
+// migrations is the whole chain. Every step must stay IDEMPOTENT. Databases predating user_version report 0
+// and so replay the whole list, and the baseline step is exactly the old chain: CREATE TABLE IF NOT EXISTS,
+// addColumn's duplicate tolerance, and CREATE INDEX IF NOT EXISTS. Append new steps; never renumber or edit
+// a shipped one. There are no down-migrations: going back is done by running the older agent on the same
+// file (see min_compatible) or by restoring a backup.
+var migrations = []migration{
+	{up: migrateBaseline},
+	// Step 2 is deliberately not marked breaking: databases that already ran it recorded min_compatible 0, so changing
+	// the flag now would do nothing for them. TestAdditiveChainLeavesMinCompatibleZero (schema_compat_test.go) fails when any
+	// shipped step is marked breaking; a future breaking step must be added together with an update to that test.
+	{up: migrateChunkTable},
+	{up: migrateAuditLog},
+	{up: migrateDeviceAppPermissions},
+	{up: migrateLoginDeviceBindings},
+	{up: migrateDeviceFilePermissions},
+	{up: migrateTransferHistoryRetention},
+	{up: migratePairRequests},
+	{up: migratePairingHardening},
+	{up: migrateAccountServer},
+	{up: migrateFederatedLoginTime},
+	{up: migrateAccountEpoch},
+	{up: migrateSchemaMeta},
+	{up: migrateTransferIdempotencyKey},
+	{up: migratePublishIntents},
+	{up: migrateDeviceWakeGrant},
+	{up: migrateOwnerRevokeAndAccountDeny},
+}
+
+// SchemaVersion is the number of migration steps this build knows: the PRAGMA user_version it migrates a
+// database to, and the highest min_compatible it can still open.
+func SchemaVersion() int { return len(migrations) }
+
+// ErrSchemaTooNew means the database needs a newer agent: a later release made a change older code cannot
+// read (its min_compatible is above what this build supports). The file is left untouched.
+var ErrSchemaTooNew = errors.New("database was written by a newer agent and cannot be opened by this one")
+
+// migrateBeforeCommit, when set (tests only), runs inside each migration's transaction after the step and
+// its version bump, just before COMMIT; an error rolls the step back. It lets a test stop the chain at any
+// step to prove the database is never left half-migrated.
+var migrateBeforeCommit atomic.Pointer[func(step int, tx *sql.Tx) error]
+
+// metaMinCompatible is the schema_meta key holding min_compatible.
+const metaMinCompatible = "min_compatible"
+
+// migrateSchemaMeta adds schema_meta, a small key/value table of integers kept beside PRAGMA user_version,
+// and seeds min_compatible at 0 (every database written so far can be read by every earlier build).
+func migrateSchemaMeta(tx *sql.Tx) error {
+	if _, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS schema_meta (
+    key   TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+)`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`INSERT OR IGNORE INTO schema_meta (key, value) VALUES (?, 0)`, metaMinCompatible)
+	return err
+}
+
+// migrateTransferIdempotencyKey adds the optional client-chosen key of an upload session and a partial unique
+// index so one device's repeated open with the same key finds its existing row. It is additive (a nullable
+// column and an index), so an older agent still reads the file.
+func migrateTransferIdempotencyKey(tx *sql.Tx) error {
+	var exists int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='transfers'`).Scan(&exists); err != nil {
+		return err
+	}
+	// Some narrowly scoped legacy stores contain only the tables they use; there is nothing to add to then.
+	if exists == 0 {
+		return nil
+	}
+	if err := addColumn(tx, "transfers", "idempotency_key", "TEXT"); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_transfers_device_idem ON transfers(device_id, idempotency_key) WHERE idempotency_key IS NOT NULL`)
+	return err
+}
+
+// migratePublishIntents adds publish_intents: one row per upload session whose final copy into the
+// destination folder has begun and not yet finished, so a startup or hourly sweep can find and remove the
+// hidden temp file a killed publish left behind. It is additive (a new table), so an older agent still
+// opens the file; it just ignores the table.
+func migratePublishIntents(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS publish_intents (
+    session_id TEXT PRIMARY KEY,
+    dest_dir   TEXT NOT NULL,
+    temp_name  TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+)`)
+	return err
+}
+
+// raiseMinCompatible sets min_compatible to at least v inside tx, creating schema_meta first if the step
+// runs before migrateSchemaMeta has. It never lowers an existing value.
+func raiseMinCompatible(tx *sql.Tx, v int) error {
+	if err := migrateSchemaMeta(tx); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`UPDATE schema_meta SET value=MAX(value, ?) WHERE key=?`, v, metaMinCompatible)
+	return err
+}
+
+// readMinCompatible returns the database's min_compatible; 0 when schema_meta or the row does not exist yet
+// (a database from before the field was introduced is readable by every build).
+func readMinCompatible(db *sql.DB) (int, error) {
+	var has int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_meta'`).Scan(&has); err != nil {
+		return 0, fmt.Errorf("read schema meta: %w", err)
+	}
+	if has == 0 {
+		return 0, nil
+	}
+	var v int
+	err := db.QueryRow(`SELECT value FROM schema_meta WHERE key=?`, metaMinCompatible).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read min_compatible: %w", err)
+	}
+	return v, nil
+}
+
+// migrateAccountEpoch adds the revocation epoch. account_epoch is this agent's own counter as an issuer
+// (one row, starts at 0); trusted_account_server.highest_epoch is the highest epoch seen from the pinned
+// issuer; devices.federated_epoch is the epoch a federated session was minted under. It also moves sessions
+// minted before this version off the owner profile: they stop being via_login and get
+// FederatedGrantProfile, with their share links dropped.
+func migrateAccountEpoch(tx *sql.Tx) error {
+	if _, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS account_epoch (
+    id    INTEGER PRIMARY KEY CHECK (id = 1),
+    epoch INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO account_epoch (id, epoch) VALUES (1, 0);
+`); err != nil {
+		return err
+	}
+	if err := addColumn(tx, "trusted_account_server", "highest_epoch", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addColumn(tx, "devices", "federated_epoch", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	var hasShares int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='share_tokens'`).Scan(&hasShares); err != nil {
+		return err
+	}
+	if hasShares > 0 {
+		if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id IN (SELECT id FROM devices WHERE login_issuer<>'')`); err != nil {
+			return err
+		}
+	}
+	browse, download, upload, modify, del, share := FederatedGrantProfile()
+	_, err := tx.Exec(`UPDATE devices SET via_login=0, can_browse=?, can_download=?, can_upload=?, can_modify=?, can_delete=?, can_share=?
+WHERE login_issuer<>''`, boolInt(browse), boolInt(download), boolInt(upload), boolInt(modify), boolInt(del), boolInt(share))
+	return err
+}
+
+// migrateFederatedLoginTime adds the time an account server last vouched for a device. It stays NULL for
+// every other device, and a federated session with no time is treated as expired, so sessions minted before
+// this column existed must log in again.
+func migrateFederatedLoginTime(tx *sql.Tx) error {
+	return addColumn(tx, "devices", "federated_login_at", "INTEGER")
+}
+
+// migrateAccountServer adds the pinned account-server record (at most one row) and marks devices minted
+// from that server's assertion: login_issuer holds the pinned key's fingerprint, empty for every other device.
+func migrateAccountServer(tx *sql.Tx) error {
+	if _, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS trusted_account_server (
+    id          INTEGER PRIMARY KEY CHECK (id = 1),
+    name        TEXT NOT NULL,
+    public_key  TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    created     INTEGER NOT NULL
+);
+`); err != nil {
+		return err
+	}
+	return addColumn(tx, "devices", "login_issuer", "TEXT NOT NULL DEFAULT ''")
 }
 
 // migrateTransferHistoryRetention adds an explicit completion timestamp so
@@ -88,31 +266,48 @@ func migratePairingHardening(tx *sql.Tx) error {
 	return addColumn(tx, "pair_requests", "nonce_commit", "TEXT NOT NULL DEFAULT ''")
 }
 
-// migrate brings the schema up to len(migrations).
+// migrate brings the schema up to len(migrations). A database whose min_compatible is above what this build
+// supports is refused with ErrSchemaTooNew before anything is written. A database that is merely at a higher
+// user_version (a newer agent added only compatible steps) is opened as it is: no step runs and nothing in it
+// changes, so rolling back to this build is just starting it.
 func (s *DB) migrate() error {
 	var version int
 	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
-	if version > len(migrations) {
-		// The DB was written by a newer agent. Refuse rather than run old code
-		// against a schema it doesn't know.
-		return fmt.Errorf("database schema version %d is newer than this agent supports (%d)", version, len(migrations))
+	minCompat, err := readMinCompatible(s.db)
+	if err != nil {
+		return err
+	}
+	if minCompat > len(migrations) {
+		return fmt.Errorf("%w: it needs schema level %d or newer but this agent supports up to %d (database user_version %d); install the newer agent, or restore a backup made before the upgrade", ErrSchemaTooNew, minCompat, len(migrations), version)
 	}
 	for i := version; i < len(migrations); i++ {
 		tx, err := s.db.Begin()
 		if err != nil {
 			return fmt.Errorf("migration %d: begin: %w", i+1, err)
 		}
-		if err := migrations[i](tx); err != nil {
+		if err := migrations[i].up(tx); err != nil {
 			tx.Rollback() //nolint:errcheck // the migration error is what matters
 			return fmt.Errorf("migration %d: %w", i+1, err)
+		}
+		if migrations[i].breaking {
+			if err := raiseMinCompatible(tx, i+1); err != nil {
+				tx.Rollback() //nolint:errcheck
+				return fmt.Errorf("migration %d: set min_compatible: %w", i+1, err)
+			}
 		}
 		// PRAGMA takes no bind parameters, hence the format string; i is a
 		// loop index over a package-level slice, not user input.
 		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
 			tx.Rollback() //nolint:errcheck
 			return fmt.Errorf("migration %d: set version: %w", i+1, err)
+		}
+		if hook := migrateBeforeCommit.Load(); hook != nil {
+			if err := (*hook)(i+1, tx); err != nil {
+				tx.Rollback() //nolint:errcheck
+				return fmt.Errorf("migration %d: %w", i+1, err)
+			}
 		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("migration %d: commit: %w", i+1, err)
@@ -154,8 +349,8 @@ func hasColumn(tx *sql.Tx, table, column string) (bool, error) {
 }
 
 // migrateBaseline is the schema as it stood when versioning was introduced:
-// the original CREATE TABLEs plus every column/index added by PR-03, PR-41,
-// PR-43, PR-44 and PR-50 before this file tracked versions.
+// the original CREATE TABLEs plus every column/index added by earlier patches
+// before this file tracked versions.
 func migrateBaseline(tx *sql.Tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS devices (
@@ -294,24 +489,36 @@ CREATE TABLE IF NOT EXISTS users (
 	if err := addColumn(tx, "transfers", "updated_at", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
-	// PR-50: persist the session's overwrite flag. Complete re-checks it at
+	// persist the session's overwrite flag. Complete re-checks it at
 	// publish time (OpenSession's check races anything created during the
 	// upload). Rows predating this column default to 0 = no-replace, the safe
 	// side: a completing legacy session now conflicts instead of clobbering.
 	if err := addColumn(tx, "transfers", "overwrite", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
-	// PR-03: record which device minted each share token, so the share list
+	// record which device minted each share token, so the share list
 	// and revoke are scoped to their owner instead of being global. Empty
 	// means "no device recorded" (tokens minted before this column) — those
 	// are admin-only, same rule legacy transfer rows get.
 	if err := addColumn(tx, "share_tokens", "device_id", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
-	// PR-44: enforce one logical device per hardware-stable client_id. Collapse
+	// enforce one logical device per hardware-stable client_id. Collapse
 	// any pre-existing duplicates (keeping the most recently inserted row) before
 	// adding the partial unique index, so upgrades of a DB that already piled up
 	// duplicates don't fail. Empty client_id (login/register devices) is exempt.
+	// Count first so the removal is reported: a silent delete of device rows would hide a
+	// paired phone losing its entry.
+	var dupes int
+	if err := tx.QueryRow(`
+SELECT COUNT(*) FROM devices WHERE client_id != '' AND rowid NOT IN (
+    SELECT MAX(rowid) FROM devices WHERE client_id != '' GROUP BY client_id
+)`).Scan(&dupes); err != nil {
+		return err
+	}
+	if dupes > 0 {
+		log.Printf("store: migration removed %d duplicate device row(s), keeping the newest per client_id", dupes)
+	}
 	if _, err := tx.Exec(`
 DELETE FROM devices WHERE client_id != '' AND rowid NOT IN (
     SELECT MAX(rowid) FROM devices WHERE client_id != '' GROUP BY client_id
@@ -320,7 +527,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_client_id ON devices(client_id) WH
 `); err != nil {
 		return err
 	}
-	// PR-43: index the transfer-listing/cleanup access patterns (admin pages
+	// index the transfer-listing/cleanup access patterns (admin pages
 	// filter by status/recency and by device).
 	if _, err := tx.Exec(`
 CREATE INDEX IF NOT EXISTS idx_transfers_status_updated ON transfers(status, updated_at);
@@ -331,7 +538,7 @@ CREATE INDEX IF NOT EXISTS idx_transfers_device_updated ON transfers(device_id, 
 	return nil
 }
 
-// migrateChunkTable normalizes received-chunk tracking (PR-42). The old
+// migrateChunkTable normalizes received-chunk tracking. The old
 // design kept a JSON array in transfers.received_chunks and rewrote the whole
 // array on every chunk: quadratic over a transfer, and a read-modify-write
 // that only a transaction kept from losing updates. A row per chunk makes
@@ -374,10 +581,12 @@ CREATE TABLE IF NOT EXISTS transfer_chunks (
 			rows.Close()
 			return err
 		}
-		var received []int
-		// A row whose JSON is unreadable loses its resume progress, not its
-		// data: the client re-uploads the chunks it can no longer prove it sent.
-		_ = json.Unmarshal([]byte(chunksJSON), &received)
+		received, err := parseLegacyChunks(chunksJSON)
+		if err != nil {
+			// The chunks read before the damage are kept; the rest are re-uploaded by the
+			// client, which is safe because a chunk is only trusted once recorded.
+			log.Printf("store: migration kept %d chunks of damaged upload progress for %s: %v", len(received), id, err)
+		}
 		if len(received) > 0 {
 			backfill[id] = received
 		}
@@ -400,6 +609,35 @@ CREATE TABLE IF NOT EXISTS transfer_chunks (
 
 	_, err = tx.Exec(`ALTER TABLE transfers DROP COLUMN received_chunks`)
 	return err
+}
+
+// parseLegacyChunks reads the legacy received_chunks JSON list. For damaged JSON, such as a
+// list cut short, it returns the chunk numbers read intact before the damage along with the
+// error. A number met at the point of failure is dropped: it may be the front of a longer one.
+func parseLegacyChunks(raw string) ([]int, error) {
+	var received []int
+	if err := json.Unmarshal([]byte(raw), &received); err == nil {
+		return received, nil
+	}
+	received = nil
+	dec := json.NewDecoder(strings.NewReader(raw))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('[') {
+		return nil, fmt.Errorf("received_chunks is not a list")
+	}
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			if len(received) > 0 {
+				received = received[:len(received)-1]
+			}
+			return received, fmt.Errorf("received_chunks is damaged: %w", err)
+		}
+		f, ok := tok.(float64)
+		if !ok || f < 0 || f != float64(int(f)) {
+			return received, fmt.Errorf("received_chunks holds %v, not a chunk number", tok)
+		}
+		received = append(received, int(f))
+	}
 }
 
 // migrateAuditLog adds the account/device/share audit trail (backlog #37).
@@ -480,5 +718,25 @@ can_upload=CASE WHEN read_only=0 THEN 1 ELSE 0 END,
 can_modify=CASE WHEN read_only=0 THEN 1 ELSE 0 END,
 can_delete=CASE WHEN read_only=0 THEN 1 ELSE 0 END,
 can_share=1`)
+	return err
+}
+
+// migrateDeviceWakeGrant adds the per-device Wake-on-LAN grant. Before it, any
+// paired device that was not read-only could send wake packets, so rows present
+// at upgrade time keep that access (read-only rows were refused and stay so);
+// devices paired later start without it. A replayed step leaves grants an admin
+// has since changed alone.
+func migrateDeviceWakeGrant(tx *sql.Tx) error {
+	had, err := hasColumn(tx, "devices", "can_wake")
+	if err != nil {
+		return err
+	}
+	if err := addColumn(tx, "devices", "can_wake", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if had {
+		return nil
+	}
+	_, err = tx.Exec(`UPDATE devices SET can_wake=CASE WHEN read_only=0 THEN 1 ELSE 0 END`)
 	return err
 }

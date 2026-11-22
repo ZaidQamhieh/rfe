@@ -21,12 +21,21 @@ ext=""
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 
+# Public update-signing keys (and optionally the manifest URL) are baked into the agent; see tools/update-keys.env.
+set -a; . "$root/tools/update-keys.env"; set +a
+hu=github.com/ZaidQamhieh/rfe/agent/internal/hostupdate
+ldflags="-s -w -X main.version=${version} -X $hu.PrimaryPublicKey=$RFE_UPDATE_PRIMARY_PUBKEY -X $hu.SparePublicKey=$RFE_UPDATE_SPARE_PUBKEY"
+[[ -n "${RFE_UPDATE_MANIFEST_URL:-}" ]] && ldflags="$ldflags -X $hu.ManifestURL=$RFE_UPDATE_MANIFEST_URL"
 (cd "$root/agent" && CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch \
-  go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$stage/rfe$ext" ./cmd/agent)
+  go build -trimpath -ldflags "$ldflags" -o "$stage/rfe$ext" ./cmd/agent)
+
+# The supervising launcher ships beside the agent (not a sidecar: it is not in rfe-sidecars.txt).
+(cd "$root/agent" && CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch \
+  go build -trimpath -ldflags "-s -w" -o "$stage/rfe-launcher$ext" ./cmd/rfe-launcher)
 
 manifest="$stage/rfe-sidecars.txt"
 printf 'rfe-sidecars 1\nversion %s\n' "$version" > "$manifest"
-files=("rfe$ext")
+files=("rfe$ext" "rfe-launcher$ext")
 for name in rfe-indexd rfe-thumbd; do
   src="$sidecars/$name$ext"
   [[ -f "$src" ]] || { echo "missing sidecar $src" >&2; exit 1; }

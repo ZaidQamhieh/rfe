@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import type { AgentClient } from '../../core/api/agentClient';
 import type { Entry } from '../../core/api/models';
+import { ignoreError } from '../../core/log';
 import type { Host } from '../../core/models/host';
 
 export type CrossHostResult = { host: Host; entry: Entry };
@@ -48,7 +49,8 @@ export function createCrossHostSearch(deps: CrossHostDeps): StoreApi<CrossHostSt
             const res = await withTimeout(client.search({ q }), deps.perHostTimeoutMs ?? 10_000);
             if (gen !== generation) return;
             store.setState((s) => ({ results: [...s.results, ...res.entries.map((entry) => ({ host, entry }))] }));
-          } catch {
+          } catch (e) {
+            ignoreError('cross-host search')(e);
             if (gen === generation) store.setState((s) => ({ failed: [...s.failed, host.id] }));
           }
         }),

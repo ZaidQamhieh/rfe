@@ -29,6 +29,16 @@ fn every_agent_error_code_is_in_the_guide_with_its_exact_wording() {
 
 /// Stems of the messages the app itself produces, from `src/` and `ui/*.js`.
 const APP_MESSAGES: &[&str] = &[
+    "This sign-in cannot change the account server",
+    "Trusting an account server needs this computer's account password",
+    "That is not the password of the account this app is signed in with",
+    "Too many wrong passwords for this account in a short time",
+    "Enter your password",
+    "That computer's account server is turned off",
+    "This agent has no account server support",
+    "That computer sent something that is not an account-server key",
+    "The key no longer matches the fingerprint you confirmed",
+    "Enter the address of the computer you want to trust",
     "agent address must be host:port",
     "cannot reach the agent securely",
     "This agent's certificate is not the one you trusted",
@@ -55,6 +65,13 @@ const APP_MESSAGES: &[&str] = &[
     "; delete it to start over",
     "delete it to create a new device identity",
     "tls config",
+    "This video is too big to play here",
+    "Downloads can only be saved in a folder inside your home folder",
+    "An address with a zone name",
+    "Use a port from 1 to 65535",
+    "Could not sign out of",
+    "the RFE agent did not answer within",
+    "Pairing requests could not be refreshed",
 ];
 
 /// Stems of the keystore messages, which keystore.md explains.
@@ -93,11 +110,14 @@ fn the_listed_messages_still_exist_in_the_app() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut code = String::new();
     for f in [
+        "account_server.rs",
         "agent_client.rs",
         "discovery.rs",
         "flows.rs",
         "identity.rs",
+        "pairing_codes.rs",
         "secrets.rs",
+        "transfers.rs",
     ] {
         code.push_str(&std::fs::read_to_string(src.join("src").join(f)).unwrap());
     }

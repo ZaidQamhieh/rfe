@@ -4,20 +4,30 @@
 <title>RFE Tonal</title>
 <link rel="stylesheet" href="../ui/base.css">
 <link rel="stylesheet" href="../ui/app.css">
+<link rel="stylesheet" href="../ui/css/legacy.css">
+<link rel="stylesheet" href="../ui/css/v5-fonts.css">
+<link rel="stylesheet" href="../ui/css/v5-kit.css">
+<link rel="stylesheet" href="../ui/css/v5-base.css">
+<link rel="stylesheet" href="../ui/css/v5-computers.css">
+<link rel="stylesheet" href="../ui/css/v5-devices.css">
+<link rel="stylesheet" href="../ui/css/v5-settings.css">
+<link rel="stylesheet" href="../ui/css/v5-transfers.css">
+<link rel="stylesheet" href="../ui/css/v5-search.css">
 </head>
 <body>
 <script>/* dev only: ?wait=ms holds the load event so a headless screenshot sees the settled page (needs ui-dev slow server) */(function(){var m=/[?&]wait=(\d+)/.exec(location.search);if(m)document.write('<img src="http://127.0.0.1:8799/'+m[1]+'" width="0" height="0" style="position:absolute" alt="">');})();</script>
-<div class="app" id="app">
-  <nav class="rail" id="rail"></nav>
+<div class="app rfe d5" id="app">
+  <nav class="side" id="rail" aria-label="Main"></nav>
   <div class="main" id="main">
     <header class="top" id="top"></header>
     <section class="stage" id="stage"></section>
-    <aside class="side" id="side"></aside><div class="rsz-side" id="rszSide" role="separator" aria-orientation="vertical" aria-label="Resize the side panel" tabindex="0" title="Drag to resize"></div>
+    <aside class="dside" id="side"></aside><div class="rsz-side" id="rszSide" role="separator" aria-orientation="vertical" aria-label="Resize the side panel" tabindex="0" title="Drag to resize"></div>
     <section class="sheet" id="sheet"></section>
   </div>
 </div>
-<div class="layer" id="layer"></div>
+<div class="layer d5" id="layer"></div>
 <script src="../ui/csp-shim.js"></script>
+<script src="../ui/registry.js"></script>
 <script src="../ui/icons.js"></script>
 <script src="sim-engine.js"></script>
 <script>window.SimEngine=window.Engine;</script>
@@ -33,4 +43,11 @@
 <script src="../ui/fx4.js"></script>
 <script src="../ui/fx5.js"></script>
 <script src="../ui/fx6.js"></script>
+<script src="../ui/v5-shell.js"></script>
+<script src="../ui/v5-files.js"></script>
+<script src="../ui/v5-computers.js"></script>
+<script src="../ui/v5-devices.js"></script>
+<script src="../ui/v5-localpc.js"></script>
+<script src="../ui/v5-settings.js"></script>
+<script src="../ui/v5-transfers.js"></script>
 </body></html>

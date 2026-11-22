@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>RFE · Pairing requests: 5 designs</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{font-family:Inter,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t1);font:14px/1.4 Inter,system-ui,sans-serif}
+.pg{--bg:#f6f6f2;--sf:#fff;--rz:#efefe9;--t1:#1c1d1a;--t2:#4f5148;--t3:#666860;--line:rgba(0,0,0,.09);--line2:rgba(0,0,0,.18);--ac:#4d6b1f;--on-ac:#fff;--ac-ink:#3d5618;--warn:#955a00;--neg:#b3261e}
+body.dark .pg,.pg.dark{--bg:#121413;--sf:#1a1c1b;--rz:#242726;--t1:#ececea;--t2:#adb0ae;--t3:#8e918a;--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);--ac:#5d7c25;--on-ac:#fff;--ac-ink:#b3cf72;--warn:#e5aa52;--neg:#f0716b}
+.pg{background:var(--bg);color:var(--t1);min-height:100vh;padding:28px 32px 60px}
+header{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+h1{font-size:22px;margin:0;font-weight:600}
+.sub{color:var(--t2);margin:0 0 26px;max-width:760px}
+.tg{margin-left:auto;font:inherit;color:var(--t1);background:var(--sf);border:0;box-shadow:inset 0 0 0 1px var(--line2);border-radius:8px;padding:8px 14px;cursor:pointer}
+section.opt{margin:0 0 44px}
+section.opt>h2{font-size:16px;margin:0 0 2px;font-weight:600}
+section.opt>p{margin:0 0 14px;color:var(--t2);max-width:760px}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.pair>div>small{display:block;color:var(--t3);margin:0 0 6px;font-size:12px}
+.box{background:var(--sf);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);padding:20px;min-height:250px}
+.box h3{margin:0 0 14px;font-size:16px;font-weight:500;display:flex;gap:8px;align-items:baseline}
+.n{color:var(--t3);font-size:13px}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;letter-spacing:.04em}
+.who{font-weight:500}
+.mut{color:var(--t2);font-size:13px}
+.t3{color:var(--t3);font-size:12.5px}
+.dev{width:32px;height:32px;border-radius:8px;background:var(--rz);display:grid;place-items:center;flex:none}
+.dev svg{width:18px;height:18px;stroke:var(--t2);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.btn{font:inherit;font-weight:500;border:0;border-radius:9px;padding:0 16px;height:36px;cursor:pointer;color:var(--t1);background:var(--sf);box-shadow:inset 0 0 0 1px var(--line2);display:inline-flex;align-items:center;gap:7px}
+.btn.pri{background:var(--ac);color:var(--on-ac);box-shadow:none}
+.btn.sm{height:32px;padding:0 12px;font-size:13px}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.row{display:flex;align-items:center;gap:12px}
+.sp{flex:1;min-width:0}
+.card{background:var(--rz);border-radius:12px;padding:14px}
+.card+.card{margin-top:10px}
+.code{font-size:22px;font-weight:500}
+.note{display:flex;gap:8px;color:var(--t2);font-size:13px;margin-top:14px;align-items:center}
+.note svg{width:16px;height:16px;stroke:var(--t3);fill:none;stroke-width:1.7;flex:none}
+.empty{display:grid;place-items:center;text-align:center;gap:10px;padding:26px 10px;min-height:210px;align-content:center}
+.empty .dev{width:44px;height:44px;border-radius:12px}
+.empty .dev svg{width:22px;height:22px}
+.empty b{font-weight:500;font-size:15px}
+.empty p{margin:0;color:var(--t2);max-width:300px;font-size:13px}
+.left{color:var(--t3);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--t3);border-radius:2px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:400;color:var(--t3);font-size:12px;padding:0 8px 8px}
+td{padding:11px 8px;border-top:1px solid var(--line);vertical-align:middle}
+td.r{text-align:right;white-space:nowrap}
+.seg{display:inline-flex;box-shadow:inset 0 0 0 1px var(--line2);border-radius:9px;padding:2px;gap:2px}
+.seg span{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--t2)}
+.seg span.on{background:var(--rz);color:var(--t1);box-shadow:inset 0 0 0 1px var(--line2)}
+.chk{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.sw{width:34px;height:20px;border-radius:10px;background:var(--line2);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:var(--sf)}
+.sw.on{background:var(--ac)}.sw.on::after{left:16px}
+.list{display:grid;gap:4px;align-content:start}
+.li{padding:10px 12px;border-radius:10px;display:flex;gap:10px;align-items:center}
+.li.sel{background:var(--rz);box-shadow:inset 0 0 0 1px var(--line2)}
+.big{font-size:34px;font-weight:500;text-align:center;margin:8px 0 4px}
+.cen{text-align:center}
+.strip{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--rz);box-shadow:inset 0 0 0 1px var(--line)}
+.strip+.strip{margin-top:8px}
+.chip{background:var(--sf);box-shadow:inset 0 0 0 1px var(--line2);border-radius:8px;padding:4px 10px;font-size:15px}
+.more{color:var(--t2);font-size:13px;margin-top:12px}
+details{margin-top:14px;color:var(--t2);font-size:13px}
+summary{cursor:pointer;color:var(--t3)}
+.ib{width:36px;height:36px;padding:0;justify-content:center}
+</style></head>
+<body>
+<div class="pg" id="pg">
+<header><h1>Asking to join: 5 designs</h1><button class="tg" id="tg">Dark mode</button></header>
+<p class="sub">Each design shows the full state (left) and the empty state (right). All keep one rule: allow a device only if it shows the same number. Technical details stay folded away.</p>
+
+<!-- A -->
+<section class="opt"><h2>A · Cards with a countdown line</h2>
+<p>Today's layout, tidied: the number sits under the name where you compare it, and a thin line shows the time left instead of "1:42 left" text alone.</p>
+<div class="pair">
+<div><small>Full</small><div class="box">
+<h3>Asking to join <span class="n">2</span></h3>
+<div class="card"><div class="row"><div class="dev"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg></div><div class="sp"><div class="who">Pixel 9</div><div class="mut">Wants to see files on studio-pc</div></div><div class="left">1:42 left</div></div>
+<div class="big mono" style="text-align:left;margin:12px 0 2px">4829 1307</div><div class="bar"><i style="width:70%"></i></div>
+<div class="row" style="margin-top:12px"><button class="btn pri sm">Allow</button><button class="btn sm">Say no</button></div></div>
+<div class="card"><div class="row"><div class="dev"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></div><div class="sp"><div class="who">sam-thinkpad</div><div class="mut">Wants to replace work-laptop</div></div><div class="left">1:09 left</div></div>
+<div class="big mono" style="text-align:left;margin:12px 0 2px">0316 8842</div><div class="bar"><i style="width:45%"></i></div>
+<div class="row" style="margin-top:12px"><button class="btn pri sm">Allow</button><button class="btn sm">Say no</button></div></div>
+<div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Allow a device only if it shows the same number.</div>
+</div></div>
+<div><small>Empty</small><div class="box"><h3>Asking to join <span class="n">0</span></h3><div class="empty"><div class="dev"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg></div><b>Nobody is asking to join</b><p>When a phone or computer scans your code, it shows up here for you to allow.</p><button class="btn sm">Pair a phone</button></div></div></div>
+</div></section>
+
+<!-- B -->
+<section class="opt"><h2>B · Compact table</h2>
+<p>For a busy PC: one line per request, number in its own column so it is easy to compare, actions on the right. Fits many requests without scrolling.</p>
+<div class="pair">
+<div><small>Full</small><div class="box">
+<h3>Asking to join <span class="n">2</span></h3>
+<table><tr><th>Device</th><th>Number</th><th>Time left</th><th></th></tr>
+<tr><td><div class="row"><div class="dev"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/></svg></div><div><div class="who">Pixel 9</div><div class="t3">See files on studio-pc</div></div></div></td><td class="mono code" style="font-size:16px">4829 1307</td><td class="left">1:42</td><td class="r"><button class="btn pri sm">Allow</button> <button class="btn sm">No</button></td></tr>
+<tr><td><div class="row"><div class="dev"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/></svg></div><div><div class="who">sam-thinkpad</div><div class="t3">Replace work-laptop</div></div></div></td><td class="mono code" style="font-size:16px">0316 8842</td><td class="left">1:09</td><td class="r"><button class="btn pri sm">Allow</button> <button class="btn sm">No</button></td></tr></table>
+<div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Allow a device only if it shows the same number.</div>
+</div></div>
+<div><small>Empty</small><div class="box"><h3>Asking to join <span class="n">0</span></h3><table><tr><th>Device</th><th>Number</th><th>Time left</th><th></th></tr></table><div class="empty" style="min-height:150px"><b>Nobody is asking to join</b><p>New requests appear in this list.</p><button class="btn sm">Pair a phone</button></div></div></div>
+</div></section>
+
+<!-- C -->
+<section class="opt"><h2>C · Compare first, one at a time</h2>
+<p>The number is the hero. Shows the oldest request big, asks the real question ("Does the phone show this?"), and queues the rest below. Safest against tapping Allow without checking.</p>
+<div class="pair">
+<div><small>Full</small><div class="box">
+<h3>Asking to join <span class="n">2</span></h3>
+<div class="cen"><div class="dev" style="margin:0 auto 8px"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/></svg></div><div class="who">Pixel 9 wants to see files on studio-pc</div>
+<div class="big mono">4829 1307</div><div class="mut">Does your Pixel 9 show this same number?</div>
+<div class="row" style="justify-content:center;margin-top:14px"><button class="btn pri">Yes, allow</button><button class="btn">No</button></div>
+<div class="left" style="margin-top:10px">1:42 left</div></div>
+<div class="more" style="border-top:1px solid var(--line);padding-top:10px">Next: sam-thinkpad wants to replace work-laptop · 1:09 left</div>
+</div></div>
+<div><small>Empty</small><div class="box"><h3>Asking to join <span class="n">0</span></h3><div class="empty"><div class="dev"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div><b>All caught up</b><p>Nobody is waiting for your answer.</p><button class="btn sm">Pair a phone</button></div></div></div>
+</div></section>
+
+<!-- D -->
+<section class="opt"><h2>D · List and detail</h2>
+<p>Pick a request on the left, decide on the right. The right side lets you set what the device may do at the moment you allow it, so you don't edit permissions afterwards.</p>
+<div class="pair">
+<div><small>Full</small><div class="box" style="padding:14px">
+<div style="display:grid;grid-template-columns:150px 1fr;gap:14px">
+<div class="list"><div class="t3" style="padding:0 12px 4px">Asking to join · 2</div>
+<div class="li sel"><div class="sp"><div class="who">Pixel 9</div><div class="left">1:42 left</div></div></div>
+<div class="li"><div class="sp"><div class="who">sam-thinkpad</div><div class="left">1:09 left</div></div></div></div>
+<div><div class="who" style="font-size:16px">Pixel 9</div><div class="mut">Wants to see files on studio-pc</div>
+<div class="code mono" style="margin:10px 0 2px">4829 1307</div><div class="t3">Allow only if it shows this number.</div>
+<div style="margin-top:12px"><div class="chk"><span class="sw on"></span>See files</div><div class="chk"><span class="sw on"></span>Download</div><div class="chk"><span class="sw"></span>Upload</div></div>
+<div class="row" style="margin-top:12px"><button class="btn pri sm">Allow</button><button class="btn sm">Say no</button></div></div>
+</div></div></div>
+<div><small>Empty</small><div class="box"><h3>Asking to join <span class="n">0</span></h3><div class="empty"><div class="dev"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/></svg></div><b>Nobody is asking to join</b><p>Choose a request from the list when one arrives.</p><button class="btn sm">Pair a phone</button></div></div></div>
+</div></section>
+
+<!-- E -->
+<section class="opt"><h2>E · Slim strips</h2>
+<p>Lightest weight: each request is one strip with the number as a chip next to the name, so the Devices page below stays visible. Buttons are icon plus word on hover, here shown as words.</p>
+<div class="pair">
+<div><small>Full</small><div class="box">
+<h3>Asking to join <span class="n">2</span></h3>
+<div class="strip"><div class="dev"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/></svg></div><div class="sp"><div class="who">Pixel 9 <span class="t3">· 1:42 left</span></div><div class="t3">Wants to see files on studio-pc</div></div><span class="chip mono">4829 1307</span><button class="btn pri sm">Allow</button><button class="btn sm ib" aria-label="Say no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<div class="strip"><div class="dev"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/></svg></div><div class="sp"><div class="who">sam-thinkpad <span class="t3">· 1:09 left</span></div><div class="t3">Wants to replace work-laptop</div></div><span class="chip mono">0316 8842</span><button class="btn pri sm">Allow</button><button class="btn sm ib" aria-label="Say no"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Allow a device only if it shows the same number.</div>
+<details><summary>Technical details</summary><p>Requests expire after 2 minutes. Each number is used once.</p></details>
+</div></div>
+<div><small>Empty</small><div class="box"><h3>Asking to join <span class="n">0</span></h3><div class="strip"><span class="mut">Nobody is asking to join.</span><span class="sp"></span><button class="btn sm">Pair a phone</button></div><div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>The strip collapses to one line when it is empty.</div></div></div>
+</div></section>
+</div>
+<script>
+const b=document.body,pg=document.getElementById('pg'),tg=document.getElementById('tg');
+function set(d){b.classList.toggle('dark',d);tg.textContent=d?'Light mode':'Dark mode'}
+set(/theme=dark/.test(location.search));
+tg.onclick=()=>set(!b.classList.contains('dark'));
+</script>
+</body></html>

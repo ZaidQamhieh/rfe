@@ -10,10 +10,9 @@ import type { Host } from '../../core/models/host';
  */
 export type PreviewSession = { host: Host; entries: Entry[]; index: number; onChanged?: () => void };
 
-export const usePreviewSession = create<{ session: PreviewSession | null; open: (s: PreviewSession) => void; clear: () => void }>((set) => ({
+export const usePreviewSession = create<{ session: PreviewSession | null; open: (s: PreviewSession) => void }>((set) => ({
   session: null,
   open: (session) => set({ session }),
-  clear: () => set({ session: null }),
 }));
 
 /** Text handed from the text viewer to the editor route (avoids a second fetch, like Flutter). `onSaved` also fires after a reload. */

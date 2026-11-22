@@ -4,10 +4,12 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionFooter, Pressable, Text, type FooterButton } from '../../design/components';
+import { Pressable, Text } from '../../design/components';
 import { mix } from '../../design/color';
 import { LumenSize, LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
+import { Spacing } from '../../design/tokens';
+import { t } from '../../i18n';
 
 /**
  * `.sys` + `.appbar` for a stack screen that has no dock: a back button, the muted context line ("Studio PC · Connect"), an
@@ -18,14 +20,14 @@ export function StackTopBar({ context, right, onMore, onBack, sub }: { context: 
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const back = (
-    <Pressable onPress={onBack ?? (() => router.back())} accessibilityLabel="Back" style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={onBack ?? (() => router.back())} accessibilityLabel={t('folderBackTooltip')}style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
       <ArrowLeft size={24} color={c.onSurface} />
     </Pressable>
   );
   if (sub) {
     // Mockup `.appbar` + `.workspace-row`: back, context and overflow on top; label and state pill below.
     return (
-      <View style={{ paddingTop: insets.top + 8, paddingLeft: 6, paddingRight: 10, paddingBottom: 4 }}>
+      <View style={{ paddingTop: insets.top + Spacing.sm, paddingLeft: 6, paddingRight: 10, paddingBottom: Spacing.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48 }}>
           {back}
           <Text style={[LumenType.appbar, { flex: 1 }]} color={c.onSurfaceVariant} numberOfLines={1}>
@@ -33,7 +35,7 @@ export function StackTopBar({ context, right, onMore, onBack, sub }: { context: 
           </Text>
           {onMore ? <OverflowButton onPress={onMore} /> : null}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingLeft: 12, paddingRight: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingLeft: Spacing.md2, paddingRight: Spacing.sm }}>
           <Text style={[LumenType.appbar, { flexShrink: 1 }]} color={c.onSurfaceVariant} numberOfLines={1}>
             {sub}
           </Text>
@@ -43,12 +45,12 @@ export function StackTopBar({ context, right, onMore, onBack, sub }: { context: 
     );
   }
   return (
-    <View style={{ paddingTop: insets.top + 8, paddingLeft: 6, paddingRight: 10, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', minHeight: 64 + insets.top }}>
+    <View style={{ paddingTop: insets.top + Spacing.sm, paddingLeft: 6, paddingRight: 10, paddingBottom: Spacing.xs, flexDirection: 'row', alignItems: 'center', minHeight: 64 + insets.top }}>
       {back}
       <Text style={[LumenType.appbar, { flex: 1 }]} color={c.onSurfaceVariant} numberOfLines={1}>
         {context}
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: Spacing.sm }}>
         {right}
         {onMore ? <OverflowButton onPress={onMore} /> : null}
       </View>
@@ -59,8 +61,8 @@ export function StackTopBar({ context, right, onMore, onBack, sub }: { context: 
 function OverflowButton({ onPress }: { onPress: () => void }) {
   const c = useScheme();
   return (
-    <Pressable onPress={onPress} accessibilityLabel="More options" style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ flexDirection: 'row', gap: 4 }}>
+    <Pressable onPress={onPress} accessibilityLabel={t('moreOptionsTooltip')} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
         {[0, 1, 2].map((i) => (
           <View key={i} style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.onSurfaceVariant }} />
         ))}
@@ -73,7 +75,7 @@ function OverflowButton({ onPress }: { onPress: () => void }) {
 export function MetaPill({ label, color, strong }: { label: string; color?: string; strong?: boolean }) {
   const c = useScheme();
   return (
-    <View style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: LumenSize.pillRadius, backgroundColor: c.surfaceContainerHigh, flexShrink: 0, maxWidth: '45%' }}>
+    <View style={{ paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md2, borderRadius: LumenSize.pillRadius, backgroundColor: c.surfaceContainerHigh, flexShrink: 0, maxWidth: '45%' }}>
       <Text style={LumenType.pill} color={color ?? (strong ? c.onSurface : c.onSurfaceVariant)} numberOfLines={1}>
         {label}
       </Text>
@@ -104,7 +106,7 @@ export function MethodRow({ icon: Icon, tone, title, subtitle, note, noteColor, 
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: Spacing.md2,
         minHeight: 56,
         padding: 14,
         borderRadius: LumenSize.tileRadius,
@@ -142,7 +144,7 @@ export function MethodRow({ icon: Icon, tone, title, subtitle, note, noteColor, 
 export function PermissionRow({ icon: Icon, tone, title, subtitle, right, last, onPress }: Omit<RowProps, 'selected' | 'note' | 'noteColor'> & { last?: boolean }) {
   const c = useScheme();
   const body = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: last ? 0 : 1, borderBottomColor: mix(c.onSurfaceVariant, c.surfaceContainer, 0.16) }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md2, minHeight: 56, paddingVertical: Spacing.md2, paddingHorizontal: Spacing.xs, borderBottomWidth: last ? 0 : 1, borderBottomColor: mix(c.onSurfaceVariant, c.surfaceContainer, 0.16) }}>
       <Icon size={26} color={tone} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={LumenType.rowTitle} numberOfLines={2}>
@@ -163,17 +165,5 @@ export function PermissionRow({ icon: Icon, tone, title, subtitle, right, last, 
     </Pressable>
   ) : (
     body
-  );
-}
-
-/** `.action-footer`: the primary action row stays put under the scrolling list, above the bottom inset, with a hairline on top. */
-export function LumenFooter({ buttons }: { buttons: FooterButton[] }) {
-  const c = useScheme();
-  const insets = useSafeAreaInsets();
-  if (buttons.length === 0) return null;
-  return (
-    <View style={{ backgroundColor: c.surface, paddingBottom: insets.bottom, borderTopWidth: 1, borderTopColor: mix(c.onSurfaceVariant, c.surface, 0.18) }}>
-      <ActionFooter buttons={buttons} />
-    </View>
   );
 }

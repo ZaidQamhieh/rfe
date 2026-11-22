@@ -4,8 +4,11 @@ import { FlatList, Modal, Pressable as RNPressable, TextInput, View } from 'reac
 
 import { Pressable, Text } from '../../design/components';
 import { LumenType } from '../../design/lumen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { paletteMargins } from '../../design/safeInsets';
 import { useScheme } from '../../design/theme';
-import { FontFamily, Radii, Spacing } from '../../design/tokens';
+import { FontFamily, Radii, SCRIM, Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { filterPalette, type PaletteItem } from './paletteLogic';
 
@@ -14,6 +17,7 @@ export type PaletteAction = PaletteItem & { icon: LucideIcon; run: () => void };
 /** Type-to-filter list of the explorer's commands; picking one closes the palette first, then runs it. */
 export function CommandPalette({ visible, actions, onClose }: { visible: boolean; actions: PaletteAction[]; onClose: () => void }) {
   const c = useScheme();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const shown = filterPalette(actions, query);
   const close = () => {
@@ -22,9 +26,9 @@ export function CommandPalette({ visible, actions, onClose }: { visible: boolean
   };
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
-      <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 24, paddingVertical: 80 }} onPress={close} accessibilityLabel={t('cancelButton')}>
+      <RNPressable style={{ flex: 1, backgroundColor: SCRIM, paddingHorizontal: Spacing.lg, ...paletteMargins(insets, 80, Spacing.lg) }} onPress={close} accessibilityLabel={t('cancelButton')}>
         <RNPressable accessibilityViewIsModal style={{ backgroundColor: c.surfaceContainer, borderRadius: Radii.lg, overflow: 'hidden', maxHeight: '100%' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, margin: 12, paddingHorizontal: 14, minHeight: 48, borderRadius: Radii.sm, backgroundColor: c.surfaceContainerHigh }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, margin: Spacing.md2, paddingHorizontal: 14, minHeight: 48, borderRadius: Radii.sm, backgroundColor: c.surfaceContainerHigh }}>
             <Search size={18} color={c.onSurfaceVariant} />
             <TextInput
               autoFocus
@@ -48,7 +52,7 @@ export function CommandPalette({ visible, actions, onClose }: { visible: boolean
                   item.run();
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, minHeight: 52, paddingHorizontal: 18, paddingVertical: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, minHeight: 52, paddingHorizontal: 18, paddingVertical: Spacing.sm }}>
                   <item.icon size={20} color={c.onSurfaceVariant} />
                   <Text style={LumenType.name}>{item.label}</Text>
                 </View>

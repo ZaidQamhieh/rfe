@@ -28,6 +28,7 @@
     upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
     download: '<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><path d="m13.41 10.59 5.66-5.66"/><circle cx="12" cy="12" r="2"/>',
     refresh: '<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     minus: '<path d="M5 12h14"/>',
@@ -147,91 +148,6 @@
   };
 
   const RFE = { icon, fileIcon, kindOf, KINDS };
-  RFE.kindLabel = (it) => KINDS[kindOf(it)][1];
-  RFE.sort = (items) => items.slice().sort((a, b) => (a.t === b.t ? 0 : a.t === 'dir' ? -1 : 1));
-
-  /* icons from data-ic="name" (optional data-size) so markup stays readable */
-  RFE.hydrate = (root) => {
-    (root || document).querySelectorAll('[data-ic]').forEach((el) => {
-      el.insertAdjacentHTML('afterbegin', icon(el.dataset.ic, { size: el.dataset.size, sw: el.dataset.sw }));
-      el.removeAttribute('data-ic');
-    });
-  };
-
-  /* context menu: show `menu` at the pointer for right-clicks inside `scope` */
-  RFE.contextMenu = (scope, menu, onShow) => {
-    const hide = () => menu.classList.remove('open');
-    scope.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      if (onShow) onShow(e);
-      menu.classList.add('open');
-      const r = menu.getBoundingClientRect();
-      const x = Math.min(e.clientX, innerWidth - r.width - 8);
-      const y = Math.min(e.clientY, innerHeight - r.height - 8);
-      menu.style.left = x + 'px';
-      menu.style.top = y + 'px';
-    });
-    addEventListener('click', hide);
-    addEventListener('keydown', (e) => e.key === 'Escape' && hide());
-  };
-
-  /* click / ctrl-click row selection */
-  RFE.selectable = (scope, rowSel, cls) => {
-    cls = cls || 'sel';
-    scope.addEventListener('click', (e) => {
-      const row = e.target.closest(rowSel);
-      if (!row || !scope.contains(row)) return;
-      if (!(e.ctrlKey || e.metaKey)) scope.querySelectorAll(rowSel + '.' + cls).forEach((r) => r !== row && r.classList.remove(cls));
-      row.classList.toggle(cls, e.ctrlKey || e.metaKey ? undefined : true);
-    });
-  };
-
-  /* toggle `cls` on `el` with a key combo, Esc closes */
-  RFE.toggleOn = (el, keyFn, cls) => {
-    cls = cls || 'open';
-    addEventListener('keydown', (e) => {
-      if (keyFn(e)) { e.preventDefault(); el.classList.toggle(cls); }
-      else if (e.key === 'Escape') el.classList.remove(cls);
-    });
-  };
-
-  /* live progress: any [data-xf="t1"] gets --p and [data-f=pct|done|speed|eta] updated each second */
-  const GB = 1e9;
-  RFE.live = () => {
-    const thumb = /[?&]thumb=1/.test(location.search);
-    const state = {
-      t1: { pct: 37, speed: 38.2 }, t2: { pct: 82, speed: 61.4 }
-    };
-    const fmt = (b) => (b >= GB ? (b / GB).toFixed(2) + ' GB' : (b / 1e6).toFixed(0) + ' MB');
-    const eta = (s) => (s >= 60 ? (() => { const r = Math.round(s); return Math.floor(r / 60) + 'm ' + String(r % 60).padStart(2, '0') + 's'; })() : Math.round(s) + 's');
-    const paint = () => {
-      for (const id in state) {
-        const t = RFE.xfer(id), s = state[id];
-        const done = (s.pct / 100) * t.bytes;
-        const rem = t.bytes - done;
-        document.querySelectorAll(`[data-xf="${id}"]`).forEach((root) => {
-          root.style.setProperty('--p', s.pct.toFixed(1));
-          const set = (f, v) => root.querySelectorAll(`[data-f="${f}"]`).forEach((n) => (n.textContent = v));
-          set('pct', Math.floor(s.pct) + '%');
-          set('done', fmt(done));
-          set('speed', s.speed.toFixed(1) + ' MB/s');
-          set('eta', s.pct >= 100 ? 'done' : eta(rem / (s.speed * 1e6)));
-        });
-      }
-    };
-    paint();
-    if (thumb || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    setInterval(() => {
-      for (const id in state) {
-        const s = state[id], t = RFE.xfer(id);
-        if (s.pct >= 97) { s.pct = id === 't2' ? 82 : 37; }
-        s.pct = Math.min(100, s.pct + (s.speed * 1e6 / t.bytes) * 100);
-        s.speed = Math.max(20, s.speed + (Math.random() - 0.5) * 3);
-      }
-      paint();
-    }, 1000);
-  };
 
   window.RFE = RFE;
-  document.addEventListener('DOMContentLoaded', () => { RFE.hydrate(); });
 })();

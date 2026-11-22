@@ -15,4 +15,8 @@ ignore = [
   "RUSTSEC-2026-0370",
   "RUSTSEC-2026-0371",
   "RUSTSEC-2026-0372",
+  # chrono 0.4.45 (2026-09-14): unmaintained. Present only as an optional dependency entry of serde_with in
+  # Cargo.lock; `cargo tree --target all` shows it is not compiled into any target, and this crate does not use it.
+  # Re-check when serde_with or tauri is upgraded.
+  "RUSTSEC-2026-0543",
 ]

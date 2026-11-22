@@ -1,7 +1,13 @@
 // Port of _ThumbnailFetchQueue: bounded concurrency, one job per key shared by every subscriber,
 // and a job is abandoned (queued) or cancelled (running) once its last subscriber goes away.
 
-export type Request<T> = { promise: Promise<T>; cancel: () => void };
+/** How many thumbnail or duration jobs run at once. */
+export const MAX_CONCURRENT = 4;
+
+export type Request<T> ={ promise: Promise<T>; cancel: () => void };
+
+/** The abort handle a job's loader receives: polled via `aborted`, notified once through `onAbort`. */
+export type FetchSignal = { readonly aborted: boolean; onAbort(cb: () => void): void };
 
 type Job<T> = {
   key: string;
@@ -9,7 +15,7 @@ type Job<T> = {
   abandoned: boolean;
   aborter: { aborted: boolean; onAbort?: () => void };
   subs: Set<Sub<T>>;
-  load: (signal: { readonly aborted: boolean; onAbort(cb: () => void): void }) => Promise<T>;
+  load: (signal: FetchSignal) => Promise<T>;
 };
 
 type Sub<T> = { job: Job<T>; done: boolean; resolve(v: T): void; reject(e: unknown): void };

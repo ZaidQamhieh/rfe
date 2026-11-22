@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Terminal — keyboard-only, modal, instant</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.tm{background:#0a0e0a;color:#b8f5b0;font:13.5px/1.55 "JetBrains Mono","Fira Code",ui-monospace,monospace}
+.tm .tb{background:#050705;color:#2f5a2c}
+.tm .main{flex:1;display:grid;grid-template-columns:200px 1fr 360px;min-height:0}
+.tm .p{padding:12px 14px;overflow:hidden;border-right:1px solid #173016}
+.tm .p:last-child{border:0}
+.tm .h{color:#4c8f47;margin-bottom:6px}
+.tm .dim{color:#4c8f47}.tm .hi{background:#b8f5b0;color:#0a0e0a}.tm .y{color:#f2e28a}.tm .r{color:#ff8a80}.tm .c{color:#7fd6ff}
+.tm pre{margin:0;font:inherit}
+.tm .status{height:26px;display:flex;background:#173016;color:#b8f5b0}
+.tm .status span{padding:0 12px;display:flex;align-items:center}
+.tm .status .m{background:#b8f5b0;color:#0a0e0a;font-weight:700}
+.tm .status .sp{flex:1}
+.tm .cmd{height:28px;display:flex;align-items:center;padding:0 12px;background:#050705}
+.tm .cmd b{color:#f2e28a;margin-right:6px}.tm .cur{display:inline-block;width:8px;height:15px;background:#b8f5b0;animation:bl 1s steps(1) infinite;vertical-align:middle}
+@keyframes bl{50%{opacity:0}}
+.tm .help{display:grid;grid-template-columns:auto 1fr;gap:0 10px}
+.tm .gauge{color:#4c8f47}
+</style></head><body class="mk">
+<div class="win tm">
+ <div class="tb"><i></i><i></i><i></i><span>rfe — studio-pc:/home/sam/Projects/launch-kit</span></div>
+ <div class="main">
+  <div class="p"><div class="h">─ hosts ─────</div><pre><span class="hi"> ● studio-pc   </span>
+ ● work-laptop
+ <span class="y">▲ nas-box</span>
+ <span class="dim">○ media-mini</span>
+ <span class="dim">+ new   (n)</span></pre>
+<div class="h" style="margin-top:14px">─ marks ─────</div><pre> 'i  Inbox
+ 'p  Photos
+ 't  Thesis
+ 'd  ~/Downloads</pre>
+<div class="h" style="margin-top:14px">─ alerts ────</div><pre><span class="y">! pair req (p)</span>
+<span class="r">! 1 failed  (T)</span></pre></div>
+  <div class="p"><div class="h">─ launch-kit ── 9 items ── 412G free ── rw ─</div><pre><span class="c">  assets/                42   2026-11-01</span>
+<span class="c">  drafts/                 7   2026-10-31</span>
+<span class="hi">▸ hero-final.png      4.2M   2026-11-01 09:12</span>
+<span class="y">* brief.md            8.0K   2026-10-29</span>
+<span class="y">* budget-q4.xlsx      212K   2026-10-27</span>
+  moodboard.jpg      11.8M   2026-10-22
+  launch-video.mp4    1.4G   2026-10-20
+  press-release.pdf   680K   2026-10-18
+  contacts.csv         14K   2026-10-11</pre>
+<div class="h" style="margin-top:16px">─ transfers ───────────────────────────────</div><pre>↑ raw-footage-day3.mov  <span class="gauge">[██████████████░░░░░░]</span> 71% 52M/s
+↓ tax-2025.pdf          <span class="gauge">[████████████████████]</span> <span class="dim">✓ sha256</span>
+↑ thesis-v12.docx       <span class="gauge">[░░░░░░░░░░░░░░░░░░░░]</span> <span class="dim">waiting</span></pre></div>
+  <div class="p"><div class="h">─ preview: hero-final.png ─</div><pre class="dim">  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+  █▓▓▓▒▒▒░░  ░░▒▒▓▓▓████
+  █▓▒░   ▄▄██▄▄   ░▒▓███
+  █▒░  ▄████████▄  ░▒▓██
+  █▓▒░  ▀▀████▀▀  ░▒▓███
+  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀</pre><pre>  3840×2160 · rw-r--r--</pre>
+<div class="h" style="margin-top:14px">─ keys ─────────────────────</div><div class="help">
+<span class="y">enter</span><span>open / preview</span><span class="y">space</span><span>mark</span><span class="y">d</span><span>download marked</span><span class="y">u</span><span>upload from 'd</span><span class="y">y p</span><span>copy · paste across hosts</span><span class="y">r</span><span>rename</span><span class="y">x</span><span>trash  (X: restore)</span><span class="y">s</span><span>share link</span><span class="y">/</span><span>search    : command</span><span class="y">p</span><span>pairing   D devices</span><span class="y">T</span><span>transfers H history</span><span class="y">?</span><span>everything else</span></div></div>
+ </div>
+ <div class="status"><span class="m">NORMAL</span><span>studio-pc</span><span class="dim">pinned 9F:3A:…:C1</span><span class="sp"></span><span>2 marked · 220K</span><span>↑1 ↓0 ⧗1</span><span class="y">pair: Pixel 9 482913 (p)</span></div>
+ <div class="cmd"><b>:</b>download * ~/Downloads<span class="cur"></span></div>
+</div></body></html>

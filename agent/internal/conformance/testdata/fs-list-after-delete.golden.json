@@ -1,0 +1,48 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "entries": [
+      {
+        "childCount": 6,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "data",
+        "path": "<ROOT>/data",
+        "size": "<dirSize>"
+      },
+      {
+        "childCount": 3,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "docs",
+        "path": "<ROOT>/docs",
+        "size": "<dirSize>"
+      },
+      {
+        "childCount": 4,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "made",
+        "path": "<ROOT>/made",
+        "size": "<dirSize>"
+      }
+    ],
+    "nextCursor": null,
+    "path": "<ROOT>"
+  }
+}

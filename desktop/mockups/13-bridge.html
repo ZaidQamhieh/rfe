@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Bridge — here, there, and the lane between</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.br{background:#eef1f5;color:#0f172a;font-family:"Inter",system-ui,sans-serif;font-size:13px}
+.br .tb{background:#eef1f5;color:#94a3b8}
+.br .main{flex:1;display:grid;grid-template-columns:1fr 210px 1fr;gap:0;padding:0 16px 16px;min-height:0}
+.br .side{background:#fff;border-radius:18px;display:flex;flex-direction:column;min-height:0;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.br .sh{padding:16px 18px 8px;display:flex;align-items:center;gap:10px}
+.br .sh .av{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700}
+.br .sh h2{margin:0;font-size:15px}.br .sh small{display:block;color:#64748b;font-size:12px;font-weight:400}
+.br .sh .sw{margin-left:auto;border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px;font-size:12px;color:#334155}
+.br .crumb{padding:0 18px 8px;color:#64748b}.br .crumb b{color:#0f172a;font-weight:500}
+.br .ls{overflow:auto;flex:1;padding:0 8px 8px}
+.br .r{display:grid;grid-template-columns:22px 1fr 70px;gap:8px;padding:8px 10px;border-radius:10px;align-items:center}
+.br .r:hover{background:#f1f5f9}.br .r.sel{background:#e0f2fe}
+.br .r .i{width:16px;height:13px;border-radius:3px;background:#94a3b8}.br .r .i.d{background:#f59e0b}
+.br .r span{color:#64748b;text-align:right;font-size:12px}
+.br .lane{display:flex;flex-direction:column;align-items:center;padding:18px 10px;gap:10px;position:relative}
+.br .lane::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:2px;background:repeating-linear-gradient(#cbd5e1 0 6px,transparent 6px 12px)}
+.br .lane h4{margin:0;font:600 11px system-ui;letter-spacing:.1em;text-transform:uppercase;color:#64748b;background:#eef1f5;padding:4px 8px;position:relative}
+.br .pk{position:relative;width:180px;background:#fff;border-radius:12px;padding:9px 11px;box-shadow:0 4px 14px rgba(15,23,42,.08);font-size:12px}
+.br .pk .d{font-weight:700;margin-right:4px}.br .pk.r2l .d{color:#0ea5e9}.br .pk.l2r .d{color:#16a34a}
+.br .pk .pb{height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;margin-top:6px}.br .pk .pb i{display:block;height:100%}
+.br .pk small{color:#64748b;display:flex;justify-content:space-between;margin-top:4px}
+.br .pk.err{outline:1.5px solid #fca5a5}
+.br .pk.ask{outline:1.5px solid #fcd34d}.br .pk.ask .q{display:flex;gap:4px;margin-top:6px}.br .pk.ask .q span{flex:1;text-align:center;background:#fef3c7;border-radius:6px;padding:3px 0;font-weight:600}
+.br .send{position:relative;display:flex;flex-direction:column;gap:6px;margin-top:auto}
+.br .send button{width:180px;border:0;border-radius:12px;padding:11px;font:600 13px system-ui;cursor:pointer}
+.br .send .a{background:#0f172a;color:#fff}.br .send .b{background:#fff;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.br .top{height:46px;display:flex;align-items:center;gap:10px;padding:0 18px}
+.br .top .s{flex:1;max-width:460px;margin:0 auto;background:#fff;border-radius:10px;padding:8px 12px;color:#94a3b8}
+.br .top .ic{display:flex;gap:6px}.br .top .ic span{background:#fff;border-radius:9px;padding:6px 10px;font-size:12px}
+.br .top .ic span.al{background:#fef3c7;color:#92400e}
+</style></head><body class="mk">
+<div class="win br">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="top"><b style="font-size:14px">RFE</b><div class="s">⌕ Search both sides</div><div class="ic"><span class="al">☍ Pixel 9 · 482 913 · Accept?</span><span>◷</span><span>⚙</span></div></div>
+ <div class="main">
+  <section class="side"><div class="sh"><span class="av" style="background:#16a34a">⌂</span><div><h2>This PC</h2><small>Local files</small></div><span class="sw">Downloads ▾</span></div>
+   <div class="crumb">~ / <b>Downloads</b></div>
+   <div class="ls"><div class="r"><i class="i d"></i>RFE Desktop<span>12</span></div><div class="r"><i class="i d"></i>screenshots<span>304</span></div><div class="r sel"><i class="i"></i>invoice-1042.pdf<span>96 KB</span></div><div class="r sel"><i class="i"></i>trip-photos.zip<span>2.1 GB</span></div><div class="r"><i class="i"></i>notes.txt<span>3 KB</span></div><div class="r"><i class="i"></i>setup-guide.pdf<span>1.2 MB</span></div><div class="r"><i class="i"></i>wallpaper.png<span>5.6 MB</span></div><div class="r"><i class="i"></i>song-demo.flac<span>38 MB</span></div></div></section>
+  <div class="lane"><h4>In transit</h4>
+   <div class="pk l2r"><span class="d">→</span>trip-photos.zip<div class="pb"><i style="width:48%;background:#16a34a"></i></div><small><span>48%</span><span>⏸ ✕</span></small></div>
+   <div class="pk r2l"><span class="d">←</span>tax-2025.pdf<div class="pb"><i style="width:100%;background:#0ea5e9"></i></div><small><span>✓ checksum</span><span>open</span></small></div>
+   <div class="pk ask"><span class="d">→</span>report.pdf exists there<div class="q"><span>Replace</span><span>Both</span><span>Skip</span></div></div>
+   <div class="pk err"><span class="d" style="color:#dc2626">←</span>album.zip · offline<small><span>33% kept</span><span>Retry</span></small></div>
+   <div class="send"><button class="a">Send 2 selected →</button><button class="b">← Fetch selected</button></div></div>
+  <section class="side"><div class="sh"><span class="av" style="background:#0ea5e9">S</span><div><h2>studio-pc</h2><small>● online · 412 GB free</small></div><span class="sw">Switch ▾</span></div>
+   <div class="crumb">home / Projects / <b>launch-kit</b></div>
+   <div class="ls"><div class="r"><i class="i d"></i>assets<span>42</span></div><div class="r"><i class="i d"></i>drafts<span>7</span></div><div class="r"><i class="i"></i>hero-final.png<span>4.2 MB</span></div><div class="r"><i class="i"></i>brief.md<span>8 KB</span></div><div class="r"><i class="i"></i>budget-q4.xlsx<span>212 KB</span></div><div class="r"><i class="i"></i>moodboard.jpg<span>11.8 MB</span></div><div class="r"><i class="i"></i>launch-video.mp4<span>1.4 GB</span></div><div class="r"><i class="i"></i>press-release.pdf<span>680 KB</span></div></div></section>
+ </div>
+</div></body></html>

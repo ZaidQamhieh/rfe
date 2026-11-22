@@ -8,8 +8,9 @@ import type { Host } from '../../../core/models/host';
 import { Pressable, Text } from '../../../design/components';
 import { useScheme } from '../../../design/theme';
 import { Brand, FontFamily, Radii, Spacing } from '../../../design/tokens';
+import { t } from '../../../i18n';
 import { clientForHost } from '../../../services';
-import { humanizeError } from '../../pairing/pairingService';
+import { humanizeError } from '../../../core/humanizeError';
 import { PAGER_CHIP_CLEARANCE } from '../previewFile';
 import { PreviewError, PreviewLoading } from '../PreviewChrome';
 
@@ -37,7 +38,7 @@ export function ArchiveViewer({ host, entry }: { host: Host; entry: Entry }) {
   if (error) {
     return (
       <PreviewError
-        message={`Could not read archive: ${error}`}
+        message={t('archiveReadFailed', { error })}
         onRetry={() => {
           setError(null);
           setEntries(null);
@@ -46,31 +47,31 @@ export function ArchiveViewer({ host, entry }: { host: Host; entry: Entry }) {
       />
     );
   }
-  if (!entries) return <PreviewLoading message="Loading archive contents…" />;
+  if (!entries) return <PreviewLoading message={t('archiveLoading')} />;
   const shown = filter ? entries.filter((e) => e.path.startsWith(filter)) : entries;
   return (
     <View style={{ flex: 1 }}>
       <Text variant="bodySmall" muted style={{ alignSelf: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: Spacing.xs }}>
-        {`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
+        {t('archiveEntryCount', { count: entries.length })}
       </Text>
       {filter ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: 18, paddingVertical: Spacing.sm }}>
           <CornerDownRight size={16} color={c.onSurfaceVariant} />
           <Text numberOfLines={1} muted style={{ flex: 1, fontSize: 12.5 }}>{`/${filter}`}</Text>
-          <Pressable onPress={() => setFilter('')} accessibilityLabel="Clear filter">
+          <Pressable onPress={() => setFilter('')} accessibilityLabel={t('archiveClearFilter')}>
             <X size={18} color={c.onSurfaceVariant} />
           </Pressable>
         </View>
       ) : null}
       {shown.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text>Empty archive</Text>
+          <Text>{t('archiveEmpty')}</Text>
         </View>
       ) : (
         <FlatList
           data={shown}
           keyExtractor={(e) => e.path}
-          contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: PAGER_CHIP_CLEARANCE }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.xs, paddingBottom: PAGER_CHIP_CLEARANCE }}
           renderItem={({ item: e }) => (
             <Pressable onPress={e.isDir ? () => setFilter(e.path) : undefined} disabled={!e.isDir} accessibilityLabel={e.path}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 11, paddingHorizontal: 14 }}>

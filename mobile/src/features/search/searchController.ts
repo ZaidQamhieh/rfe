@@ -40,7 +40,8 @@ export function createSearchController(deps: SearchDeps): StoreApi<SearchState> 
       try {
         const client = await deps.getClient();
         const res = await client.search({
-          q: queryForMode(q, filters.mode),
+          q: filters.content ? q : queryForMode(q, filters.mode),
+          content: filters.content || undefined,
           root: filters.fromHere ? currentPath : undefined,
           types: filters.categories.length ? [...filters.categories] : undefined,
           minSize: minBytesFor(filters.size),

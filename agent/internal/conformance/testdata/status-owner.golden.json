@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "freeBytes": "<freeBytes>",
+    "platform": "linux/amd64",
+    "totalBytes": "<totalBytes>",
+    "uptimeSeconds": "<uptimeSeconds>",
+    "version": "1.0.0"
+  }
+}

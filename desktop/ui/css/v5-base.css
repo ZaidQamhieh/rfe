@@ -1,0 +1,323 @@
+:root { --rail-w: 21.25rem; --dur: .15s; --ease: cubic-bezier(.22, 1, .36, 1); --qr-bg: #fff; --white: #fff; --ink-12: rgba(28,29,26,.12);
+  /* Plain black and white alpha shades, one value in both themes, so a theme block may use them too. --white and --qr-bg are #fff (a QR needs a light background in both themes); --ink-12 is the dark ink at 12%. */
+  --shade-04: rgba(0,0,0,.04); --shade-08: rgba(0,0,0,.08); --shade-12: rgba(0,0,0,.12); --shade-14: rgba(0,0,0,.14); --shade-18: rgba(0,0,0,.18); --shade-20: rgba(0,0,0,.2); --shade-22: rgba(0,0,0,.22); --shade-24: rgba(0,0,0,.24); --shade-25: rgba(0,0,0,.25); --shade-28: rgba(0,0,0,.28); --shade-30: rgba(0,0,0,.3); --shade-35: rgba(0,0,0,.35); --shade-40: rgba(0,0,0,.4); --shade-45: rgba(0,0,0,.45); --shade-50: rgba(0,0,0,.5); --tint-09: rgba(255,255,255,.09); --tint-16: rgba(255,255,255,.16); --tint-18: rgba(255,255,255,.18); --tint-22: rgba(255,255,255,.22); }
+/* v5 base: mockups/v5/base.css converted to rem (px/16, 1px hairlines kept). Selectors are the mockup's own; those that collide with an app class, and bare element selectors, are scoped under .d5 so they stay inert until a page adopts the wrapper. */
+/* Mockup tokens for a page that wears the .d5 wrapper. Each one aliases an app token (app.css, which already switches with the theme); where the app has no token of that value, the mockup's own value is written here, light and dark. --font and --mono are not redefined: the app's are the same fonts. */
+.d5{--r:0.5rem;--rc:0.75rem;--bg:var(--surface);--sf:var(--card);--rz:#f0f0ec;--t1:var(--on-surface);--t2:var(--on-var);--t3:#666860;--line:rgba(28,29,26,.08);--line2:rgba(28,29,26,.14);--ac:var(--accent);--on-ac:var(--on-accent);--ac-ink:var(--primary);--ac-soft:rgba(77,107,31,.08);--pos:#3d7a3a;--neg:var(--err);--warn:#955a00;--shadow:0 .5rem 1.5rem var(--shade-08);--ctl-ring:0 0 0 1px color-mix(in srgb, var(--t1) 11%, transparent), 0 1px 0.125rem color-mix(in srgb, #000 7%, transparent)}
+:root[data-theme="dark"] .d5{--rz:var(--sc-high);--t3:var(--outline);--line:var(--tint-09);--line2:var(--tint-16);--ac-soft:rgba(179,207,114,.12);--pos:var(--ok);--warn:#e5aa52;--shadow:0 .75rem 2rem var(--shade-50)}
+
+/* v4 base: window grid and every fixed part (navigation, Files, Settings, Overview, Servers, Devices, Transfers, Tools, History).
+   Designs set the tokens and style their own top, bottom and rail; they do not restyle these parts. */
+:where(.d5).rfe { display: grid; grid-template-columns: 15rem minmax(0, 1fr); }
+:where(.d5).rfe > .side { border-right: 1px solid var(--line); padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.125rem; background: var(--sf); min-height: 0; overflow: auto; }
+:where(.d5).rfe > .side .lg { display: flex; gap: 0.5rem; align-items: center; font-weight: 500; padding: 0.25rem 0.5rem 1rem; }
+:where(.d5).rfe > .side h4 { font: 500 0.75rem var(--font); color: var(--t3); margin: 1.25rem 0.5rem 0.5rem; }
+:where(.d5).rfe > .side .pc { display: flex; gap: 0.5rem; align-items: center; height: 2rem; padding: 0 0.5rem; border-radius: 0.375rem; font-size: 0.8125rem; color: var(--t2); }
+:where(.d5).rfe > .side .pc:hover { background: var(--rz); }
+:where(.d5).rfe > .side .pc small { margin-left: auto; font: 0.6875rem var(--mono); color: var(--t3); }
+:where(.d5).rfe > .side .gap { flex: 1; }
+:where(.d5).rfe-pages .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+:where(.d5).rfe .top:empty, :where(.d5).rfe .bot:empty, :where(.d5).rfe .rail:empty { display: none; }
+:where(.d5).rfe-pages .body { flex: 1; display: flex; min-height: 0; }
+:where(.d5).rfe-pages .stage { flex: 1; overflow: auto; padding: 1.5rem 1.75rem; min-width: 0; min-height: 0; }
+:where(.d5) .stage:has(> .ol) { padding: 0; overflow: hidden; display: flex; }
+:where(.d5).rfe-pages .k-files { flex: 1; }
+/* the app window (#app.d5 has no .rfe-pages wrapper): the window is exactly the viewport and never wider (the old 68.75rem floor pushed the right edge, and the tray with it, past a 900px window); its one grid row is the viewport height, so the stage scrolls inside instead of growing the window */
+#app.d5 { min-width: 0; height: 100vh; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+:where(.d5).rfe > .main { min-width: 0; min-height: 0; }
+/* the stage fills the area under the top bar and takes the mockup's padding; a page that is only a whole-page empty state is centred in it, across and down */
+:where(.d5).rfe > .main > .stage { min-width: 0; min-height: 0; }
+:where(.d5).rfe > .main > .stage:has(> .b-empty:only-child) { display: flex; flex-direction: column; }
+:where(.d5).rfe > .main > .stage > .b-empty:only-child { margin: auto; }
+/* the Transfers tray (the .sheet in the main area) and the message stack stay inside the window's bottom-right corner, whatever the width */
+:where(.d5).rfe > .main > .sheet { max-width: calc(100% - 2rem); box-sizing: border-box; }
+#layer > .snacks { left: auto; right: 1rem; width: min(30rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); }
+/* file system. The app has no .rfe-pages wrapper: the Files page is the one .ol inside #stage, so these rules hang on .ol (and nothing else uses it). */
+:where(.d5) .ol { flex: 1; display: grid; grid-template-columns: 1fr 20rem; min-height: 0; }
+:where(.d5) .ol .tr { overflow: auto; padding: 1rem 1.5rem; }
+/* the Files page with no computer yet: its empty state sits in the middle of the list area */
+:where(.d5) .ol .tr.emp { padding: 1.5rem 1.75rem; }
+:where(.d5) .ol .tr.emp > .k-title { font: 500 1.75rem/1.15 var(--display, var(--font)); letter-spacing: -0.01em; margin: 0; }
+:where(.d5) .ol .tr.emp > .b-empty { margin: 2.5rem auto 1.5rem; }
+:where(.d5) .ol .n { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.5rem; height: 2.125rem; padding-right: 0.5rem; border-radius: 0.375rem; font-size: 0.875rem; }
+:where(.d5) .ol .n:hover { background: var(--rz); }
+:where(.d5) .ol .n.sel { background: var(--ac-soft); }
+:where(.d5) .ol .n .l { display: flex; align-items: center; gap: 0.5rem; min-width: 0; white-space: nowrap; }
+:where(.d5) .ol .n .l small { color: var(--t3); font: 0.75rem var(--mono); }
+:where(.d5) .ol .n .m { font: 0.75rem var(--mono); color: var(--t3); display: flex; gap: 1rem; align-items: center; }
+:where(.d5) .ol .n .ia { display: none; gap: 0.125rem; }
+:where(.d5) .ol .n:hover .ia, :where(.d5) .ol .n.sel .ia { display: flex; }
+:where(.d5) .ol .n:hover .m span, :where(.d5) .ol .n.sel .m span { display: none; }
+:where(.d5) .ol .n .ia .k-ib { width: 1.75rem; height: 1.75rem; }
+:where(.d5) .ol .n.pc { height: 2.75rem; font-weight: 500; margin-top: 0.5rem; }
+:where(.d5) .ol .n.pc .l small { font-weight: 400; }
+:where(.d5) .ol .n .tw { width: 1rem; color: var(--t3); display: inline-flex; }
+:where(.d5) .ol .n.note { color: var(--t2); font-size: 0.8125rem; }
+:where(.d5) .ol .olside { border-left: 1px solid var(--line); padding: 1.25rem; overflow: auto; }
+:where(.d5) .ol .olside h3 { font: 500 0.9375rem var(--font); margin: 0.75rem 0 0.25rem; display: flex; gap: 0.5rem; align-items: center; }
+/* empty states */
+.b-empty { display: grid; justify-items: center; text-align: center; gap: 0.5rem; padding: 3.5rem 1.5rem; max-width: 32.5rem; margin: 1.5rem auto; }
+.b-empty b { font-weight: 500; font-size: 1rem; }
+.b-empty p { margin: 0 0 0.5rem; color: var(--t2); }
+.b-empty.left { justify-items: start; text-align: left; margin: 1.5rem 0; }
+.b-steps { margin: 0.5rem 0 0; padding-left: 1.25rem; display: grid; gap: 0.625rem; color: var(--t2); font-size: 0.8125rem; }
+.b-steps b { color: var(--t1); font-weight: 500; }
+/* viewer: one design shown twice */
+.mk-pair { display: grid; gap: 0.75rem; justify-items: center; }
+.mk-pair h2 { font: 500 0.8125rem system-ui; color: #c9cbcf; margin: 1rem 0 0; width: 80rem; }
+.mk-pair h2 span { color: #8f9297; font-weight: 400; margin-left: 0.5rem; }
+.mk-pair iframe { width: 80rem; height: 50rem; border: 0; border-radius: 0.75rem; box-shadow: 0 1.5rem 4rem var(--shade-50), 0 0 0 1px rgba(255,255,255,.06); background: #111; }
+/* only the side and the main column take grid space; overlays never add a row */
+:where(.d5).rfe { grid-template-rows: minmax(0, 1fr); }
+:where(.d5).rfe > :where(#dock, #pop) { position: absolute; }
+:where(.d5).rfe .top .k-btn { flex: none; white-space: nowrap; }
+/* Overview (v3 design 2) */
+:where(.d5).rfe-pages .db { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; }
+:where(.d5).rfe-pages .db .stat { grid-column: span 3; background: var(--sf); border-radius: 0.75rem; box-shadow: inset 0 0 0 1px var(--line); padding: 1rem 1.25rem; }
+:where(.d5).rfe-pages .db .stat small { color: var(--t3); font-size: 0.75rem; }
+:where(.d5).rfe-pages .db .stat b { display: block; font: 500 1.75rem/1.2 var(--mono); margin: 0.5rem 0 0.25rem; white-space: nowrap; }
+:where(.d5).rfe-pages .db .stat span { font-size: 0.75rem; color: var(--t2); }
+:where(.d5).rfe-pages .db .chart { grid-column: span 8; background: var(--sf); border-radius: 0.75rem; box-shadow: inset 0 0 0 1px var(--line); padding: 1rem 1.25rem; position: relative; }
+:where(.d5).rfe-pages .db h2 { font: 500 0.875rem var(--font); margin: 0; display: flex; align-items: center; gap: 0.75rem; }
+:where(.d5).rfe-pages .db h2 small { color: var(--t3); font-weight: 400; }
+:where(.d5).rfe-pages .db .chart > svg { display: block; width: 100%; height: 14.5rem; margin-top: 0.75rem; }
+:where(.d5).rfe-pages .db .chart > svg text { font: 0.6875rem var(--mono); fill: var(--t3); }
+:where(.d5).rfe-pages .db .chart .ov { position: absolute; inset: 3rem 1.25rem 1.25rem; display: grid; place-items: center; color: var(--t3); font-size: 0.8125rem; }
+:where(.d5).rfe-pages .db .card { grid-column: span 4; background: var(--sf); border-radius: 0.75rem; box-shadow: inset 0 0 0 1px var(--line); padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+:where(.d5).rfe-pages .db .card.w { grid-column: span 6; }
+:where(.d5).rfe-pages .db .need { display: grid; grid-template-columns: 1.25rem 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.8125rem; }
+:where(.d5).rfe-pages .db .need small { display: block; color: var(--t3); font-size: 0.75rem; }
+:where(.d5).rfe-pages .db .pcr { display: grid; grid-template-columns: 0.75rem 1fr 7.5rem 4rem; gap: 0.75rem; align-items: center; font-size: 0.8125rem; height: 2.25rem; cursor: pointer; }
+:where(.d5).rfe-pages .db .pcr small { color: var(--t3); font: 0.75rem var(--mono); }
+:where(.d5).rfe-pages .db .pcr .k-bar { margin: 0; }
+:where(.d5).rfe-pages .db .pcr span .k-e { margin-right: 0.375rem; }
+:where(.d5).rfe-pages .db .rc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+:where(.d5).rfe-pages .db .rc div { font-size: 0.75rem; color: var(--t2); }
+:where(.d5).rfe-pages .db .rc svg { border-radius: 0.5rem; display: block; width: 100%; height: auto; margin-bottom: 0.375rem; }
+:where(.d5).rfe-pages .db .rc b { display: block; color: var(--t1); font-weight: 500; font-size: 0.8125rem; }
+:where(.d5).rfe-pages .db .nil { color: var(--t3); font-size: 0.8125rem; display: grid; gap: 0.75rem; justify-items: start; }
+:where(.d5).rfe-pages .db .nil small { color: var(--t3); }
+/* Servers, Devices, Transfers, History: list and inspector (v3 design 4) */
+:where(.d5).rfe-pages .rail { width: var(--rail-w); flex: none; border-left: 1px solid var(--line); padding: 1.25rem; overflow: auto; background: var(--sf); }
+:where(.d5).rfe-pages .rail h2 { font: 500 1.125rem var(--font); margin: 0.5rem 0 0.25rem; display: flex; gap: 0.625rem; align-items: center; }
+:where(.d5).rfe-pages .rail .k-sub { margin-bottom: 1rem; }
+:where(.d5).rfe-pages .rail .k-dact { margin-top: 0.5rem; }
+:where(.d5).rfe-pages .rail .k-dact .k-btn { width: 100%; }
+:where(.d5).rfe-pages .li { display: grid; gap: 0.125rem; }
+:where(.d5).rfe-pages .ro { display: grid; grid-template-columns: 1.75rem 1fr auto; gap: 0.75rem; align-items: center; min-height: 3.25rem; padding: 0.375rem 0.75rem; border-radius: 0.5rem; cursor: pointer; }
+:where(.d5).rfe-pages .ro:hover { background: var(--rz); }
+:where(.d5).rfe-pages .ro.sel { background: var(--ac-soft); box-shadow: inset 0.125rem 0 0 var(--ac); }
+:where(.d5).rfe-pages .ro b { font-weight: 500; }
+:where(.d5).rfe-pages .ro small { display: block; color: var(--t3); font-size: 0.75rem; }
+:where(.d5).rfe-pages .ro .st { font: 0.75rem var(--mono); color: var(--t2); display: flex; gap: 0.375rem; align-items: center; }
+/* History */
+:where(.d5).rfe-pages .b-filt { display: grid; gap: 0.625rem; padding: 0.75rem; border-radius: 0.75rem; background: var(--rz); margin-bottom: 0.5rem; }
+:where(.d5).rfe-pages .b-fr { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+:where(.d5).rfe-pages .b-fq { width: 17.5rem; background: var(--sf); }
+:where(.d5).rfe-pages .b-filt .k-chip small { margin-left: 0.375rem; color: var(--t3); font: 0.6875rem var(--mono); }
+:where(.d5).rfe-pages .b-fs { display: grid; gap: 0.25rem; }
+:where(.d5).rfe-pages .b-fs small { font-size: 0.6875rem; color: var(--t3); }
+:where(.d5).rfe-pages .b-fs .k-sel { background: var(--sf); }
+:where(.d5).rfe-pages .b-fsum { font-size: 0.75rem; color: var(--t3); margin: 0.75rem 0 0; }
+:where(.d5).rfe-pages .b-day { font: 500 0.75rem var(--font); color: var(--t3); margin: 1rem 0 0.25rem; }
+:where(.d5).rfe-pages .b-ev { display: grid; grid-template-columns: 3rem 1.375rem 1fr auto; gap: 0.625rem; align-items: center; min-height: var(--ev-h); padding: var(--ev-pad) 0.75rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.8125rem; }
+:where(.d5).rfe-pages .b-ev:hover { background: var(--rz); }
+:where(.d5).rfe-pages .b-ev.sel { background: var(--ac-soft); box-shadow: inset 0.125rem 0 0 var(--ac); }
+:where(.d5).rfe-pages .b-ev time { color: var(--t3); font-size: 0.75rem; }
+:where(.d5).rfe-pages .b-ev small { display: block; color: var(--t3); font-size: 0.75rem; }
+.b-out { font: 0.75rem var(--mono); color: var(--t2); }
+:where(.d5) .b-out.ok { color: var(--pos); }
+:where(.d5) .b-out.bad { color: var(--neg); }
+:where(.d5) .b-out.warn { color: var(--warn); }
+/* search menu: designs place and style it; base only opens and closes it */
+.b-sr { display: none; z-index: 60; position: absolute; inset: 0; }
+:where(.d5) .b-sr > .m { position: absolute; }
+:where(.d5) .b-sr.open { display: block; }
+.b-kbd { font: 0.6875rem var(--mono); color: var(--t3); padding: 1px 0.375rem; border-radius: 0.25rem; box-shadow: inset 0 0 0 1px var(--line2); background: var(--sf); }
+.b-sr mark { background: var(--ac-soft); color: inherit; border-radius: 0.1875rem; padding: 0 1px; }
+:where(.d5).rfe .top .b-st { display: inline-flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.625rem; border-radius: 0.5rem; color: var(--t2); font-size: 0.8125rem; }
+:where(.d5).rfe .top .b-st:hover { background: var(--rz); color: var(--t1); }
+:where(.d5).rfe-pages .b-fsel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+:where(.d5).rfe-pages .b-fs .k-sel { width: 100%; min-width: 0; }
+:where(.d5).rfe-pages .b-fsum { display: flex; align-items: center; gap: 0.75rem; }
+/* History filters: one line, never wraps */
+:where(.d5).rfe-pages .b-filt { display: flex; flex-wrap: nowrap; gap: 0.375rem; padding: 0.5rem; align-items: center; }
+:where(.d5).rfe-pages .b-filt .b-fq { width: auto; flex: 1 1 7.5rem; min-width: 6rem; }
+:where(.d5).rfe-pages .b-filt .b-fs { flex: 0 1 auto; min-width: 0; }
+:where(.d5).rfe-pages .b-filt .k-sel { height: 2rem; font-size: 0.8125rem; max-width: 8.25rem; }
+/* v5: technical details folded away */
+.b-tech { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.5rem; }
+.b-tech summary, .b-more summary { cursor: pointer; font-size: 0.8125rem; color: var(--t3); list-style: none; display: flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0; }
+.b-tech summary::before, .b-more summary::before { content: ""; width: 0.375rem; height: 0.375rem; border-right: 0.0938rem solid currentColor; border-bottom: 0.0938rem solid currentColor; transform: rotate(-45deg); transition: transform var(--dur); }
+.b-tech[open] summary::before, .b-more[open] summary::before { transform: rotate(45deg); }
+.b-tech .k-kv { margin: 0.5rem 0 0; }
+.b-tn { font-size: 0.75rem; color: var(--t3); margin: 0.5rem 0 0 !important; }
+.b-live { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--t3); }
+.b-live i { width: 0.375rem; height: 0.375rem; border-radius: 0.1875rem; background: var(--ac); }
+/* add a computer: three steps */
+.b-add .k-db { display: grid; grid-template-columns: 12.5rem minmax(0, 1fr); padding: 0; }
+.b-sx { background: var(--rz); padding: 1.25rem 1rem; display: grid; align-content: start; gap: 0.25rem; }
+.b-sx div { display: grid; grid-template-columns: 1.5rem 1fr; gap: 0.625rem; padding: 0.5rem; border-radius: 0.5rem; font-size: 0.8125rem; color: var(--t3); }
+:where(.d5) .b-sx div.on { background: var(--sf); color: var(--t1); box-shadow: inset 0 0 0 1px var(--line); }
+:where(.d5) .b-sx div.done { color: var(--t2); }
+.b-sx i { width: 1.375rem; height: 1.375rem; border-radius: 0.6875rem; display: grid; place-items: center; font: 500 0.75rem var(--mono); font-style: normal; box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .b-sx .on i { background: var(--ac); color: var(--white); box-shadow: none; }
+:where(.d5) .b-sx .done i { background: var(--ac-soft); color: var(--ac-ink); box-shadow: none; }
+.b-sx small { display: block; font-size: 0.75rem; color: var(--t3); }
+.b-pane { padding: 1.25rem 1.5rem; min-height: 20rem; }
+.b-pane h3 { font: 500 1rem var(--font); margin: 0 0 0.25rem; }
+.b-pane > p { margin: 0 0 1rem; font-size: 0.8125rem; }
+.b-pc { display: grid; grid-template-columns: 2rem 1fr auto; gap: 0.75rem; align-items: center; width: 100%; text-align: left; padding: 0.625rem 0.75rem; border-radius: 0.625rem; color: var(--t1); margin-bottom: 0.25rem; }
+.b-pc:hover { background: var(--rz); }
+:where(.d5) .b-pc.on { background: var(--ac-soft); box-shadow: inset 0 0 0 1px var(--ac); color: var(--t1); }
+:where(.d5) .b-pc.on > svg { color: var(--ac-ink); }
+.b-pc b { font-weight: 500; }
+.b-pc small { display: block; color: var(--t3); font-size: 0.75rem; }
+.b-pc:disabled { opacity: .55; }
+.b-none { display: grid; grid-template-columns: auto 1fr auto; gap: 0.75rem; align-items: center; padding: 1rem; border-radius: 0.625rem; background: var(--rz); font-size: 0.8125rem; color: var(--t2); }
+.b-none b { display: block; color: var(--t1); font-weight: 500; }
+.b-more { margin-top: 0.75rem; }
+.b-more p { font-size: 0.8125rem; color: var(--t2); margin: 0.25rem 0 0.5rem; }
+.b-f { display: flex; align-items: center; gap: 0.625rem; height: 2.5rem; padding: 0 0.75rem; border-radius: 0.625rem; box-shadow: inset 0 0 0 1px var(--line2); color: var(--t3); background: var(--sf); }
+.b-f input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 0.875rem var(--font); color: var(--t1); }
+.b-num { font: 500 2rem var(--mono); letter-spacing: .06em; text-align: center; padding: 1rem; border-radius: 0.75rem; background: var(--rz); margin: 0.25rem 0 0.5rem; }
+.b-wait { text-align: center; font-size: 0.75rem; color: var(--t3); margin: 0 0 0.5rem !important; }
+.b-done { display: grid; justify-items: center; text-align: center; gap: 0.375rem; padding-top: 1.5rem; }
+.b-done p { margin: 0 0 1rem; color: var(--t2); font-size: 0.8125rem; }
+.b-fl { display: grid; gap: 0.375rem; width: 20rem; text-align: left; }
+.b-fl small { font-size: 0.75rem; color: var(--t3); }
+.b-ul { margin: 0 0 0.5rem; padding-left: 1.125rem; display: grid; gap: 0.5rem; color: var(--t2); font-size: 0.8125rem; }
+.b-ul b { color: var(--t1); font-weight: 500; }
+/* ---------- v5.1 unslop pass ---------- */
+/* spacing: one row height in the sidebar */
+:where(.d5).rfe > .side { gap: 0.125rem; padding: 1rem 0.75rem; }
+:where(.d5).rfe > .side .k-navi { height: 2rem; padding: 0 0.5rem; gap: 0.625rem; border-radius: 0.5rem; font-size: 0.875rem; }
+:where(.d5).rfe > .side .k-navi:hover { background: var(--rz); }
+:where(.d5).rfe > .side .k-navi.on { background: var(--sf); color: var(--t1); box-shadow: inset 0 0 0 1px var(--line); }
+:where(.d5).rfe > .side .pc { height: 2rem; border-radius: 0.5rem; }
+:where(.d5).rfe > .side h4 { margin: 1.5rem 0.5rem 0.5rem; }
+:where(.d5).rfe > .side .pc small { font: 0.75rem var(--font); color: var(--t3); }
+/* colour: flat controls, no glow, no stripe */
+:where(.d5) .k-btn.pri { box-shadow: none; }
+:where(.d5) .k-btn.pri:hover { filter: none; background: var(--ac-ink); }
+:where(.d5) .k-btn.pri kbd { background: var(--tint-16); }
+:where(.d5) .k-btn.warn { box-shadow: var(--ctl); color: var(--neg); }
+:where(.d5).rfe-pages .ro.sel, :where(.d5).rfe-pages .b-ev.sel { background: var(--rz); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .b-pc.on { background: var(--rz); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .b-pc.on > svg { color: var(--ac); }
+/* counts are quiet text; only a real problem is red */
+.k-badge { background: none; color: var(--t3); font: 500 0.75rem var(--font); font-variant-numeric: tabular-nums; padding: 0; min-width: 0; }
+:where(.d5) .k-badge.bad { background: none; color: var(--neg); }
+.k-count { font: 500 0.8125rem var(--font); color: var(--t3); }
+/* status words: plain text with a small dot */
+.b-out { font: 0.8125rem var(--font); color: var(--t2); display: inline-flex; align-items: center; gap: 0.375rem; }
+.b-out::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 0.1875rem; background: var(--line2); }
+:where(.d5) .b-out.ok::before { background: var(--pos); }
+:where(.d5) .b-out.warn::before { background: var(--warn); }
+:where(.d5) .b-out.bad { color: var(--neg); }
+:where(.d5) .b-out.bad::before { background: var(--neg); }
+/* type: figures in the interface face with tabular digits; mono only for codes and paths */
+:where(.d5).rfe-pages .db .stat b { font: 500 1.75rem/1.2 var(--font); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+:where(.d5).rfe-pages .db .pcr small, :where(.d5).rfe-pages .ro .st { font: 0.8125rem var(--font); color: var(--t2); font-variant-numeric: tabular-nums; }
+:where(.d5) .ol .n .m { font-variant-numeric: tabular-nums; }
+:where(.d5).rfe-pages .db .need small b, :where(.d5).rfe-pages .db .need small { overflow-wrap: normal; }
+/* icons: one tile for categories, line icons in the text colour */
+.b-ic { display: inline-grid; place-items: center; width: 1.375rem; color: var(--t2); }
+.b-tile { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 0.625rem; background: var(--rz); color: var(--t2); }
+:where(.d5) .b-tile.ok { width: 3rem; height: 3rem; border-radius: 1.5rem; color: var(--ac); background: var(--ac-soft); }
+/* motion: menus fade and rise, no squash */
+@keyframes b-in { from { opacity: 0; transform: translateY(0.25rem); } }
+/* per-computer settings */
+.b-ss h3 { font: 500 0.8125rem var(--font); color: var(--t3); margin: 1.25rem 0 0.25rem; }
+.b-ss h3:first-child { margin-top: 0.25rem; }
+.b-ss .k-set { min-height: 3.25rem; }
+.b-ss .k-set small { font-size: 0.75rem; }
+.b-path { font: 0.75rem var(--mono); color: var(--t2); }
+.b-n { white-space: nowrap; font: 500 0.75rem var(--mono); color: var(--t2); }
+/* v5.2: a dialog never runs past the window; its body scrolls */
+/* every dialog sits in the middle of the window, both ways (the app's backdrop is .scrim; .k-ov is the mockup's name for it) and never wider than the window */
+:where(.d5) .k-ov, :where(.d5) .scrim { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); place-items: center; }
+:where(.d5) .k-ov > .k-dlg, :where(.d5) .scrim > .k-dlg { min-height: 0; max-height: calc(100% - 4rem); max-width: calc(100% - 3rem); box-sizing: border-box; margin: 0; }
+/* the old "top" backdrop of the tab dialogs anchored the box to the upper edge: not any more */
+:where(.d5) .scrim.top.top { align-items: center; padding-top: 0; }
+.k-db { min-height: 0; }
+/* collapsible sidebar: a quiet icon at the end of the top row (kept visible when collapsed), Ctrl+\ ; icons only when collapsed */
+:where(.d5).rfe { transition: grid-template-columns var(--dur) ease; }
+:where(.d5).rfe > .side .lg .sb-t { margin-left: auto; width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 0.375rem; color: var(--t3); }
+:where(.d5).rfe > .side .lg .sb-t:hover { background: var(--rz); color: var(--t1); }
+:where(.d5).rfe > .side .lg .sb-t svg { transform: scaleX(-1); }
+:where(.d5).rfe.sbmin { grid-template-columns: 4rem minmax(0, 1fr); }
+:where(.d5).rfe.sbpeek { grid-template-columns: 4rem minmax(0, 1fr); }
+:where(.d5).rfe.sbpeek > .side { position: relative; z-index: 30; width: 15rem; margin-right: -11rem; box-shadow: 0 0.5rem 1.5rem var(--shade-18); }
+:where(.d5).rfe.sbmin > .side { padding: 1rem 0.5rem; align-items: stretch; }
+:where(.d5).rfe.sbmin > .side .lg { justify-content: center; padding: 0.25rem 0 1rem; }
+:where(.d5).rfe.sbmin > .side .lg > span, :where(.d5).rfe.sbmin > .side .lg > svg { display: none; }
+:where(.d5).rfe.sbmin > .side .lg .sb-t { margin: 0; }
+:where(.d5).rfe.sbmin > .side .lg .sb-t svg { transform: none; display: block; }
+:where(.d5).rfe.sbmin > .side .k-navi, :where(.d5).rfe.sbmin > .side .pc { justify-content: center; padding: 0; position: relative; }
+:where(.d5).rfe.sbmin > .side .k-navi > span, :where(.d5).rfe.sbmin > .side .pc small { display: none; }
+:where(.d5).rfe.sbmin > .side .pc { font-size: 0; }
+:where(.d5).rfe.sbmin > .side .k-navi .k-badge { position: absolute; top: 0.125rem; right: 0.25rem; min-width: 0; padding: 0 0.25rem; font-size: 0.625rem; height: 0.875rem; line-height: 0.875rem; }
+:where(.d5).rfe.sbmin > .side h4 { display: block; height: 1px; background: var(--line); margin: 0.75rem 0.5rem; font-size: 0; }
+/* Settings page: sized to match the rest of the app */
+:where(.d5).rfe-pages .k-settings { grid-template-columns: 17.5rem 1fr; gap: 2.5rem; }
+:where(.d5).rfe-pages .k-snav { gap: 0.25rem; }
+:where(.d5).rfe-pages .k-snav button { height: 2.75rem; padding: 0 0.875rem; font-size: 0.9375rem; gap: 0.75rem; }
+:where(.d5).rfe-pages .k-snav button svg { width: 1.25rem; height: 1.25rem; }
+:where(.d5).rfe-pages .k-sbody h2, :where(.d5).rfe-pages .k-sgroup h2 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+:where(.d5).rfe-pages .k-sbody h3 { font-size: 0.875rem; }
+:where(.d5).rfe-pages .k-sbody .k-set { min-height: 4.75rem; padding: 0.75rem 0; font-size: 0.9375rem; }
+:where(.d5).rfe-pages .k-sbody .k-set small { font-size: 0.8438rem; margin-top: 0.125rem; }
+:where(.d5).rfe-pages .k-sbody .k-seg button { height: 2.25rem; padding: 0 1rem; font-size: 0.875rem; }
+:where(.d5).rfe-pages .k-sbody .k-btn { height: 2.5rem; }
+:where(.d5).rfe-pages .k-sbody .k-in { height: 2.5rem; }
+:where(.d5).rfe-pages .rail .b-fl, :where(.d5).rfe-pages .rail .b-fl .b-f { width: 100%; box-sizing: border-box; }
+:where(.d5).rfe-pages .rail .b-fl .b-f input { min-width: 0; width: 100%; }
+/* one meaning per colour: red = failed; waiting for the owner = amber; counts and the bell are neutral */
+:where(.d5).rfe-pages .k-dot.bad { background: var(--warn); }
+:where(.d5).rfe-pages .k-badge.bad { color: var(--t2); }
+:where(.d5).rfe-pages .k-nb { background: var(--t1); }
+/* one selected style: raised fill with a hairline */
+:where(.d5) .ol .n.sel, :where(.d5).rfe-pages .k-snav button.on, :where(.d5).rfe-pages .k-chip.on { background: var(--rz); color: var(--t1); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5).rfe-pages .k-sub-hint { color: var(--t3); }
+:where(.d5) .k-dact .k-btn.warn { background: var(--sf); color: var(--neg); box-shadow: var(--ctl); }
+/* Pairing requests: compact table (design B) */
+:where(.d5).rfe-pages .b-rq { width: 100%; border-collapse: collapse; }
+:where(.d5).rfe-pages .b-rq th { text-align: left; font-weight: 400; font-size: 0.75rem; color: var(--t3); padding: 0 0.5rem 0.5rem; }
+:where(.d5).rfe-pages .b-rq td { padding: 0.6875rem 0.5rem; border-top: 1px solid var(--line); vertical-align: middle; }
+:where(.d5).rfe-pages .b-rqd { display: flex; gap: 0.75rem; align-items: center; }
+:where(.d5).rfe-pages .b-rqd > div { display: grid; }
+:where(.d5).rfe-pages .b-rqd b { font-weight: 500; }
+:where(.d5).rfe-pages .b-rqd small { color: var(--t3); }
+:where(.d5).rfe-pages .b-rqn { font-size: 1.0625rem; font-weight: 500; letter-spacing: .04em; white-space: nowrap; }
+:where(.d5).rfe-pages .b-rqt { color: var(--t3); font-size: 0.8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:where(.d5).rfe-pages .b-rqa { text-align: right; white-space: nowrap; }
+:where(.d5).rfe-pages .b-rqa > * + * { margin-left: 0.5rem; }
+:where(.d5).rfe-pages .b-rqe { display: grid; gap: 0.25rem; padding: 1.125rem 0.5rem; }
+:where(.d5).rfe-pages .b-rqe small { color: var(--t3); }
+
+/* The sidebar and the slim top bar are outside .rfe-pages, so the mockup's colour rules for them are repeated here: red means failed, waiting for the owner is amber, counts and the bell are neutral. */
+:where(.d5).rfe > .side .k-dot.bad { background: var(--warn); }
+:where(.d5).rfe > .side .k-badge.bad { color: var(--t2); }
+:where(.d5).rfe .top .k-nb { background: var(--t1); }
+/* The search field of the top bar (shown on the Search page): the mockup's flat field, a hairline ring and no inset shadow, in light and dark. */
+.d5 .top .sbar { height: 2.5rem; border: 0; border-radius: 0.625rem; background: var(--sf); box-shadow: inset 0 0 0 1px var(--line2); gap: 0.625rem; padding: 0 0.75rem; color: var(--t3); }
+.d5 .top .sbar:focus-within { background: var(--sf); box-shadow: inset 0 0 0 0.125rem var(--ac); }
+.d5 .top .sbar .ic { font-size: 1rem; width: 1rem; height: 1rem; }
+.d5 .top .sbar input { font: 0.875rem var(--font); color: var(--t1); }
+.d5 .top .sbar input::placeholder { color: var(--t3); }
+.d5 .top .sbar kbd { font: 500 0.6875rem/1 var(--mono); min-width: 0; height: auto; padding: 0.1875rem 0.3125rem; border: 0; border-radius: 0.25rem; background: var(--rz); color: var(--t2); box-shadow: inset 0 -1px 0 var(--line2); }
+/* Files page: the bar above the tree (Up, path steps, New folder / Upload) sits over the tree in the page's left column. */
+:where(.d5) .olmain { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+:where(.d5) .olmain > .tr { flex: 1; min-height: 0; }
+/* The bar fits in the blank band the mockup leaves above its first row (the tree's top padding plus the first computer's top margin, 1.5rem), so the rows sit where the mockup draws them. */
+:where(.d5) .olmain > .k-ftop { flex: none; margin: 0; padding: 0 1.5rem; min-height: 0; height: 1.5rem; }
+:where(.d5) .olmain > .k-ftop .k-ib { width: 1.5rem; height: 1.5rem; }
+:where(.d5) .olmain > .k-ftop .k-btn.sm { height: 1.5rem; padding-block: 0; }
+:where(.d5) .olmain > .k-ftop:not(:empty) + .tr { padding-top: 0; }
+:where(.d5) .olmain > .k-ftop:not(:empty) + .tr > .n.pc:first-child { margin-top: 0; }
+:where(.d5) .olmain > .k-ftop:empty { display: none; }
+:where(.d5) .k-ftop .k-ib[aria-pressed="true"] { color: var(--ac-ink); }
+:where(.d5) .k-ftop .k-ib[aria-pressed="true"] svg { fill: currentColor; }
+:where(.d5) .k-ftop .k-ib:disabled { opacity: 0.4; cursor: default; }
+:where(.d5) .k-ftop .k-ib:disabled:hover { background: transparent; color: var(--t2); }

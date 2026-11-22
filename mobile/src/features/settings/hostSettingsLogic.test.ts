@@ -21,6 +21,11 @@ describe('nextFileGrants', () => {
     expect(nextFileGrants(base, { download: true })).toEqual({ ...base, download: true });
     expect(nextFileGrants(base, { browse: false })).toEqual({ ...base, browse: false });
   });
+  it('carries the Wake-on-LAN grant when the host reports it, and leaves it out for an older host', () => {
+    expect(nextFileGrants({ ...base, wake: false }, { wake: true })).toEqual({ ...base, wake: true });
+    expect(nextFileGrants({ ...base, wake: true }, { download: true })).toEqual({ ...base, download: true, wake: true });
+    expect(nextFileGrants(base, { download: true })).not.toHaveProperty('wake');
+  });
 });
 
 describe('bandwidth and device helpers', () => {

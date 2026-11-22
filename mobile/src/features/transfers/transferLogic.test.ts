@@ -1,5 +1,5 @@
 import type { TransferRecord } from '../../core/native';
-import { finishedWhen, transferKind, transferPillLabel, transferSummary, transferTone, groupTransfers, retryableFailures, savedWhere, verifyOutcome, isActive, isFinished, isUpload, transferErrorMessage, transferName, transferProgress } from './transferLogic';
+import { finishedWhen, transferKind, transferPillLabel, transferSummary, transferTone, groupTransfers, retryableFailures, savedWhere, verifyOutcome, isActive, newestFirst, isFinished, isUpload, transferErrorMessage, transferName, transferProgress } from './transferLogic';
 
 const rec = (o: Partial<TransferRecord> = {}): TransferRecord => ({ id: 'x', hostId: 'h', address: 'a', remotePath: '/docs/a.txt', destPath: '/tmp/a.txt', state: 'RUNNING', received: 0, total: -1, error: null, ...o });
 
@@ -7,6 +7,25 @@ describe('transfer logic', () => {
   it('names a transfer by its host-side file', () => {
     expect(transferName(rec())).toBe('a.txt');
     expect(transferName(rec({ remotePath: 'C:\\x\\b.bin' }))).toBe('b.bin');
+  });
+
+  it('names a saved download by the name it was saved under', () => {
+    expect(transferName(rec({ savedName: 'a (1).txt' }))).toBe('a (1).txt');
+  });
+
+  it('orders photo backup rows by the engine queue time, not by their id', () => {
+    const old = rec({ id: 'pb-1', enqueuedAt: 1_000 });
+    const fresh = rec({ id: 'pb-2', enqueuedAt: 2_000 });
+    const download = rec({ id: 'd0000006a', enqueuedAt: 1_500 });
+    expect([old, fresh, download].sort(newestFirst).map((r) => r.id)).toEqual(['pb-2', 'd0000006a', 'pb-1']);
+  });
+
+  it('does not read a photo backup id as a 1970 time', () => {
+    // "pb-5" has no time in it: parseInt("b-5", 36) used to give 11, so it sorted as older than everything.
+    const backup = rec({ id: 'pb-5' });
+    const download = rec({ id: 'd0000006a' });
+    expect(newestFirst(backup, download)).toBe(download.id.localeCompare(backup.id));
+    expect(newestFirst(download, backup)).toBe(backup.id.localeCompare(download.id));
   });
 
   it('treats records without a direction as downloads', () => {
@@ -31,7 +50,10 @@ describe('transfer logic', () => {
   it('explains agent and engine errors', () => {
     expect(transferErrorMessage('CONFLICT')).toMatch(/already exists/);
     expect(transferErrorMessage('READ_ONLY')).toMatch(/not allowed/);
+    expect(transferErrorMessage('UNAUTHORIZED')).toMatch(/no longer accepts this phone/);
     expect(transferErrorMessage('ERR_CONNECTION: timeout')).toMatch(/Could not reach/);
+    expect(transferErrorMessage('ERR_TLS')).toMatch(/secure connection/);
+    expect(transferErrorMessage('ERR_TLS: handshake failed')).not.toMatch(/ERR_TLS/);
     expect(transferErrorMessage('ERR_STORAGE_FULL')).toMatch(/out of storage/);
     expect(transferErrorMessage('source file is missing')).toMatch(/no longer on this phone/);
     expect(transferErrorMessage('HTTP 500')).toBe('HTTP 500');

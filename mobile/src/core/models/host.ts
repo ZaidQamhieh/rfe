@@ -55,13 +55,16 @@ export function hostToJson(host: Host): Record<string, string> {
   return out;
 }
 
+export const MIN_PORT = 1;
+export const MAX_PORT = 65535;
+
 function validPort(port: string | undefined): boolean {
   if (port === undefined) return true;
   const n = Number.parseInt(port, 10);
-  return Number.isInteger(n) && n >= 1 && n <= 65535 && /^[0-9]+$/.test(port);
+  return Number.isInteger(n) && n >= MIN_PORT && n <= MAX_PORT && /^[0-9]+$/.test(port);
 }
 
-function validIpv4(address: string): boolean {
+export function validIpv4(address: string): boolean {
   const octets = address.split('.');
   return (
     octets.length === 4 &&
@@ -143,8 +146,4 @@ export function routeAddresses(host: Host): HostRouteAddress[] {
 
 export function routeForAddress(host: Host, address: string): HostRoute {
   return routeAddresses(host).find((c) => c.address === address)?.route ?? 'custom';
-}
-
-export function baseUrl(address: string): string {
-  return `https://${address}/v1`;
 }

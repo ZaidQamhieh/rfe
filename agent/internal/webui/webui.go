@@ -29,7 +29,7 @@ func Handler() http.Handler {
 	fileServer := http.FileServer(http.FS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		// Defense-in-depth for the companion (PR-13). The generated index
+		// Defense-in-depth for the companion. The generated index
 		// loads one same-origin external module and the SPA has no inline
 		// scripts, so script-src does not allow unsafe-inline. React style
 		// props produce inline style attributes, so style-src retains it. The

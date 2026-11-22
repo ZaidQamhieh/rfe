@@ -2,7 +2,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,11 +14,6 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
-
-// withDevice injects a device into a context (test seam mirroring authMiddleware).
-func withDevice(ctx context.Context, d *store.Device) context.Context {
-	return context.WithValue(ctx, deviceCtxKey, d)
-}
 
 func deviceFromContext(r *http.Request) *store.Device {
 	d, _ := r.Context().Value(deviceCtxKey).(*store.Device)
@@ -35,12 +29,31 @@ func isAdminDevice(d *store.Device) bool {
 	return d != nil && d.ViaLogin
 }
 
+// forbidUnlessAdmin writes the 403 for a caller that is not an admin device
+// and reports whether it did.
+func forbidUnlessAdmin(w http.ResponseWriter, d *store.Device) bool {
+	if isAdminDevice(d) {
+		return false
+	}
+	writeError(w, http.StatusForbidden, "FORBIDDEN", "admin device required")
+	return true
+}
+
+// forbidUnlessSelfOrAdmin writes the 403 unless cur is device id itself or an
+// admin device, and reports whether it did.
+func forbidUnlessSelfOrAdmin(w http.ResponseWriter, cur *store.Device, id string) bool {
+	if cur != nil && (cur.ID == id || isAdminDevice(cur)) {
+		return false
+	}
+	writeError(w, http.StatusForbidden, "FORBIDDEN", "managing other devices requires an admin (login) session or the PC")
+	return true
+}
+
 // adminOnly rejects callers that are not admin devices (see isAdminDevice).
 // Must run after authMiddleware, which puts the device in the context.
 func adminOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "admin device required")
+		if forbidUnlessAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -61,20 +74,20 @@ func getSettingsHandler(st *settings.Store) http.HandlerFunc {
 	}
 }
 
-// settingsJSON returns global configuration only to password-authenticated
-// admin devices. For ordinary paired devices it reports the effective policy
-// applied to this request, so unrelated host-wide paths and unavailable photo
-// backup destinations are not disclosed.
 // fileCapabilitiesJSON is what the calling device may do with files, so a client can hide actions the agent would
 // refuse. Login (owner) devices retain full file access, as in requireDeviceFileCapabilities.
 func fileCapabilitiesJSON(device *store.Device) map[string]bool {
 	out := map[string]bool{}
-	for _, c := range []fileCapability{capBrowse, capDownload, capUpload, capModify, capDelete, capShare} {
+	for _, c := range allFileCapabilities {
 		out[string(c)] = device != nil && (device.ViaLogin || deviceHasCapability(device, c))
 	}
 	return out
 }
 
+// settingsJSON returns global configuration only to password-authenticated
+// admin devices. For ordinary paired devices it reports the effective policy
+// applied to this request, so unrelated host-wide paths and unavailable photo
+// backup destinations are not disclosed.
 func settingsJSON(st *settings.Store, r *http.Request) map[string]any {
 	device := deviceFromContext(r)
 	admin := isAdminDevice(device)
@@ -150,8 +163,7 @@ func patchSettingsHandler(st *settings.Store) http.HandlerFunc {
 		// Changing global security policy (read-only, roots, sharing, backup
 		// destination) is an admin operation — an ordinary paired device must
 		// not be able to weaken the server for every other client.
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "admin device required")
+		if forbidUnlessAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		var b settingsBody
@@ -196,8 +208,7 @@ func patchSettingsHandler(st *settings.Store) http.HandlerFunc {
 
 func getBandwidthHandler(st *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "admin device required")
+		if forbidUnlessAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -211,8 +222,7 @@ func getBandwidthHandler(st *settings.Store) http.HandlerFunc {
 
 func putBandwidthHandler(st *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "admin device required")
+		if forbidUnlessAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		var b struct {
@@ -263,6 +273,7 @@ func deviceJSON(d store.Device, cur *store.Device) map[string]any {
 		"modify":      d.CanModify,
 		"delete":      d.CanDelete,
 		"share":       d.CanShare,
+		"wake":        d.CanWake,
 		"viaLogin":    d.ViaLogin,
 	}
 }
@@ -316,12 +327,14 @@ func listDevicesHandler(db *store.DB) http.HandlerFunc {
 // CLI remains available regardless, for headless/PC-side use.
 func revokeDeviceHandler(db *store.DB) func(http.ResponseWriter, *http.Request, string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
-		cur := deviceFromContext(r)
-		if cur == nil || (cur.ID != id && !isAdminDevice(cur)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "managing other devices requires an admin (login) session or the PC")
+		if forbidUnlessSelfOrAdmin(w, deviceFromContext(r), id) {
 			return
 		}
-		if err := db.RevokeDevice(id); err != nil {
+		revoke := db.RevokeDevice
+		if cur := deviceFromContext(r); cur != nil && cur.ID == id {
+			revoke = db.RevokeDeviceSession // a device ending its own session is not an owner revocation
+		}
+		if err := revoke(id); err != nil {
 			writeInternal(w, "revoke device", err)
 			return
 		}
@@ -336,9 +349,7 @@ func revokeDeviceHandler(db *store.DB) func(http.ResponseWriter, *http.Request, 
 // Same admin-or-self rule as revokeDeviceHandler.
 func deleteDeviceHandler(db *store.DB) func(http.ResponseWriter, *http.Request, string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
-		cur := deviceFromContext(r)
-		if cur == nil || (cur.ID != id && !isAdminDevice(cur)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "managing other devices requires an admin (login) session or the PC")
+		if forbidUnlessSelfOrAdmin(w, deviceFromContext(r), id) {
 			return
 		}
 		if err := db.DeleteDevice(id); err != nil {
@@ -363,6 +374,35 @@ type deviceUpdateBody struct {
 	Modify     *bool   `json:"modify"`
 	Delete     *bool   `json:"delete"`
 	Share      *bool   `json:"share"`
+	Wake       *bool   `json:"wake"`
+}
+
+// fileGrants is the six file permissions plus the Wake-on-LAN grant that a
+// device update can set, in the order db.SetDeviceGrants takes them.
+type fileGrants struct {
+	browse, download, upload, modify, del, share, wake bool
+}
+
+// mergeFileGrants returns target's current file permissions with each one the
+// request set replacing it; an omitted (nil) field keeps the current value.
+func mergeFileGrants(target *store.Device, b deviceUpdateBody) fileGrants {
+	return fileGrants{
+		browse:   pickBool(b.Browse, target.CanBrowse),
+		download: pickBool(b.Download, target.CanDownload),
+		upload:   pickBool(b.Upload, target.CanUpload),
+		modify:   pickBool(b.Modify, target.CanModify),
+		del:      pickBool(b.Delete, target.CanDelete),
+		share:    pickBool(b.Share, target.CanShare),
+		wake:     pickBool(b.Wake, target.CanWake),
+	}
+}
+
+// pickBool returns the requested value when the request set one, otherwise the current value.
+func pickBool(requested *bool, current bool) bool {
+	if requested != nil {
+		return *requested
+	}
+	return current
 }
 
 // setDeviceJailHandler implements PATCH /v1/devices/{id}: sets a target
@@ -387,6 +427,10 @@ func setDeviceJailHandler(db *store.DB, st *settings.Store) http.HandlerFunc {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "no such device")
 			return
 		}
+		if target.Revoked {
+			writeError(w, http.StatusConflict, "CONFLICT", "this device is revoked; it has to pair again before its access can change")
+			return
+		}
 		var b deviceUpdateBody
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&b); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON body")
@@ -408,7 +452,7 @@ func setDeviceJailHandler(db *store.DB, st *settings.Store) http.HandlerFunc {
 		// the earlier ones applied while the caller is told the request
 		// failed. rollback puts the values read above back in that case.
 		rollback := func() {
-			if _, err := SetDeviceJail(db, id, target.JailRoot, st.Roots(), st.IsReadOnly()); err != nil {
+			if err := db.SetDeviceJail(id, target.JailRoot); err != nil { // written back directly: re-validating against today's roots could refuse it
 				log.Printf("device %s: could not restore jail after a failed update: %v", id, err)
 			}
 			if err := db.SetDeviceReadOnly(id, target.ReadOnly); err != nil {
@@ -417,7 +461,7 @@ func setDeviceJailHandler(db *store.DB, st *settings.Store) http.HandlerFunc {
 			if err := db.SetDeviceAppPermissions(id, target.ViewApps, target.LaunchApps); err != nil {
 				log.Printf("device %s: could not restore app permissions after a failed update: %v", id, err)
 			}
-			if err := db.SetDeviceFilePermissions(id, target.CanBrowse, target.CanDownload, target.CanUpload, target.CanModify, target.CanDelete, target.CanShare); err != nil {
+			if err := db.SetDeviceGrants(id, target.CanBrowse, target.CanDownload, target.CanUpload, target.CanModify, target.CanDelete, target.CanShare, target.CanWake); err != nil {
 				log.Printf("device %s: could not restore file permissions after a failed update: %v", id, err)
 			}
 		}
@@ -441,42 +485,27 @@ func setDeviceJailHandler(db *store.DB, st *settings.Store) http.HandlerFunc {
 				return
 			}
 		}
-		if b.Browse != nil || b.Download != nil || b.Upload != nil || b.Modify != nil || b.Delete != nil || b.Share != nil {
-			browse, download := target.CanBrowse, target.CanDownload
-			upload, modify, del, share := target.CanUpload, target.CanModify, target.CanDelete, target.CanShare
-			if b.Browse != nil {
-				browse = *b.Browse
-			}
-			if b.Download != nil {
-				download = *b.Download
-			}
-			if b.Upload != nil {
-				upload = *b.Upload
-			}
-			if b.Modify != nil {
-				modify = *b.Modify
-			}
-			if b.Delete != nil {
-				del = *b.Delete
-			}
-			if b.Share != nil {
-				share = *b.Share
-			}
-			if err := db.SetDeviceFilePermissions(id, browse, download, upload, modify, del, share); err != nil {
+		if b.Browse != nil || b.Download != nil || b.Upload != nil || b.Modify != nil || b.Delete != nil || b.Share != nil || b.Wake != nil {
+			g := mergeFileGrants(target, b)
+			if err := db.SetDeviceGrants(id, g.browse, g.download, g.upload, g.modify, g.del, g.share, g.wake); err != nil {
 				rollback()
 				writeInternal(w, "set device file permissions", err)
 				return
 			}
 		}
 		updated, err := db.GetDeviceByID(id)
-		if err != nil || updated == nil {
+		if err != nil {
+			writeInternal(w, "reload device", err)
+			return
+		}
+		if updated == nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "device vanished mid-update")
 			return
 		}
 		audit(db, r, store.AuditDeviceUpdated, id,
-			fmt.Sprintf("jailRoot=%q readOnly=%t viewApps=%t launchApps=%t browse=%t download=%t upload=%t modify=%t delete=%t share=%t",
+			fmt.Sprintf("jailRoot=%q readOnly=%t viewApps=%t launchApps=%t browse=%t download=%t upload=%t modify=%t delete=%t share=%t wake=%t",
 				updated.JailRoot, updated.ReadOnly, updated.ViewApps, updated.LaunchApps,
-				updated.CanBrowse, updated.CanDownload, updated.CanUpload, updated.CanModify, updated.CanDelete, updated.CanShare))
+				updated.CanBrowse, updated.CanDownload, updated.CanUpload, updated.CanModify, updated.CanDelete, updated.CanShare, updated.CanWake))
 		writeJSON(w, http.StatusOK, deviceJSON(*updated, cur))
 	}
 }
@@ -493,8 +522,8 @@ func setDeviceJailHandler(db *store.DB, st *settings.Store) http.HandlerFunc {
 // loudly than to let an admin believe a jail is in effect when
 // fsops.Ops.Jailed would in fact deny everything.
 //
-// Shared by setDeviceJailHandler's predecessor and the `rfe jail` admin
-// CLI command, so both enforce the same containment rule.
+// Used by pairing and SetDeviceJail, so every path enforces the same
+// containment rule.
 func ValidateJailRoot(jailRoot string, roots []string, readOnly bool) (string, error) {
 	if jailRoot == "" {
 		return "", nil

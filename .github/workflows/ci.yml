@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           cache: ${{ runner.environment == 'github-hosted' }}
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache-dependency-path: agent/go.sum
 
       - name: Build host agent
@@ -59,6 +59,32 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: go build -trimpath -o "$RUNNER_TEMP/rfe" ./cmd/agent
+
+  # The launcher, bundle, updater and upgrade code run real processes, files and locks: run their tests on
+  # each OS and CPU (hosted Windows and macOS minutes cost more on a private repo, so master and tags only).
+  host-os-tests:
+    name: Host tests (${{ matrix.os }})
+    if: github.ref == 'refs/heads/master' || github.ref_type == 'tag'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm, macos-15-intel]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          # No Go cache here: three ~150 MB caches (one per OS) used most of the free Actions storage allowance
+          # (500 MB-month; blocked at $0 budget). The host tests build quickly without one.
+          cache: false
+          go-version: '1.26.11'
+          cache-dependency-path: agent/go.sum
+
+      - name: Test launcher, bundle, updater, upgrade, backup
+        working-directory: agent
+        run: go test ./internal/launcher/... ./internal/bundle/... ./internal/hostupdate/... ./internal/upgrade/... ./internal/backup/... ./cmd/rfe-launcher/...
 
   agent:
     name: Agent (Go)
@@ -73,7 +99,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           cache: ${{ runner.environment == 'github-hosted' }}
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache-dependency-path: agent/go.sum
 
       - name: gofmt check
@@ -106,7 +132,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           cache: ${{ runner.environment == 'github-hosted' }}
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache-dependency-path: agent/go.sum
 
       # The toolchain is pinned in agent-rs/rust-toolchain.toml; rustup installs it on the first cargo call. The cache

@@ -1,0 +1,13 @@
+{
+  "status": 403,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "FORBIDDEN",
+    "message": "path is outside allowed root: <ROOT>/data/escape-link/secret.txt"
+  }
+}

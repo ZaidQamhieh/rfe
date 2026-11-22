@@ -136,7 +136,7 @@ func TestPairHandler_ValidPairing(t *testing.T) {
 		t.Fatalf("expected agentName test-pc, got %s", resp.AgentName)
 	}
 	paired, err := db.GetDeviceByID(resp.DeviceID)
-	if err != nil || paired == nil || !paired.CanBrowse || paired.CanDownload || paired.CanUpload || paired.CanModify || paired.CanDelete || paired.CanShare {
+	if err != nil || paired == nil || !paired.CanBrowse || paired.CanDownload || paired.CanUpload || paired.CanModify || paired.CanDelete || paired.CanShare || paired.CanWake {
 		t.Fatalf("newly paired device should be browse-only: (%+v, %v)", paired, err)
 	}
 }
@@ -201,5 +201,26 @@ func TestFixedWindowLimiter_AllowsBurstThenBlocks(t *testing.T) {
 	later := now.Add(time.Minute + time.Second)
 	if !l.allowAt(later) {
 		t.Fatal("attempt after window should be allowed")
+	}
+}
+
+// A malformed body is rejected, not read as the empty default: a broken guest request must not mint a full code.
+func TestGeneratePairingHandler_MalformedBodyIsRejected(t *testing.T) {
+	db, _ := newTestDeps(t)
+	pm := pairing.New(db, "127.0.0.1:8765", "", "sha256-fp")
+	st, err := settings.Load(db, false, nil, "test-pc")
+	if err != nil {
+		t.Fatalf("settings.Load: %v", err)
+	}
+	handler := generatePairingHandler(pm, st)
+	admin := &store.Device{ID: "admin-1", ViaLogin: true}
+	for body, want := range map[string]int{`{"guest":tru`: http.StatusBadRequest, ``: http.StatusOK} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/pairing/generate", strings.NewReader(body))
+		req = req.WithContext(withDevice(req.Context(), admin))
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		if rr.Code != want {
+			t.Errorf("body %q: got %d, want %d: %s", body, rr.Code, want, rr.Body.String())
+		}
 	}
 }

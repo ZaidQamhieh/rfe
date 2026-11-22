@@ -16,6 +16,7 @@ package fsops
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -196,7 +197,7 @@ func ListTrash(trashDir string) ([]TrashEntry, error) {
 // original path falls within one of o's roots otherwise. The global trash
 // store has no per-device partitioning — everything any device deletes lands
 // in the same store — so without this a jailed device could see the names,
-// paths, and sizes of every other device's deleted files (PR-61).
+// paths, and sizes of every other device's deleted files.
 func (o *Ops) ListTrash(trashDir string) ([]TrashEntry, error) {
 	if o.denyAll {
 		return []TrashEntry{}, nil
@@ -292,7 +293,9 @@ func (o *Ops) RestoreFromTrash(ids []string, trashDir string) []BatchResult {
 			results[i] = BatchResult{Path: id, Error: apiErr(batchCode(err, "RESTORE_FAILED"), batchMessage(err, err.Error()))}
 			continue
 		}
-		_ = os.Remove(infoPath)
+		if err := os.Remove(infoPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Printf("trash: restored %s but its info file %s was not removed: %v", dest.full, infoPath, err)
+		}
 		results[i] = BatchResult{Path: dest.full, OK: true}
 		dest.close()
 	}
@@ -305,7 +308,7 @@ func (o *Ops) RestoreFromTrash(ids []string, trashDir string) []BatchResult {
 // path) and skipped, not deleted, if it falls outside — mirroring
 // RestoreFromTrash's per-id jail check. Without this, a jailed device could
 // pass specific ids (or omit ids entirely) to permanently delete every other
-// device's trashed files, including ones far outside its own jail (PR-61).
+// device's trashed files, including ones far outside its own jail.
 func (o *Ops) EmptyTrash(trashDir string, ids []string) error {
 	if o.settings.IsReadOnly() {
 		return ErrReadOnly
@@ -349,9 +352,6 @@ func (o *Ops) EmptyTrash(trashDir string, ids []string) error {
 	defer store.Close()
 	var firstErr error
 	for _, id := range ids {
-		if !validTrashID(id) {
-			return ErrBadTrashID
-		}
 		if len(roots) > 0 {
 			orig, _, err := readTrashInfo(filepath.Join(trashInfoDir(trashDir), id+trashInfoExt))
 			if err != nil {
@@ -429,7 +429,7 @@ func moveAcrossRootsSecure(src, dst *securePath) error {
 		// meanwhile) at dst is not ours.
 		if made {
 			if rmErr := dst.removeAll(); rmErr != nil {
-				err = fmt.Errorf("%w; a partial copy remains at %s", err, dst.full)
+				err = fmt.Errorf("%w; a partial copy remains at %s (cleanup failed: %v)", err, dst.full, rmErr)
 			}
 		}
 		return err
@@ -465,8 +465,8 @@ func uniqueTrashName(trashDir, base string) (string, error) {
 	for i := 1; i <= maxAutoRename; i++ {
 		_, e1 := os.Lstat(filepath.Join(trashFilesDir(trashDir), candidate))
 		_, e2 := os.Lstat(filepath.Join(trashInfoDir(trashDir), candidate+trashInfoExt))
-		// Stop on any error other than "exists" (e.g. name too long) so a
-		// failing lstat cannot loop forever; the caller's write reports it.
+		// Accept a name only when both lstat calls fail (e.g. name too long), so
+		// a name found by either lookup is skipped; the caller's write reports errors.
 		if e1 != nil && e2 != nil {
 			return candidate, nil
 		}

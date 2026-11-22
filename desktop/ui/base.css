@@ -12,14 +12,14 @@ table{border-collapse:collapse;border-spacing:0}
 .mono{font-family:var(--mono,ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace)}
 .num{font-variant-numeric:tabular-nums}
 .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:rgba(128,128,128,.55);border-radius:6px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar{width:0.625rem;height:0.625rem}
+::-webkit-scrollbar-thumb{background:rgba(128,128,128,.55);border-radius:0.375rem;border:0.125rem solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
 /* file-type colours; concepts override the variables */
-.fi-dir{color:var(--k-dir,#e0a030)}.fi-pkg{color:var(--k-pkg,#5b8def)}.fi-video{color:var(--k-video,#b868e0)}
-.fi-image{color:var(--k-image,#36b37e)}.fi-archive{color:var(--k-archive,#d9822b)}.fi-text{color:var(--k-text,#8a94a6)}
-.fi-code{color:var(--k-code,#3fb0c4)}.fi-doc{color:var(--k-doc,#e5484d)}.fi-key{color:var(--k-key,#c9a227)}
-.fi-exec{color:var(--k-exec,#5bbf6a)}.fi-file{color:var(--k-file,#8a94a6)}
+.fi-dir{color:var(--k-dir)}.fi-pkg{color:var(--k-pkg)}.fi-video{color:var(--k-video)}
+.fi-image{color:var(--k-image)}.fi-archive{color:var(--k-archive)}.fi-text{color:var(--k-text)}
+.fi-code{color:var(--k-code)}.fi-doc{color:var(--k-doc)}.fi-key{color:var(--k-key)}
+.fi-exec{color:var(--k-exec)}.fi-file{color:var(--k-file)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{50%{opacity:.35}}
 .spin{animation:spin 1s linear infinite}

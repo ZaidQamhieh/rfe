@@ -8,8 +8,10 @@ certificate, settings, database, and paired-device records in that user's `~/.rf
 ## 1. Download the right archive
 
 Open the [host-agent releases](https://github.com/ZaidQamhieh/rfe/releases) and
-choose the latest release named `agent-vX.Y.Z` (for example, `agent-v1.3.0`). Download both the
-archive for the host computer and `SHA256SUMS` from that release.
+choose the latest release named `host-vX.Y.Z` (agent and desktop app; `agent-vX.Y.Z` for releases before
+1.1.0). Download both the agent archive for the host computer (`agent-vX.Y.Z-<os>-<cpu>`) and `SHA256SUMS`
+from that release. On a Linux desktop (x86-64), the desktop app's `.deb` or `.rpm` from the same release installs
+the agent too.
 
 Choose the archive for the computer's operating system and CPU:
 
@@ -218,9 +220,11 @@ Existing terminal history receives a full 90-day window when an agent upgrades t
 
 ## Release tags
 
-Host agent binaries are released separately from the Android app. A maintainer publishes them by
-creating and pushing an `agent-vX.Y.Z` tag (for example, `agent-v1.3.0`). The resulting dedicated
-release contains six archives and `SHA256SUMS`:
+Host agent binaries and the desktop app are released together, separately from the Android app. A
+maintainer publishes them by creating and pushing a `host-vX.Y.Z` tag (before 1.1.0, separate `agent-vX.Y.Z`
+and `desktop-vX.Y.Z` tags). The release contains six agent archives, the agent `.deb` and `.rpm` (named `host-v…`) for Linux
+amd64 and arm64, the desktop app (`.deb` and `.rpm` with the agent inside, and an AppImage without it), an SBOM,
+`SHA256SUMS` and its signature `SHA256SUMS.sig`. The agent archives are:
 
 - Linux amd64 and arm64
 - macOS amd64 and arm64

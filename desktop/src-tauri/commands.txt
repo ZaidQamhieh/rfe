@@ -24,6 +24,7 @@ trash_empty_items
 files_read_text
 files_write_text
 files_thumb
+files_video
 wake_computer
 saved_agent
 list_pins
@@ -46,13 +47,21 @@ list_host_apps
 launch_host_app
 agent_health
 generate_pairing_code
+generate_local_pairing_code
+local_agent_admin
 audit_page
 agent_log
+backups_status
 device_access
 device_access_all
 set_device_access
 revoke_device
 remove_device
+account_server_status
+account_server_key
+account_server_enable
+account_server_trust
+account_server_untrust
 list_pair_requests
 answer_pair_request
 list_hosts
@@ -71,6 +80,7 @@ local_rename
 local_delete
 local_read_text
 local_read_image
+local_read_video
 local_open
 local_save_text
 pick_files
@@ -86,6 +96,7 @@ transfer_folder
 desktop_set_prefs
 desktop_has_tray
 desktop_set_scale
+desktop_limits
 desktop_notify
 desktop_autostart_state
 desktop_set_autostart
@@ -93,3 +104,4 @@ update_check
 update_download
 choose_download_folder
 reset_download_folder
+events_sync

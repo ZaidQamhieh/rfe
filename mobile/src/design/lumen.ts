@@ -1,56 +1,59 @@
 import { FontFamily } from './tokens';
 
 /**
- * Lumen mockup metrics (design/mobile-redesign/lumen-variants.html). The mockup phone screen is about 174 px wide and
- * stands for a 360 dp phone, so every mockup px becomes `px * 2` dp: a 9 px card radius is 18 dp, 8 px text is 16 sp.
+ * Nameplate metrics, in real dp straight from design/mobile-redesign/style.css (the mockup phone is 412 px wide for a
+ * 412 dp screen, so one mockup px is one dp). The file keeps its Lumen-era name and export names for the importers.
  */
-export const K = 2;
-export const px = (n: number): number => n * K;
 
-
-/** Text presets named after the mockup classes, already in dp. */
+/** Text presets named after the roles the old Lumen file had, now carrying the Nameplate sizes. */
 export const LumenType = {
-  /** `.pagehead h3`: 20 px / 600, -0.02em */
-  pageTitle: { fontSize: 40, lineHeight: 46, fontFamily: FontFamily.bold, letterSpacing: -0.8 },
-  /** `.pagehead p`, `.subtitle`, `.route`: 8 px */
-  caption: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.regular },
-  /** `.host`: 18 px / 600, -0.02em */
-  hostName: { fontSize: 36, lineHeight: 42, fontFamily: FontFamily.bold, letterSpacing: -0.7 },
-  /** `.appbar`, `.sys`: 10 px / 600 */
-  appbar: { fontSize: 20, lineHeight: 26, fontFamily: FontFamily.bold },
-  /** `.section-label`: 9 px / 600, sentence case */
-  sectionLabel: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.bold },
-  /** `.feature-copy b`: 10 px / 700 */
-  title: { fontSize: 20, lineHeight: 26, fontFamily: FontFamily.bold },
-  /** `.route-option .feature-copy b`, `.transfer-head b`: 9 px / 700 */
-  rowTitle: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.bold },
-  /** `.feature-copy small`, `.filemeta`, `.app-meta`: 8 px */
-  meta: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.regular },
-  /** `.filename`, `.app-title`: 8 px / 700 */
-  name: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.bold },
-  /** `.state-pill`, `.run`: 8 px / 700 */
-  pill: { fontSize: 16, lineHeight: 18, fontFamily: FontFamily.bold },
-  /** `.action-footer .action`: 9 px / 700 */
-  action: { fontSize: 18, lineHeight: 22, fontFamily: FontFamily.bold },
-  /** `.bottom`: 7 px */
-  dock: { fontSize: 14, lineHeight: 16, fontFamily: FontFamily.regular },
+  /** `.empty h5`, `.plate .name`: 22/28 500 */
+  pageTitle: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.medium },
+  /** `.note`, `.sheet p.lede`: 14/20 */
+  caption: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.regular },
+  /** `.plate .name`: 22/28 500 */
+  hostName: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.medium },
+  /** `.bar h3`: 20/28 500 */
+  appbar: { fontSize: 20, lineHeight: 28, fontFamily: FontFamily.medium },
+  /** `.sec`: 14/20 500, sentence case */
+  sectionLabel: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.medium },
+  /** `.sheet h4`: 18/24 500 */
+  title: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.medium },
+  /** `.t1.b`: 16/22 500 */
+  rowTitle: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.medium },
+  /** `.t2`: 14/20 */
+  meta: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.regular },
+  /** `.t1`: 16/22 400 */
+  name: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.regular },
+  /** `.chip`: 14/20 500 */
+  pill: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.medium },
+  /** `.btn`: 15/20 500 */
+  action: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.medium },
+  /** `.nav a`: 13/16 500 */
+  dock: { fontSize: 13, lineHeight: 16, fontFamily: FontFamily.medium },
+  /** `.keycap`, `.nav .n`, `.dur`: 12/16 mono 500 */
+  monoSmall: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.monoMedium },
+  /** `.code i`: 24/28 mono 500 */
+  monoCode: { fontSize: 24, lineHeight: 28, fontFamily: FontFamily.monoMedium },
 } as const;
 
 /** Radii and sizes from the same CSS, in dp. */
 export const LumenSize = {
-  cardRadius: px(9),
-  tileRadius: px(8),
-  buttonRadius: px(7),
-  footerButtonRadius: px(9),
-  pillRadius: px(12),
-  dockRadius: px(12),
-  dockItemRadius: px(9),
-  dockHeight: px(38),
-  dockInsetX: px(8),
-  dockInsetBottom: px(6),
-  actionHeight: px(25),
-  footerActionHeight: px(36),
-  iconTile: px(19),
-  appIconTile: px(23),
-  cardPadding: px(7),
+  cardRadius: 8,
+  tileRadius: 8,
+  buttonRadius: 8,
+  pillRadius: 8,
+  dockRadius: 8,
+  dockItemRadius: 8,
+  /** `.nav`: 76 high. */
+  dockHeight: 76,
+  /** `.btn`: 48 high (`.btn.s` is 36). */
+  actionHeight: 48,
+  actionHeightSmall: 36,
+  footerActionHeight: 48,
+  /** `.row .lead`: 40x40. */
+  appIconTile: 40,
+  cardPadding: 16,
+  /** `.row`: min height 64, 16 side padding, 16 gap. */
+  rowMinHeight: 64,
 } as const;

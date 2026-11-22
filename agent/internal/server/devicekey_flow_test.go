@@ -148,12 +148,11 @@ func TestLoginHandler_MissingDeviceProofRejected(t *testing.T) {
 	}
 }
 
-// TestPairHandler_KeyChangeRePinsRatherThanRejects verifies pairing (unlike
-// login) accepts a device id presenting a *different* key than what's
-// pinned — consuming a fresh one-time code is itself a strong trust event
-// (physical access to the host), covering a legitimate reinstall that
-// generated a new device key. See verifyDeviceProof's enforceKeyPin doc.
-func TestPairHandler_KeyChangeRePinsRatherThanRejects(t *testing.T) {
+// TestPairHandler_KeyChangeIsRefusedWithPairReplaces verifies pairing with a
+// code no longer re-pins a device id that presents a *different* key than the
+// pinned one: it answers 409 PAIR_REPLACES and keeps the old key, so a reinstall
+// goes through approve-on-PC instead (see pair_replaces_test.go).
+func TestPairHandler_KeyChangeIsRefusedWithPairReplaces(t *testing.T) {
 	db, _ := newTestDeps(t)
 	pm := pairing.New(db, "127.0.0.1:8765", "", "fingerprint")
 	cfg := Config{Name: "test-pc", CertFingerprint: testProofFp}
@@ -176,8 +175,7 @@ func TestPairHandler_KeyChangeRePinsRatherThanRejects(t *testing.T) {
 	}
 
 	// Re-pairing the SAME device id with a fresh one-time code and a
-	// DIFFERENT key (simulating a reinstall) must succeed, re-pinning the
-	// new key rather than rejecting.
+	// DIFFERENT key (simulating a reinstall) is refused and the old key stays pinned.
 	code2, _, err := pm.Mint(time.Minute)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
@@ -191,16 +189,16 @@ func TestPairHandler_KeyChangeRePinsRatherThanRejects(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/pair", strings.NewReader(body2))
 	handler(rr2, req2)
-	if rr2.Code != http.StatusOK {
-		t.Fatalf("re-pairing with a new key expected 200, got %d: %s", rr2.Code, rr2.Body.String())
+	if rr2.Code != http.StatusConflict {
+		t.Fatalf("re-pairing with a new key expected 409, got %d: %s", rr2.Code, rr2.Body.String())
 	}
 
 	pinned, err := db.DevicePublicKeyByClientID("android-123")
 	if err != nil {
 		t.Fatalf("DevicePublicKeyByClientID: %v", err)
 	}
-	if pinned != pubKey2 {
-		t.Fatalf("expected the pinned key to be updated to the new key, got %q want %q", pinned, pubKey2)
+	if pinned != pubKey1 {
+		t.Fatalf("expected the original key to stay pinned, got %q want %q", pinned, pubKey1)
 	}
 }
 
@@ -218,7 +216,7 @@ func TestChallengeHandler_AdvertisesTheBoundProof(t *testing.T) {
 
 // TestVerifyDeviceProof_BoundToThisAgentsCertificate: a v2 signature is only good at the agent whose
 // certificate fingerprint it names, so a nonce relayed from a second agent signs nothing useful here.
-// A signature over the bare nonce (phone and browser clients) still verifies.
+// Only a signature over this agent's certificate fingerprint and the nonce verifies.
 func TestVerifyDeviceProof_BoundToThisAgentsCertificate(t *testing.T) {
 	const here = "aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11"
 	const elsewhere = "bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22bb22"
@@ -237,7 +235,7 @@ func TestVerifyDeviceProof_BoundToThisAgentsCertificate(t *testing.T) {
 	}{
 		{"v2 for this agent", func(n string) string { return security.DeviceProofMessageV2(here, n) }, true},
 		{"v2 for another agent", func(n string) string { return security.DeviceProofMessageV2(elsewhere, n) }, false},
-		{"bare nonce (browser sign-in only)", func(n string) string { return n }, true},
+		{"bare nonce", func(n string) string { return n }, false},
 		{"v2 label without the fingerprint", func(n string) string { return "rfe-device-proof-v2\n\n" + n }, false},
 	}
 	for _, c := range cases {
@@ -247,14 +245,14 @@ func TestVerifyDeviceProof_BoundToThisAgentsCertificate(t *testing.T) {
 			t.Fatalf("mint: %v", err)
 		}
 		rr := httptest.NewRecorder()
-		err = verifyDeviceProof(nil, nonces, here, "dev", pubB64, nonce, sign(c.message(nonce)), rr, rePinOnKeyChange, acceptLegacyProof)
+		err = verifyDeviceProof(nil, nonces, here, "dev", pubB64, nonce, sign(c.message(nonce)), rr, rePinOnKeyChange)
 		if (err == nil) != c.ok {
 			t.Errorf("%s: accepted=%v, want %v (%s)", c.name, err == nil, c.ok, rr.Body.String())
 		}
 	}
 }
 
-// Pairing refuses the bare-nonce proof: a relay can pass this agent's nonce to a phone and replay
+// Pairing refuses the bare-nonce proof, as login and register do: a relay can pass this agent's nonce to a phone and replay
 // the signature, but a v2 signature names the certificate the phone saw.
 func TestVerifyDeviceProof_PairingRequiresBoundProof(t *testing.T) {
 	pub, priv, _ := ed25519.GenerateKey(nil)
@@ -271,7 +269,7 @@ func TestVerifyDeviceProof_PairingRequiresBoundProof(t *testing.T) {
 		nonce, _ := nonces.Mint()
 		sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, []byte(c.msg(nonce))))
 		rr := httptest.NewRecorder()
-		err := verifyDeviceProof(nil, nonces, testProofFp, "dev", pubB64, nonce, sig, rr, rePinOnKeyChange, requireBoundProof)
+		err := verifyDeviceProof(nil, nonces, testProofFp, "dev", pubB64, nonce, sig, rr, rePinOnKeyChange)
 		if (err == nil) != c.ok {
 			t.Errorf("%s: accepted=%v want %v", c.name, err == nil, c.ok)
 		}

@@ -150,6 +150,67 @@ fn the_package_follows_how_the_app_runs() {
 }
 
 #[test]
+fn the_agent_packages_of_a_host_release_are_never_offered() {
+    // A host-v release lists the agent alone (for servers) before the app; the app's own package must win.
+    let names = [
+        "agent-v1.1.0-linux-amd64.deb",
+        "agent-v1.1.0-linux-amd64.rpm",
+        "RFE-Desktop_1.1.0_amd64.deb",
+        "RFE-Desktop-1.1.0-1.x86_64.rpm",
+    ];
+    assert_eq!(
+        package_for(names.iter().copied(), ".deb"),
+        Some("RFE-Desktop_1.1.0_amd64.deb")
+    );
+    assert_eq!(
+        package_for(names.iter().copied(), ".rpm"),
+        Some("RFE-Desktop-1.1.0-1.x86_64.rpm")
+    );
+    assert_eq!(
+        package_for(["agent-v1.1.0-linux-amd64.deb"].into_iter(), ".deb"),
+        None
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_host_release_is_newer_than_the_desktop_releases_before_it() {
+    let body = vec![3u8; 1000];
+    let name = "RFE-Desktop_1.1.0_amd64.deb";
+    let sums = format!("{}  {name}\n", hex::encode(Sha256::digest(&body)));
+    let s = site(&[
+        (
+            "host-v1.1.0",
+            false,
+            false,
+            vec![
+                ("agent-v1.1.0-linux-amd64.deb", b"agent".to_vec()),
+                (name, body.clone()),
+                ("SHA256SUMS.sig", sign(sums.as_bytes(), &test_key())),
+                ("SHA256SUMS", sums.clone().into_bytes()),
+            ],
+        ),
+        ("agent-v1.0.0", false, false, vec![]),
+        (
+            "desktop-v1.0.3",
+            false,
+            false,
+            vec![("old.deb", b"o".to_vec())],
+        ),
+    ]);
+    let url = format!("{}/list", s.base);
+    let v = check_at(&url, "1.0.3", false, ".deb").await.unwrap();
+    assert_eq!((v.latest.as_str(), v.available), ("1.1.0", true));
+    assert_eq!(v.package.unwrap().name, name);
+
+    let dir = TempDir::new().unwrap();
+    let key = test_key().verifying_key().to_bytes();
+    let path = download_signed_by(&url, "1.1.0", name, dir.path(), &key)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), body);
+}
+
+#[test]
 fn a_sums_file_names_each_package_once() {
     let h = "a".repeat(64);
     let sums = format!(

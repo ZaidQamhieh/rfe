@@ -1,25 +1,13 @@
 //! Folding changes into an index must give exactly what a fresh build of the same tree gives.
 
+mod common;
+
+use common::{build, touch_body};
 use rfe_indexd::filter::{Compiled, Filters};
 use rfe_indexd::index::{Index, Limits};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
-
-fn limits() -> Limits {
-    Limits {
-        max_entries: 1_000_000,
-        max_bytes: 1 << 30,
-    }
-}
-
-fn build(root: &Path) -> Index {
-    Index::build(
-        &[root.to_str().unwrap().to_string()],
-        limits(),
-        &AtomicBool::new(false),
-    )
-}
 
 fn everything(idx: &Index, root: &Path) -> Vec<rfe_indexd::entry::WireEntry> {
     idx.query(
@@ -28,11 +16,6 @@ fn everything(idx: &Index, root: &Path) -> Vec<rfe_indexd::entry::WireEntry> {
         usize::MAX,
     )
     .0
-}
-
-fn touch(p: &Path, body: &str) {
-    fs::create_dir_all(p.parent().unwrap()).unwrap();
-    fs::write(p, body).unwrap();
 }
 
 fn s(p: &Path) -> String {
@@ -59,11 +42,11 @@ fn assert_same(updated: &Index, root: &Path, what: &str) {
 fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     let t = tempfile::tempdir().unwrap();
     let root = t.path().join("root");
-    touch(&root.join("a.txt"), "a");
-    touch(&root.join("docs/readme.md"), "hello");
-    touch(&root.join("docs/deep/er/file.bin"), "xx");
-    touch(&root.join("src/main.rs"), "fn main(){}");
-    touch(&root.join(".hidden/x"), "x");
+    touch_body(&root.join("a.txt"), "a");
+    touch_body(&root.join("docs/readme.md"), "hello");
+    touch_body(&root.join("docs/deep/er/file.bin"), "xx");
+    touch_body(&root.join("src/main.rs"), "fn main(){}");
+    touch_body(&root.join(".hidden/x"), "x");
     (t, root)
 }
 
@@ -72,7 +55,7 @@ fn file_created_modified_and_deleted() {
     let (_t, root) = fixture();
     let mut idx = build(&root);
 
-    touch(&root.join("docs/new.txt"), "new");
+    touch_body(&root.join("docs/new.txt"), "new");
     idx = apply(&idx, &[&root.join("docs")]);
     assert_same(&idx, &root, "create");
 
@@ -90,8 +73,8 @@ fn directories_created_removed_renamed_and_moved() {
     let (_t, root) = fixture();
     let mut idx = build(&root);
 
-    touch(&root.join("new/sub/a.txt"), "1");
-    touch(&root.join("new/b.txt"), "2");
+    touch_body(&root.join("new/sub/a.txt"), "1");
+    touch_body(&root.join("new/b.txt"), "2");
     idx = apply(&idx, &[&root]);
     assert_same(&idx, &root, "new subtree");
 
@@ -118,7 +101,7 @@ fn directories_created_removed_renamed_and_moved() {
         .any(|e| e.path.contains("/src")));
 
     // A dirty directory that is already gone resolves through its parent.
-    touch(&root.join("tmp/x/y.txt"), "y");
+    touch_body(&root.join("tmp/x/y.txt"), "y");
     idx = apply(&idx, &[&root]);
     fs::remove_dir_all(root.join("tmp")).unwrap();
     idx = apply(&idx, &[&root.join("tmp/x")]);
@@ -150,8 +133,8 @@ fn symlinks_and_permissions() {
 fn hidden_and_unknown_directories_are_ignored() {
     let (_t, root) = fixture();
     let idx = build(&root);
-    touch(&root.join(".hidden/more"), "m");
-    touch(&root.join("node_modules/p/i.js"), "j");
+    touch_body(&root.join(".hidden/more"), "m");
+    touch_body(&root.join("node_modules/p/i.js"), "j");
     let idx = apply(
         &idx,
         &[
@@ -186,8 +169,8 @@ fn a_truncated_or_overgrown_index_asks_for_a_rebuild() {
         },
         &AtomicBool::new(false),
     );
-    touch(&root.join("one.txt"), "1");
-    touch(&root.join("two.txt"), "2");
+    touch_body(&root.join("one.txt"), "1");
+    touch_body(&root.join("two.txt"), "2");
     assert!(
         cap.apply(&[s(&root)], &AtomicBool::new(false)).is_none(),
         "growing past the budget needs a rebuild"
@@ -199,8 +182,25 @@ fn unchanged_chunks_are_shared_not_copied() {
     let (_t, root) = fixture();
     let idx = build(&root);
     let before = idx.stats.bytes;
-    touch(&root.join("src/extra.rs"), "x");
+    touch_body(&root.join("src/extra.rs"), "x");
     let idx2 = apply(&idx, &[&root.join("src")]);
     assert!(idx2.stats.bytes >= before);
     assert_same(&idx2, &root, "one dir changed");
+}
+
+#[test]
+fn a_root_that_could_not_be_listed_does_not_stop_later_updates() {
+    let t = tempfile::tempdir().unwrap();
+    let good = t.path().join("good");
+    touch_body(&good.join("a"), "x");
+    let missing = t.path().join("missing");
+    let roots = [s(&good), s(&missing)];
+    let idx = Index::build(&roots, common::TEST_LIMITS, &AtomicBool::new(false));
+    touch_body(&good.join("b"), "x");
+    let updated = apply(&idx, &[&good]);
+    let names: Vec<String> = everything(&updated, &good)
+        .into_iter()
+        .map(|e| e.path)
+        .collect();
+    assert!(names.iter().any(|n| n.ends_with("/b")), "{names:?}");
 }

@@ -1,0 +1,63 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Trust Matrix — who can do what, one grid, one click per change</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.tx{background:#0b1220;color:#dbe4f0;font-family:"IBM Plex Sans","Inter",system-ui,sans-serif;font-size:13px}
+.tx .tb{background:#070c16;color:#33415a}
+.tx .top{display:flex;align-items:center;gap:14px;padding:12px 22px;border-bottom:1px solid #1a2438}
+.tx .top .seg{display:flex;gap:2px;background:#111a2c;border-radius:10px;padding:3px}
+.tx .top .seg span{padding:6px 14px;border-radius:8px;color:#8293ad}.tx .top .seg span.on{background:#1f2c46;color:#fff}
+.tx .top .host{font-weight:600;font-size:14px}.tx .top .host small{color:#5d6d88;font-weight:400;margin-left:8px;font-family:ui-monospace,monospace;font-size:11.5px}
+.tx .top .r{margin-left:auto;color:#8293ad}
+.tx .main{flex:1;display:grid;grid-template-columns:1fr 330px;min-height:0}
+.tx .mx{padding:18px 22px;overflow:auto}
+.tx .shield{display:flex;gap:12px;margin-bottom:16px}
+.tx .shield div{flex:1;background:#111a2c;border:1px solid #1a2438;border-radius:12px;padding:12px 14px}
+.tx .shield b{display:block;font-size:20px;color:#fff;margin-top:2px}.tx .shield small{color:#8293ad}
+.tx .shield .g b{color:#4ade80}.tx .shield .w b{color:#fbbf24}
+.tx table{width:100%;border-collapse:separate;border-spacing:0}
+.tx th{font:600 11px system-ui;letter-spacing:.06em;text-transform:uppercase;color:#5d6d88;padding:8px 6px;text-align:center;border-bottom:1px solid #1a2438}
+.tx th:first-child{text-align:left}
+.tx td{padding:9px 6px;border-bottom:1px solid #131d30;text-align:center}
+.tx td:first-child{text-align:left}
+.tx td .dn{font-weight:600;color:#fff}.tx td small{display:block;color:#5d6d88;font-size:11.5px}
+.tx .tg{width:34px;height:20px;border-radius:10px;background:#1f2c46;display:inline-block;position:relative;cursor:pointer}
+.tx .tg::after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#5d6d88;transition:.15s}
+.tx .tg.on{background:#1d4ed8}.tx .tg.on::after{left:17px;background:#fff}
+.tx .tg.lock{opacity:.35;cursor:not-allowed}
+.tx tr.me td{background:rgba(29,78,216,.07)}
+.tx tr.rev td{opacity:.45}
+.tx .chip{font:600 10.5px system-ui;border-radius:6px;padding:2px 7px;background:#1f2c46;color:#8fb0ff}
+.tx .chip.o{background:#3a2a08;color:#fbbf24}
+.tx .rowact{color:#8293ad;font-size:12px;white-space:nowrap}
+.tx .rowact span:hover{color:#fca5a5}
+.tx aside{border-left:1px solid #1a2438;padding:18px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.tx aside h4{margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5d6d88}
+.tx .pend{background:#1c1606;border:1px solid #5b450c;border-radius:12px;padding:12px}
+.tx .pend .c{font:700 26px ui-monospace,monospace;letter-spacing:.14em;color:#fde68a;margin:6px 0}
+.tx .pend button{border:0;border-radius:8px;padding:7px 12px;font:600 12.5px system-ui;background:#fbbf24;color:#1c1606;margin-right:6px}
+.tx .pend button+button{background:#2a220c;color:#fde68a}
+.tx .pair{background:#111a2c;border:1px solid #1a2438;border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.tx .qr{width:84px;height:84px;flex:none;border-radius:6px;background:#fff;background-image:repeating-conic-gradient(#0b1220 0 25%,#fff 0 50%);background-size:12px 12px;border:6px solid #fff}
+.tx .pair b{font:700 16px ui-monospace,monospace;letter-spacing:.1em;color:#fff}
+.tx .ev{font-size:12.5px;color:#8293ad;padding:5px 0;border-bottom:1px solid #131d30}.tx .ev b{color:#dbe4f0;font-weight:500}.tx .ev.w b{color:#fca5a5}
+.tx .bot{display:flex;gap:16px;padding:9px 22px;border-top:1px solid #1a2438;color:#8293ad;font-size:12px}
+</style></head><body class="mk">
+<div class="win tx">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="top"><div class="seg"><span>Files</span><span class="on">Access</span><span>Activity</span></div><span class="host">studio-pc ▾<small>pinned SHA-256 9F:3A:1E:…:C1</small></span><span class="r">⌕ Ctrl K · ⚙</span></div>
+ <div class="main"><div class="mx">
+  <div class="shield"><div class="g"><small>Certificate</small><b>Pinned ✓</b></div><div><small>Devices</small><b>5 active</b></div><div class="w"><small>Waiting</small><b>1 request</b></div><div><small>Share links</small><b>2 live</b></div><div><small>Agent mode</small><b>Read-write</b></div></div>
+  <table><tr><th>Device</th><th>Browse</th><th>Download</th><th>Upload</th><th>Modify</th><th>Delete</th><th>Share</th><th>See apps</th><th>Launch</th><th>Folder limit</th><th></th></tr>
+   <tr class="me"><td><span class="dn">This app</span><small>owner sign-in · now</small></td><td colspan="8"><span class="chip">Owner: every file right · global limits still apply</span></td><td>—</td><td class="rowact">sign out</td></tr>
+   <tr><td><span class="dn">Pixel 7</span><small>code pairing · 2 h ago</small></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg on"></i></td><td><i class="tg"></i></td><td><i class="tg lock"></i></td><td>~/Photos</td><td class="rowact"><span>revoke</span> · <span>remove</span></td></tr>
+   <tr><td><span class="dn">Sam's tablet</span><small>approved on PC · Tue</small></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td>none</td><td class="rowact"><span>revoke</span> · <span>remove</span></td></tr>
+   <tr><td><span class="dn">work-laptop</span><small>desktop app · yesterday</small></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg on"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg lock"></i></td><td>~/Projects</td><td class="rowact"><span>revoke</span> · <span>remove</span></td></tr>
+   <tr><td><span class="dn">Kid's phone</span><small>code pairing · Oct 20</small></td><td><i class="tg on"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg"></i></td><td><i class="tg lock"></i></td><td>~/Shared</td><td class="rowact"><span>revoke</span> · <span>remove</span></td></tr>
+   <tr class="rev"><td><span class="dn">old-tablet</span><small><span class="chip o">revoked</span> Mon</small></td><td colspan="8" style="color:#5d6d88">Blocked: sign-ins refused</td><td>—</td><td class="rowact"><span>remove</span></td></tr></table>
+  <p style="color:#5d6d88;font-size:12px;margin-top:12px">A toggle saves at once and undoes with Ctrl Z for 10 s. Revoke and remove ask once. “Launch” needs “See apps”. Click a column head to set it for every row.</p></div>
+  <aside><h4>Waiting</h4><div class="pend"><b>“Sam's Pixel 9”</b> · 192.168.1.40<div class="c">482 913</div><small style="color:#c7a95a;display:block;margin-bottom:8px">Accept only if the phone shows this code. Starts browse-only.</small><button>Matches — accept</button><button>Reject</button></div>
+   <h4>Add a phone</h4><div class="pair"><div class="qr"></div><div><b>7Q4-K2M</b><br><small style="color:#8293ad">one use · 4:12 left<br>Copy code · Save QR · New</small></div></div>
+   <h4>Security events</h4><div class="ev"><b>Sign-in</b> · this app · 09:01</div><div class="ev w"><b>Failed sign-in</b> · 10.0.0.9 · 07:55</div><div class="ev"><b>Share link</b> hero-final.png · Tue</div><div class="ev"><b>Revoked</b> old-tablet · Mon</div>
+   <div style="margin-top:auto;color:#8293ad;font-size:12px">Sign out all phones · Agent log · Pinned certificates</div></aside></div>
+ <div class="bot"><span>⇅ 2 transfers · 58%</span><span>Files tab: list + drag-drop upload</span><span style="margin-left:auto">studio-pc · Linux · up 6 d</span></div>
+</div></body></html>

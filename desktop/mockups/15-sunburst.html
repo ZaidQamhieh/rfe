@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sunburst — navigate by where the space is</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.sb{background:#f7f5f2;color:#1d1b19;font-family:"Inter",system-ui,sans-serif;font-size:13px}
+.sb .tb{background:#f7f5f2;color:#bbb3a6}
+.sb .main{flex:1;display:grid;grid-template-columns:620px 1fr;min-height:0}
+.sb .chart{position:relative;display:grid;place-items:center}
+.sb .chart svg{width:560px;height:560px}
+.sb .center{position:absolute;text-align:center}
+.sb .center b{display:block;font:600 22px system-ui}.sb .center small{color:#8f8678}
+.sb .center .up{margin-top:6px;font-size:12px;color:#c2410c}
+.sb .radial{position:absolute;left:356px;top:246px;width:150px;height:150px}
+.sb .radial span{position:absolute;background:#1d1b19;color:#fff;border-radius:999px;padding:6px 11px;font-size:12px;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+.sb .side{padding:24px 30px 24px 0;display:flex;flex-direction:column;gap:14px;min-height:0}
+.sb .hosts{display:flex;gap:6px}.sb .hosts span{padding:6px 12px;border-radius:999px;background:#ebe6de;font-size:12.5px}.sb .hosts span.on{background:#1d1b19;color:#fff}
+.sb .crumb{font-size:20px;font-weight:600}.sb .crumb span{color:#bbb3a6;font-weight:400}
+.sb .lst{flex:1;overflow:auto;background:#fff;border-radius:14px;padding:6px}
+.sb .r{display:grid;grid-template-columns:12px 1fr 80px 120px;gap:10px;align-items:center;padding:8px 10px;border-radius:9px}
+.sb .r:hover{background:#f7f5f2}.sb .r.on{background:#fff1e6}
+.sb .r i{width:10px;height:10px;border-radius:3px}
+.sb .r .b{height:6px;background:#f1ece5;border-radius:3px;overflow:hidden}.sb .r .b u{display:block;height:100%}
+.sb .r span{color:#8f8678;text-align:right}
+.sb .foot{display:flex;gap:10px;font-size:12px;color:#8f8678}
+.sb .foot div{background:#fff;border-radius:10px;padding:9px 12px;flex:1}
+.sb .foot b{color:#1d1b19}
+</style></head><body class="mk">
+<div class="win sb">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="main">
+  <div class="chart"><svg viewBox="-280 -280 560 560">
+   <g fill="none" stroke-width="58">
+    <circle r="110" stroke="#ea580c" stroke-dasharray="276 691" transform="rotate(-90)"/>
+    <circle r="110" stroke="#0891b2" stroke-dasharray="180 691" stroke-dashoffset="-276" transform="rotate(-90)"/>
+    <circle r="110" stroke="#65a30d" stroke-dasharray="120 691" stroke-dashoffset="-456" transform="rotate(-90)"/>
+    <circle r="110" stroke="#a8a29e" stroke-dasharray="110 691" stroke-dashoffset="-576" transform="rotate(-90)"/></g>
+   <g fill="none" stroke-width="54">
+    <circle r="172" stroke="#fb923c" stroke-dasharray="190 1081" transform="rotate(-90)"/>
+    <circle r="172" stroke="#fdba74" stroke-dasharray="120 1081" stroke-dashoffset="-194" transform="rotate(-90)"/>
+    <circle r="172" stroke="#fed7aa" stroke-dasharray="110 1081" stroke-dashoffset="-318" transform="rotate(-90)"/>
+    <circle r="172" stroke="#22d3ee" stroke-dasharray="160 1081" stroke-dashoffset="-432" transform="rotate(-90)"/>
+    <circle r="172" stroke="#67e8f9" stroke-dasharray="118 1081" stroke-dashoffset="-596" transform="rotate(-90)"/>
+    <circle r="172" stroke="#a3e635" stroke-dasharray="186 1081" stroke-dashoffset="-718" transform="rotate(-90)"/>
+    <circle r="172" stroke="#d6d3d1" stroke-dasharray="170 1081" stroke-dashoffset="-908" transform="rotate(-90)"/></g>
+   <g fill="none" stroke-width="40" opacity=".9">
+    <circle r="222" stroke="#fdba74" stroke-dasharray="130 1395" transform="rotate(-90)"/>
+    <circle r="222" stroke="#fed7aa" stroke-dasharray="110 1395" stroke-dashoffset="-134" transform="rotate(-90)"/>
+    <circle r="222" stroke="#ffedd5" stroke-dasharray="100 1395" stroke-dashoffset="-248" transform="rotate(-90)"/></g>
+   <circle r="122" fill="none" stroke="#1d1b19" stroke-width="3" stroke-dasharray="70 697" transform="rotate(-90)"/>
+  </svg>
+   <div class="center"><b>Photos</b><small>418 GB of 1.2 TB used<br>click a ring to go in</small><div class="up">↑ studio-pc / home</div></div>
+   <div class="radial"><span style="left:36px;top:-8px">⇩ Download</span><span style="left:118px;top:36px">Share</span><span style="left:108px;top:98px">Move</span><span style="left:28px;top:128px">Trash</span></div></div>
+  <div class="side"><div class="hosts"><span class="on">studio-pc</span><span>work-laptop</span><span>nas-box</span><span>＋</span><span style="margin-left:auto;background:none">⌕ ☍1 ⚙</span></div>
+   <div class="crumb"><span>home /</span> Photos</div>
+   <div class="lst">
+    <div class="r on"><i style="background:#fb923c"></i>2025-10 Lisbon<div class="b"><u style="width:72%;background:#fb923c"></u></div><span>142 GB</span></div>
+    <div class="r"><i style="background:#fdba74"></i>2025-09 Wedding<div class="b"><u style="width:46%;background:#fdba74"></u></div><span>91 GB</span></div>
+    <div class="r"><i style="background:#fed7aa"></i>2025-08 Coast<div class="b"><u style="width:40%;background:#fed7aa"></u></div><span>80 GB</span></div>
+    <div class="r"><i style="background:#22d3ee"></i>raw-exports<div class="b"><u style="width:30%;background:#22d3ee"></u></div><span>61 GB</span></div>
+    <div class="r"><i style="background:#67e8f9"></i>scans<div class="b"><u style="width:12%;background:#67e8f9"></u></div><span>24 GB</span></div>
+    <div class="r"><i style="background:#a3e635"></i>phone-backup<div class="b"><u style="width:10%;background:#a3e635"></u></div><span>20 GB</span></div>
+    <div class="r"><i style="background:#d6d3d1"></i>34 smaller items<div class="b"><u style="width:3%;background:#d6d3d1"></u></div><span>4 GB</span></div></div>
+   <div class="foot"><div>Trash on studio-pc <b>18 GB</b> · empty old</div><div>↑ 2 transfers <b>58%</b></div><div>Right-click a slice: <b>radial menu</b></div></div></div>
+ </div>
+</div></body></html>

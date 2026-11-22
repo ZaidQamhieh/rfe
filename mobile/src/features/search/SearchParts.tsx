@@ -1,147 +1,173 @@
-import { ChevronRight, File as FileIcon, FileArchive, FileText, Folder, Globe, Image as ImageIcon, Info, Music, Regex, Video, type LucideIcon } from 'lucide-react-native';
-import { ScrollView, Text as RNText, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Info, Search, X } from 'lucide-react-native';
+import { useState } from 'react';
+import { ScrollView, Text as RNText, TextInput, View } from 'react-native';
 
-import type { Entry } from '../../core/api/models';
-import { roleOf } from '../../core/entryCategory';
-import { formatDate, formatSize } from '../../core/format';
-import { Pressable, Text } from '../../design/components';
+import type { Entry, Snippet } from '../../core/api/models';
+import { formatSize } from '../../core/format';
+import { Button, Chip, DuoIcon, Emoji, Pressable, Text } from '../../design/components';
 import { mix } from '../../design/color';
 import { LumenSize, LumenType } from '../../design/lumen';
 import { useRoles, useScheme } from '../../design/theme';
-import { FontFamily, Radii, type Roles } from '../../design/tokens';
+import { FontFamily, Radii, Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
-import { folderLabel } from '../explorer/paths';
-import { CATEGORY_LABEL, highlightRange, SEARCH_CATEGORIES, type SearchCategory } from './searchLogic';
+import { emojiNameFor } from '../explorer/entryEmoji';
+import { highlightRange } from './searchLogic';
+import { parentFolderName } from './searchScope';
 
-const CATEGORY_ICON: Record<SearchCategory, LucideIcon> = { folder: Folder, image: ImageIcon, video: Video, audio: Music, document: FileText, archive: FileArchive, other: FileIcon };
-const CATEGORY_ROLE: Record<SearchCategory, keyof Roles | null> = { folder: 'folder', image: 'photo', video: 'photo', audio: 'route', document: 'doc', archive: 'warn', other: null };
-
-/** Icon of a result row by MIME type; the colour comes from the entry's role (see ResultIconTile). */
-export function resultIcon(e: Pick<Entry, 'isDir' | 'mimeType'>): { icon: LucideIcon } {
-  if (e.isDir) return { icon: Folder };
-  const mime = e.mimeType ?? '';
-  if (mime.startsWith('image/')) return { icon: ImageIcon };
-  if (mime.startsWith('video/')) return { icon: Video };
-  if (mime.startsWith('audio/')) return { icon: Music };
-  if (mime.includes('pdf') || mime.startsWith('text/') || mime.includes('json')) return { icon: FileText };
-  if (mime.includes('zip') || mime.includes('archive')) return { icon: FileArchive };
-  return { icon: FileIcon };
-}
-
-/** `.filemark`: 38 dp tile, the entry's role colour at 17% over the raised surface (neutral when the type is unknown). */
-export function ResultIconTile({ entry }: { entry: Pick<Entry, 'isDir' | 'mimeType'> }) {
+/**
+ * Search bar (`.bar` with a `.field`): a back button and a 48 high field with the search glyph, the input and a clear
+ * button once there is text. The field has a 1px hairline and a 2px accent border while it has focus.
+ */
+export function SearchBarRow({ value, onChange, onSubmit, placeholder, onClear }: { value: string; onChange: (v: string) => void; onSubmit?: () => void; placeholder: string; onClear: () => void }) {
   const c = useScheme();
-  const roles = useRoles();
-  const { icon: Icon } = resultIcon(entry);
-  const role = roleOf(entry);
-  const tint = role ? roles[role] : c.onSurfaceVariant;
+  const router = useRouter();
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: role ? mix(tint, c.surfaceContainerHigh, 0.17) : c.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={22} color={tint} />
+    <View style={{ height: 64, flexDirection: 'row', alignItems: 'center', paddingLeft: Spacing.xs, paddingRight: Spacing.md2 }}>
+      <Pressable onPress={() => router.back()} accessibilityLabel={t('searchBack')} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+        <DuoIcon icon={ArrowLeft} size={24} />
+      </Pressable>
+      <View style={{ flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: focused ? 11 : Spacing.md2, borderRadius: Radii.control, borderWidth: focused ? 2 : 1, borderColor: focused ? c.primary : c.rule2, backgroundColor: c.surfaceContainerLowest }}>
+        <Search size={20} color={c.onSurfaceVariant} />
+        <TextInput
+          accessibilityLabel={placeholder}
+          autoFocus
+          value={value}
+          onChangeText={onChange}
+          onSubmitEditing={onSubmit}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          placeholderTextColor={c.onSurfaceVariant}
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={{ flex: 1, padding: 0, fontSize: 16, fontFamily: FontFamily.regular, color: c.onSurface }}
+        />
+        {value !== '' && (
+          <Pressable onPress={onClear} hitSlop={12} accessibilityLabel={t('searchClear')}>
+            <X size={20} color={c.onSurfaceVariant} />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
 
-/** Row wrapper that joins consecutive results into one `.filelist` card: rounded at the first and last row only. */
-export function ResultCardRow({ index, count, children }: { index: number; count: number; children: React.ReactNode }) {
+/** One scope chip: its label, whether it is the active choice, and what a tap does. */
+export type ScopeChipSpec = { key: string; label: string; selected?: boolean; dropdown?: boolean; onPress: () => void };
+
+/** Scrolling row of scope chips (`.chips`): 16 side padding, 8 gap; a chip with `dropdown` opens a choice list, shown by a small chevron. */
+export function ScopeChips({ chips }: { chips: ScopeChipSpec[] }) {
   const c = useScheme();
-  const r = LumenSize.cardRadius;
-  const first = index === 0;
-  const last = index === count - 1;
   return (
-    <View
-      style={{
-        marginHorizontal: 18,
-        paddingHorizontal: 14,
-        paddingTop: first ? 8 : 0,
-        paddingBottom: last ? 8 : 0,
-        backgroundColor: c.surfaceContainer,
-        borderTopLeftRadius: first ? r : 0,
-        borderTopRightRadius: first ? r : 0,
-        borderBottomLeftRadius: last ? r : 0,
-        borderBottomRightRadius: last ? r : 0,
-      }}
-    >
-      {children}
-    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.sm, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
+      {chips.map((x) => (
+        <Chip key={x.key} label={x.label} selected={x.selected} onPress={x.onPress} icon={x.dropdown ? <RNText style={{ color: c.onSurfaceVariant, fontSize: 12 }}>{'▾'}</RNText> : undefined} />
+      ))}
+    </ScrollView>
   );
 }
 
-/** Flat search field (no outline): a pill on the card surface holding the icon, the input and any trailing actions. */
-export function SearchField({ children, style }: { children: React.ReactNode; style?: object }) {
-  const c = useScheme();
-  return (
-    <View style={[{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, backgroundColor: c.surfaceContainer, borderRadius: Radii.stadium }, style]}>
-      {children}
-    </View>
-  );
-}
-
+/** Name with the matched part in 600 weight (no coloured background); long names are cut in the middle. */
 function HighlightedName({ name, query, highlight }: { name: string; query: string; highlight: boolean }) {
   const c = useScheme();
   const base = { ...LumenType.name, color: c.onSurface } as const;
   const r = highlight ? highlightRange(name, query) : null;
-  if (!r) return <Text numberOfLines={1} style={base}>{name}</Text>;
+  if (!r) return <RNText numberOfLines={1} ellipsizeMode="middle" style={base}>{name}</RNText>;
   return (
-    <RNText numberOfLines={1} style={base}>
+    <RNText numberOfLines={1} ellipsizeMode="middle" style={base}>
       {name.slice(0, r.start)}
-      <RNText style={{ fontFamily: FontFamily.semibold, backgroundColor: c.primaryContainer, color: c.onPrimaryContainer }}>{name.slice(r.start, r.end)}</RNText>
+      <RNText style={{ fontFamily: FontFamily.semibold }}>{name.slice(r.start, r.end)}</RNText>
       {name.slice(r.end)}
     </RNText>
   );
 }
 
-/** One search hit: name with the matched part highlighted, and path, size and date under it. */
-export function SearchResultTile({ entry, query, highlight, onPress }: { entry: Entry; query: string; highlight: boolean; onPress: () => void }) {
-  const c = useScheme();
-  const sub = [entry.path, !entry.isDir ? formatSize(entry.size) : '', entry.modified ? formatDate(new Date(entry.modified)) : ''].filter(Boolean).join('  ·  ');
+/** The matching line of a content hit, the match in 600 weight; one line, cut by the row. */
+function SnippetLine({ snippet }: { snippet: Snippet }) {
+  const { text, start, length } = snippet;
   return (
-    <Pressable onPress={onPress} accessibilityLabel={entry.name}>
-      <View style={{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
-        <ResultIconTile entry={entry} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <HighlightedName name={entry.name} query={query} highlight={highlight} />
-          <Text numberOfLines={2} muted style={[LumenType.meta, { fontFamily: FontFamily.mono, fontSize: 13, lineHeight: 18 }]}>{sub}</Text>
+    <Text numberOfLines={1} muted style={LumenType.meta} accessibilityLabel={t('searchSnippetLabel', { text })}>
+      {text.slice(0, start)}
+      <RNText style={{ fontFamily: FontFamily.semibold }}>{text.slice(start, start + length)}</RNText>
+      {text.slice(start + length)}
+    </Text>
+  );
+}
+
+/**
+ * One search hit as a flat row (`.row`): the thing's emoji, the name with the match in 600 weight, the parent folder's
+ * name ("in Documents") under it and the size on the right. The full path is not shown. Same metrics as the shared Row, which only takes a plain title.
+ */
+export function ResultRow({ entry, query, highlight, onPress, label }: { entry: Entry; query: string; highlight: boolean; onPress: () => void; label?: string }) {
+  const c = useScheme();
+  const size = entry.isDir ? '' : formatSize(entry.size);
+  const folder = parentFolderName(entry.path);
+  return (
+    <Pressable onPress={onPress} accessibilityLabel={label ?? entry.name} pressedScale={1}>
+      <View style={{ minHeight: LumenSize.rowMinHeight, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md }}>
+        <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Emoji name={emojiNameFor(entry)} size={32} />
         </View>
-        {entry.isDir && <ChevronRight size={18} color={c.onSurfaceVariant} />}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <HighlightedName name={entry.name} query={query} highlight={highlight} />
+          {entry.snippet ? <SnippetLine snippet={entry.snippet} /> : null}
+          {folder ? <Text numberOfLines={1} muted style={LumenType.meta}>{t('searchInFolder', { folder })}</Text> : null}
+        </View>
+        {size ? <Text style={[LumenType.monoSmall, { fontSize: 13 }]} color={c.onSurfaceVariant}>{size}</Text> : null}
       </View>
     </Pressable>
   );
 }
 
-/** Horizontally scrolling category filter chips; a selected chip takes its role colour at 17% over the card surface. */
-export function CategoryChips({ selected, onToggle }: { selected: SearchCategory[]; onToggle: (c: SearchCategory) => void }) {
-  const c = useScheme();
-  const roles = useRoles();
+/** Sentence-case 14/500 label above a group of rows (`.sec`). */
+export function SectionHeading({ text }: { text: string }) {
+  return <Text accessibilityRole="header" style={[LumenType.sectionLabel, { paddingHorizontal: Spacing.md, paddingTop: Spacing.md3, paddingBottom: 6 }]} muted>{text}</Text>;
+}
+
+/** Nothing matched: an emoji, one sentence, a hint and short buttons (`.empty`). */
+export function NoResults({ title, hint, actions }: { title: string; hint?: string; actions?: { label: string; onPress: () => void; primary?: boolean }[] }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 18, paddingVertical: 6, gap: 8, alignItems: 'center' }}>
-      {SEARCH_CATEGORIES.map((cat) => {
-        const on = selected.includes(cat);
-        const role = CATEGORY_ROLE[cat];
-        const tint = role ? roles[role] : c.primary;
-        const Icon = CATEGORY_ICON[cat];
-        return (
-          <Pressable key={cat} onPress={() => onToggle(cat)} hitSlop={4} accessibilityLabel={t(CATEGORY_LABEL[cat])} accessibilityState={{ selected: on }}>
-            <View style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: Radii.stadium, backgroundColor: on ? mix(tint, c.surfaceContainer, 0.2) : c.surfaceContainer }}>
-              <Icon size={16} color={on ? tint : role ? tint : c.onSurfaceVariant} />
-              <Text style={LumenType.pill} color={on ? tint : c.onSurfaceVariant}>{t(CATEGORY_LABEL[cat])}</Text>
-            </View>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <View style={{ paddingTop: Spacing.xl, paddingHorizontal: Spacing.lg, gap: Spacing.sm }} accessibilityRole="summary">
+      <Emoji name="card_file_box" size={48} />
+      <Text style={[LumenType.pageTitle, { marginTop: Spacing.sm }]}>{title}</Text>
+      {hint ? <Text style={[LumenType.name, { lineHeight: 24 }]} muted>{hint}</Text> : null}
+      {actions && actions.length > 0 ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md2 }}>
+          {actions.map((a) => (
+            <Button key={a.label} label={a.label} kind={a.primary ? 'neutral' : 'text'} onPress={a.onPress} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Placeholder rows shown while a search runs: a round-cornered emoji slot and two grey bars per row. */
+export function ResultSkeleton({ rows = 8 }: { rows?: number }) {
+  const c = useScheme();
+  return (
+    <View accessibilityRole="progressbar" accessibilityLabel={t('searchingProgress')}>
+      {Array.from({ length: rows }, (_, i) => (
+        <View key={i} style={{ minHeight: LumenSize.rowMinHeight, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.md }}>
+          <View style={{ width: 40, height: 40, borderRadius: Radii.control, backgroundColor: c.surfaceContainerHigh }} />
+          <View style={{ gap: 6 }}>
+            <View style={{ height: 14, width: i % 2 ? 130 : 190, borderRadius: Radii.file, backgroundColor: c.surfaceContainerHigh }} />
+            <View style={{ height: 12, width: 100, borderRadius: Radii.file, backgroundColor: c.surfaceContainerHigh }} />
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
 /** Static chip shown when the query is treated as a glob or regex. */
 export function GlobIndicator() {
-  const c = useScheme();
   return (
-    <View style={{ paddingHorizontal: 18, paddingBottom: 6, flexDirection: 'row' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.stadium, backgroundColor: mix(c.primary, c.surfaceContainer, 0.2) }}>
-        <Regex size={16} color={c.primary} />
-        <Text style={LumenType.pill} color={c.primary}>{t('globPattern')}</Text>
-      </View>
+    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, flexDirection: 'row' }}>
+      <Chip label={t('globPattern')} selected />
     </View>
   );
 }
@@ -155,19 +181,5 @@ export function TruncationBanner({ message }: { message: string }) {
       <Info size={18} color={roles.warn} />
       <Text style={[LumenType.meta, { flex: 1 }]} color={c.onSurface}>{message}</Text>
     </View>
-  );
-}
-
-/** Pill showing where the search runs (this folder or everywhere); tapping opens the filters. */
-export function ScopePill({ fromHere, currentPath, onPress }: { fromHere: boolean; currentPath: string; onPress: () => void }) {
-  const c = useScheme();
-  const Icon = fromHere ? Folder : Globe;
-  return (
-    <Pressable onPress={onPress} hitSlop={4} accessibilityLabel={fromHere ? folderLabel(currentPath) : t('searchingEverywhere')} style={{ marginLeft: 18 }}>
-      <View style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: Radii.stadium, backgroundColor: mix(c.primary, c.surfaceContainer, 0.2) }}>
-        <Icon size={16} color={c.primary} />
-        <Text numberOfLines={1} style={[LumenType.pill, { maxWidth: 140 }]} color={c.primary}>{fromHere ? folderLabel(currentPath) : t('searchingEverywhere')}</Text>
-      </View>
-    </Pressable>
   );
 }

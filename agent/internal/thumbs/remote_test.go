@@ -19,7 +19,7 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/sidecar"
 )
 
-func thumbdBinary(t *testing.T) string {
+func thumbdBinary(t testing.TB) string {
 	t.Helper()
 	name := "rfe-thumbd"
 	if runtime.GOOS == "windows" {
@@ -42,7 +42,7 @@ func thumbdBinary(t *testing.T) string {
 	return ""
 }
 
-func newRemote(t *testing.T) SidecarRemote {
+func newRemote(t testing.TB) SidecarRemote {
 	t.Helper()
 	sup := sidecar.NewSupervisor(sidecar.Config{Name: "rfe-thumbd", Path: thumbdBinary(t), Logf: t.Logf}, nil)
 	sup.Run()

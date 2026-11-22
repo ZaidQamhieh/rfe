@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
+import { formatLogTime } from '@/lib/format';
+import { REFRESH_INTERVAL_MS } from '@/lib/queries';
 import { useToast } from '@/lib/toast-context';
+import { ListError } from '@/components/ListError';
 
 type Level = 'info' | 'warn' | 'error';
 const FILTERS = ['all', 'info', 'warn', 'error'] as const;
@@ -25,12 +28,12 @@ export function Logs() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['logs'],
     queryFn: api.listLogs,
-    refetchInterval: 10000,
+    refetchInterval: REFRESH_INTERVAL_MS,
   });
 
   async function handleRefresh() {
-    await refetch();
-    toast('Refreshed');
+    const result = await refetch();
+    toast(result.isError ? 'Refresh failed' : 'Refreshed');
   }
 
   const logs = data ?? [];
@@ -55,10 +58,7 @@ export function Logs() {
       {isLoading ? (
         <div className="empty"><p>Loading logs…</p></div>
       ) : isError && !data ? (
-        <div className="empty">
-          <h4>Could not load the logs</h4>
-          <p>{error instanceof Error ? error.message : 'The agent did not answer.'}</p>
-        </div>
+        <ListError title="Could not load logs" error={error} />
       ) : filtered.length === 0 ? (
         <div className="empty">
           <h4>No log lines</h4>
@@ -68,8 +68,7 @@ export function Logs() {
         <div className="logview">
           {filtered.map((l, i) => {
             const level = classify(l.message);
-            const t = new Date(l.ts);
-            const time = Number.isNaN(t.getTime()) ? l.ts : t.toLocaleTimeString();
+            const time = formatLogTime(l.ts);
             return (
               <div className={`log-row${level === 'info' ? '' : ` ${level}`}`} key={`${l.ts}-${i}`}>
                 <span className="t">{time}</span>

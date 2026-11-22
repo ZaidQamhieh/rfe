@@ -18,7 +18,7 @@ type ShareToken struct {
 
 // CreateShareToken stores a new one-time share token. tokenHash is the
 // SHA-256 hash of the raw token — only the hash is ever persisted. deviceID
-// is the minting device, used to scope list/revoke to the owner (PR-03).
+// is the minting device, used to scope list/revoke to the owner.
 func (s *DB) CreateShareToken(tokenHash, path, deviceID string, expiresAt time.Time) error {
 	_, err := s.db.Exec(
 		`INSERT INTO share_tokens (token_hash, path, created, expires, device_id) VALUES (?,?,?,?,?)`,
@@ -27,18 +27,12 @@ func (s *DB) CreateShareToken(tokenHash, path, deviceID string, expiresAt time.T
 	return err
 }
 
-// ConsumeShareToken atomically looks up tokenHash, deletes it (single-use),
+// ConsumeShareTokenFor atomically looks up tokenHash, deletes it (single-use),
 // and returns the path it was bound to. ok is false if the token doesn't
 // exist or has expired — callers must not distinguish the two in their
-// response (don't leak which).
-func (s *DB) ConsumeShareToken(tokenHash string) (path string, ok bool, err error) {
-	path, _, ok, err = s.ConsumeShareTokenFor(tokenHash)
-	return path, ok, err
-}
-
-// ConsumeShareTokenFor is ConsumeShareToken that also returns the minting
-// device id ("" for tokens that predate the column), so the caller can
-// re-check that device's current rights before serving.
+// response (don't leak which). It also returns the minting device id ("" for
+// tokens that predate the column), so the caller can re-check that device's
+// current rights before serving.
 func (s *DB) ConsumeShareTokenFor(tokenHash string) (path, deviceID string, ok bool, err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -71,7 +65,7 @@ func (s *DB) ConsumeShareTokenFor(tokenHash string) (path, deviceID string, ok b
 }
 
 // GetShareToken returns the token with this hash, or (nil, nil) if there is
-// none. Used to check ownership before revoking (PR-03).
+// none. Used to check ownership before revoking.
 func (s *DB) GetShareToken(tokenHash string) (*ShareToken, error) {
 	var t ShareToken
 	var expires int64

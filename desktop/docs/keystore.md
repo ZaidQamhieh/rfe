@@ -31,7 +31,7 @@ KeePassXC or with `secret-tool search service rfe-desktop`.
 
 ## Messages and what to do
 
-Settings has a **Test the keystore** button: it saves a throwaway secret, reads it back and removes it,
+Settings has a **Check secure storage** button: it saves a throwaway secret, reads it back and removes it,
 and shows the same message the sign-in would.
 
 | The window says | Cause | Do this |
@@ -40,7 +40,7 @@ and shows the same message the sign-in would.
 | "the OS keystore refused access ... unlock prompt was dismissed" | A provider is running but locked, and the unlock prompt was closed or could not be shown | Unlock the keyring or wallet (log in again, or open it in Seahorse, KWalletManager or KeePassXC), then retry |
 | "the OS keystore refused access ... no result found" | The provider has no default keyring | Create one (Seahorse: new password keyring, set as default) |
 | "the OS keystore refused access ... Cannot create an item in a locked collection" | Locked, as above | Unlock it |
-| "the OS keystore did not keep the login token" or "... the device key" | The keystore accepted a write but returned something else when read back | Try again; if it repeats, the provider is faulty or full. Run **Test the keystore** in Settings |
+| "the OS keystore did not keep the login token" or "... the device key" | The keystore accepted a write but returned something else when read back | Try again; if it repeats, the provider is faulty or full. Run **Check secure storage** in Settings |
 | "the OS keystore did not return what was saved" | Same, from the Settings test | Same |
 | "the OS keystore call failed to run" | The app's own worker stopped | Restart the app; report it if it repeats |
 | "the keystore identity is damaged" | The stored device key cannot be read | Use "Create a new device key for this computer" on the sign-in screen while signed out |

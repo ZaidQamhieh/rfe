@@ -10,8 +10,9 @@ import java.net.Inet4Address
 
 /**
  * mDNS/DNS-SD search for `_rfe._tcp.` agents, ported from the Flutter
- * MainActivity: IPv4 only, at most 64 candidates, 8 s timeout, multicast lock
- * held during the search. Discovery results are UNTRUSTED hints: pairing still
+ * MainActivity: IPv4 only, at most 64 candidates, multicast lock held during the
+ * search. Each agent is reported as soon as it resolves; the search ends after
+ * TIMEOUT_MS, or QUIET_MS after the last agent was found. Discovery results are UNTRUSTED hints: pairing still
  * requires an out-of-band certificate fingerprint.
  */
 class LanDiscovery(context: Context) {
@@ -24,17 +25,25 @@ class LanDiscovery(context: Context) {
   private var listener: NsdManager.DiscoveryListener? = null
   private var multicast: WifiManager.MulticastLock? = null
   private var timeout: Runnable? = null
+  private var quiet: Runnable? = null
   private var done: ((List<Map<String, Any>>, String?) -> Unit)? = null
   private var active = false
 
   companion object {
     const val SERVICE_TYPE = "_rfe._tcp."
-    const val TIMEOUT_MS = 8_000L
+    /**
+     * Upper bound of one search. mDNS queries are re-sent after about 1 s and 3 s, so a computer that missed the first
+     * one answers well inside 5 s; the old 8 s only made an empty or finished search feel slow.
+     */
+    const val TIMEOUT_MS = 5_000L
+
+    /** Once something was found, how long to wait for another before ending (longer than the 2 s retransmission gap). */
+    const val QUIET_MS = 2_000L
     const val MAX_CANDIDATES = 64
   }
 
-  /** Starts a search; [callback] gets (agents, errorCode). Only one search may run. */
-  fun scan(callback: (List<Map<String, Any>>, String?) -> Unit) {
+  /** Starts a search; [onFound] gets each agent as it resolves (main thread), [callback] gets (agents, errorCode). Only one search may run. */
+  fun scan(onFound: (Map<String, Any>) -> Unit, callback: (List<Map<String, Any>>, String?) -> Unit) {
     if (done != null) return callback(emptyList(), "SCAN_BUSY")
     val mgr = app.getSystemService(Context.NSD_SERVICE) as? NsdManager
       ?: return callback(emptyList(), "DISCOVERY_UNAVAILABLE")
@@ -71,8 +80,13 @@ class LanDiscovery(context: Context) {
               val host = addr.hostAddress ?: return
               if (info.port !in 1..65535) return
               val name = info.serviceName.trim().ifEmpty { "RFE computer" }
-              synchronized(lock) {
-                if (active) candidates["$host:${info.port}"] = mapOf("name" to name.take(128), "address" to host, "port" to info.port)
+              val agent = mapOf("name" to name.take(128), "address" to host, "port" to info.port)
+              val fresh = synchronized(lock) { active && candidates.put("$host:${info.port}", agent) == null }
+              if (fresh) handler.post {
+                if (done != null) {
+                  onFound(agent)
+                  armQuiet()
+                }
               }
             }
           })
@@ -99,9 +113,19 @@ class LanDiscovery(context: Context) {
 
   fun stop() = finish(null)
 
+  /** (Re)starts the quiet period that ends the search when nothing more is found. */
+  private fun armQuiet() {
+    quiet?.let(handler::removeCallbacks)
+    val q = Runnable { finish(null) }
+    quiet = q
+    handler.postDelayed(q, QUIET_MS)
+  }
+
   private fun finish(error: String?) {
     timeout?.let(handler::removeCallbacks)
     timeout = null
+    quiet?.let(handler::removeCallbacks)
+    quiet = null
     multicast?.let { if (it.isHeld) it.release() }
     multicast = null
     listener?.let { l -> try { manager?.stopServiceDiscovery(l) } catch (_: RuntimeException) {} }

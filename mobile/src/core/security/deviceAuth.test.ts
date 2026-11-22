@@ -31,4 +31,17 @@ describe('authenticate', () => {
     mock.hasHardwareAsync.mockRejectedValue(new Error('native'));
     expect(await authenticate('r')).toBe('failed');
   });
+
+  it('logs a native error instead of swallowing it', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mock.authenticateAsync.mockRejectedValue(new Error('native boom'));
+      expect(await authenticate('r')).toBe('failed');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('device auth');
+      expect(warn.mock.calls[0][0]).toContain('native boom');
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

@@ -1,3 +1,4 @@
+import type { StringKey } from '../i18n';
 import type { Entry } from './api/models';
 import { archiveExtensions, audioExtensions, docExtensions, imageExtensions, videoExtensions } from './entryCategory';
 
@@ -5,17 +6,17 @@ export type VisibilityPrefs = { hideDotfiles: boolean; hiddenExtensions: Set<str
 
 export const defaultVisibility = (): VisibilityPrefs => ({ hideDotfiles: true, hiddenExtensions: new Set(), hiddenNames: new Set() });
 
-export type VisibilityPreset = { label: string; extensions: Set<string>; names: Set<string> };
-const preset = (label: string, extensions: Iterable<string> = [], names: Iterable<string> = []): VisibilityPreset => ({ label, extensions: new Set(extensions), names: new Set(names) });
+export type VisibilityPreset = { labelKey: StringKey; extensions: Set<string>; names: Set<string> };
+const preset = (labelKey: StringKey, extensions: Iterable<string> = [], names: Iterable<string> = []): VisibilityPreset => ({ labelKey, extensions: new Set(extensions), names: new Set(names) });
 
 export const visibilityPresets: VisibilityPreset[] = [
-  preset('System junk', ['tmp', 'bak', 'swp', 'lock', 'ini'], ['.DS_Store', 'Thumbs.db', 'desktop.ini']),
-  preset('Logs', ['log', 'old']),
-  preset('Archives', archiveExtensions),
-  preset('Audio', audioExtensions),
-  preset('Images', imageExtensions),
-  preset('Videos', videoExtensions),
-  preset('Docs', docExtensions),
+  preset('visibilityPresetSystemJunk', ['tmp', 'bak', 'swp', 'lock', 'ini'], ['.DS_Store', 'Thumbs.db', 'desktop.ini']),
+  preset('visibilityPresetLogs', ['log', 'old']),
+  preset('visibilityPresetArchives', archiveExtensions),
+  preset('visibilityPresetAudio', audioExtensions),
+  preset('visibilityPresetImages', imageExtensions),
+  preset('visibilityPresetVideos', videoExtensions),
+  preset('visibilityPresetDocs', docExtensions),
 ];
 
 /** Lowercase extension without the dot; '' for no extension, trailing dot, or a dotfile like `.bashrc`. */
@@ -25,7 +26,7 @@ export function extensionOf(name: string): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-export const isDotfile = (name: string) => name.startsWith('.');
+const isDotfile = (name: string) => name.startsWith('.');
 
 export function isEntryHidden(e: Pick<Entry, 'name' | 'isDir'>, p: VisibilityPrefs): boolean {
   if (p.hideDotfiles && isDotfile(e.name)) return true;

@@ -40,8 +40,9 @@ describe('DeviceIdentity', () => {
   });
 
   it('never silently replaces malformed, partial or mismatched material', async () => {
+    // A private key with no public key is repaired (see deviceIdentityRecovery.test.ts); the reverse cannot be.
     const partial = new MemorySecureStore();
-    await partial.write(SecureKeys.devicePrivate, toBase64(rnd(32)));
+    await partial.write(SecureKeys.devicePublic, toBase64(rnd(32)));
     await expect(new DeviceIdentity(partial, rnd).publicKeyBase64()).rejects.toBeInstanceOf(IdentityCorrupt);
 
     const bad = new MemorySecureStore();

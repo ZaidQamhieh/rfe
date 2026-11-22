@@ -1,5 +1,7 @@
 //! EXIF orientation, the only EXIF field thumbnails need.
 
+use crate::endian;
+
 /// The orientation value (1-8) from an EXIF block, `1` when absent or malformed. Accepts the block with or
 /// without its `Exif\0\0` prefix.
 pub fn orientation(exif: &[u8]) -> u8 {
@@ -13,22 +15,8 @@ fn parse(t: &[u8]) -> Option<u8> {
         b"MM" => false,
         _ => return None,
     };
-    let u16_at = |o: usize| -> Option<u16> {
-        let b: [u8; 2] = t.get(o..o + 2)?.try_into().ok()?;
-        Some(if little {
-            u16::from_le_bytes(b)
-        } else {
-            u16::from_be_bytes(b)
-        })
-    };
-    let u32_at = |o: usize| -> Option<u32> {
-        let b: [u8; 4] = t.get(o..o + 4)?.try_into().ok()?;
-        Some(if little {
-            u32::from_le_bytes(b)
-        } else {
-            u32::from_be_bytes(b)
-        })
-    };
+    let u16_at = |o: usize| endian::u16_at(t, o, little);
+    let u32_at = |o: usize| endian::u32_at(t, o, little);
     if u16_at(2)? != 42 {
         return None;
     }

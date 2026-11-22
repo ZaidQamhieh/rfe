@@ -34,7 +34,7 @@ func newNonceStore() *nonceStore {
 
 // Mint generates a new nonce and records it as valid until nonceTTL elapses.
 func (s *nonceStore) Mint() (string, error) {
-	nonce, err := randomToken(24)
+	nonce, err := randomToken(nonceBytes)
 	if err != nil {
 		return "", err
 	}
@@ -76,13 +76,14 @@ const (
 	challengeRateLimitWindow   = time.Minute
 )
 
-// proofVersion is advertised by /auth/challenge. The agent accepts the v2 proof and, for the
-// browser sign-in that predates it, a signature over the bare nonce (never when pairing).
+// proofVersion is advertised by /auth/challenge. The agent accepts only the v2 proof: a signature
+// over its own certificate fingerprint and the nonce. A bare-nonce signature could be replayed by a
+// relay that passes this agent's nonce to a device; v2 names the certificate the device actually saw.
 const proofVersion = "v2"
 
 // challengeHandler mints a nonce that a device signs with its Ed25519
 // identity key to prove possession of the private key on the next
-// /v1/pair or /v1/login call.
+// /v1/pair, /v1/login or /v1/register call (verified by verifyDeviceProof).
 func challengeHandler(nonces *nonceStore, certFingerprint string) http.HandlerFunc {
 	limiter := newKeyedLimiter(challengeRateLimitAttempts, challengeRateLimitWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -134,17 +135,6 @@ const (
 	rejectOnKeyChange
 )
 
-// proofPolicy says whether verifyDeviceProof still accepts a signature over the bare nonce.
-type proofPolicy int
-
-const (
-	// acceptLegacyProof also takes a bare-nonce signature, for the browser sign-in that predates v2.
-	acceptLegacyProof proofPolicy = iota
-	// requireBoundProof takes only the v2 proof. A bare-nonce signature can be replayed by a relay
-	// that passes this agent's nonce to the phone; v2 names the certificate the phone actually saw.
-	requireBoundProof
-)
-
 // verifyDeviceProof validates the device-identity signature shared by
 // pairHandler, registerHandler, and loginHandler: the presented public key
 // must have signed a nonce this server just minted. pinPolicy controls what
@@ -154,7 +144,7 @@ const (
 // On failure it writes the appropriate error response itself and returns a
 // non-nil error; callers should return immediately without writing anything
 // else.
-func verifyDeviceProof(db *store.DB, nonces *nonceStore, certFingerprint, deviceID, publicKey, nonce, signature string, w http.ResponseWriter, pinPolicy keyPinPolicy, proofs proofPolicy) error {
+func verifyDeviceProof(db *store.DB, nonces *nonceStore, certFingerprint, deviceID, publicKey, nonce, signature string, w http.ResponseWriter, pinPolicy keyPinPolicy) error {
 	if publicKey == "" || nonce == "" || signature == "" {
 		writeError(w, http.StatusBadRequest, "DEVICE_KEY_REQUIRED", "devicePublicKey, nonce, and signature are required")
 		return errDeviceProofFailed
@@ -163,10 +153,8 @@ func verifyDeviceProof(db *store.DB, nonces *nonceStore, certFingerprint, device
 		writeError(w, http.StatusUnauthorized, "INVALID_NONCE", "nonce missing, already used, or expired — fetch a fresh one from /v1/auth/challenge")
 		return errDeviceProofFailed
 	}
-	// v2 (bound to this agent's certificate) first, then the bare nonce older clients sign.
-	bound := certFingerprint != "" &&
-		security.VerifyDeviceSignature(publicKey, security.DeviceProofMessageV2(certFingerprint, nonce), signature)
-	if !bound && (proofs == requireBoundProof || !security.VerifyDeviceSignature(publicKey, nonce, signature)) {
+	if certFingerprint == "" ||
+		!security.VerifyDeviceSignature(publicKey, security.DeviceProofMessageV2(certFingerprint, nonce), signature) {
 		writeError(w, http.StatusUnauthorized, "INVALID_SIGNATURE", "signature does not match devicePublicKey")
 		return errDeviceProofFailed
 	}

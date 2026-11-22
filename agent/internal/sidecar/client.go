@@ -31,6 +31,17 @@ const (
 
 	helloTimeout = 5 * time.Second
 	closeGrace   = 2 * time.Second
+
+	// frameReserveMaxBytes caps the buffer reserved up front for a frame; the rest grows as bytes arrive.
+	frameReserveMaxBytes = 1 << 20
+	// stderrScanInitialBytes and stderrLineMaxBytes size the stderr line scanner's buffer; a longer line stops it.
+	stderrScanInitialBytes = 64 << 10
+	stderrLineMaxBytes     = 1 << 20
+	// stdoutReaderBytes sizes the buffered reader over the sidecar's stdout.
+	stdoutReaderBytes = 64 << 10
+
+	// defaultSendTimeout is the initial value of sendTimeout.
+	defaultSendTimeout = 15 * time.Second
 )
 
 // ErrUnavailable means no healthy sidecar could take the call; callers use their own implementation.
@@ -44,6 +55,15 @@ var ErrBreakerOpen = errors.New("sidecar breaker open")
 // in flight, as opposed to being down before the call. A caller that parses untrusted input uses it to tell "the
 // sidecar is not running" from "this input may have crashed it".
 var ErrInterrupted = errors.New("sidecar interrupted while handling the request")
+
+// interrupted is the error for a request whose sidecar died in flight. cause is the I/O error that showed it;
+// nil leaves the cause out of the text.
+func interrupted(cause error) error {
+	if cause == nil {
+		return fmt.Errorf("%w: %w", ErrUnavailable, ErrInterrupted)
+	}
+	return fmt.Errorf("%w: %w: %v", ErrUnavailable, ErrInterrupted, cause)
+}
 
 // RemoteError is a failure the sidecar reported for one request.
 type RemoteError struct {
@@ -63,6 +83,9 @@ type Config struct {
 	Env []string
 	// ExpectVersion, when set, must equal the version in the hello (a sidecar from another release is refused).
 	ExpectVersion string
+	// SHA256, when set, is the lowercase hex digest the file at Path must have: Start hashes the file before every
+	// launch and refuses a mismatch, so a binary swapped after the first start is never run.
+	SHA256 string
 	// Logf receives the sidecar's stderr lines and lifecycle messages.
 	Logf func(format string, args ...any)
 }
@@ -113,7 +136,7 @@ func readFrame(r io.Reader) (frame, error) {
 	// The sidecar is the less trusted side: grow with the bytes that arrive rather than allocating the declared
 	// length up front.
 	var buf bytes.Buffer
-	buf.Grow(int(min(n, 1<<20)))
+	buf.Grow(int(min(n, frameReserveMaxBytes)))
 	if got, err := io.Copy(&buf, io.LimitReader(r, int64(n))); err != nil {
 		return frame{}, err
 	} else if got != int64(n) {
@@ -127,10 +150,19 @@ func writeFrame(w io.Writer, kind byte, payload []byte) error {
 	if len(payload)+1 > maxFrameBytes {
 		return errors.New("frame too large")
 	}
-	hdr := make([]byte, 5, 5+len(payload))
-	binary.BigEndian.PutUint32(hdr, uint32(len(payload)+1))
+	var hdr [5]byte
+	binary.BigEndian.PutUint32(hdr[:], uint32(len(payload)+1))
 	hdr[4] = kind
-	_, err := w.Write(append(hdr, payload...))
+	// Small frames go out in one write (one syscall, a cheap copy); only large bodies skip the copy. A deadline
+	// expiry can still leave a prefix in the pipe; large-body failures tear the client down via c.fail. Callers hold wmu.
+	if len(payload) <= 64<<10 {
+		_, err := w.Write(append(hdr[:], payload...))
+		return err
+	}
+	if _, err := w.Write(hdr[:]); err != nil {
+		return err
+	}
+	_, err := w.Write(payload)
 	return err
 }
 
@@ -143,8 +175,18 @@ type hello struct {
 
 // Start launches the sidecar and completes the handshake.
 func Start(cfg Config) (*Client, error) {
+	if cfg.SHA256 != "" {
+		if err := VerifyFile(cfg.Path, cfg.SHA256); err != nil {
+			return nil, fmt.Errorf("sidecar %s: %w", cfg.Name, err)
+		}
+	}
 	cmd := exec.Command(cfg.Path, cfg.Args...)
-	cmd.Env = append(os.Environ(), cfg.Env...)
+	env := os.Environ()
+	if _, set := os.LookupEnv("MALLOC_ARENA_MAX"); !set {
+		// Few glibc arenas: sidecar threads otherwise keep freed memory resident.
+		env = append(env, "MALLOC_ARENA_MAX=4")
+	}
+	cmd.Env = append(env, cfg.Env...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -163,13 +205,13 @@ func Start(cfg Config) (*Client, error) {
 	c := &Client{cfg: cfg, cmd: cmd, stdin: stdin, pending: make(map[uint64]chan result), done: make(chan struct{})}
 	go func() {
 		sc := bufio.NewScanner(stderr)
-		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		sc.Buffer(make([]byte, stderrScanInitialBytes), stderrLineMaxBytes)
 		for sc.Scan() {
 			cfg.logf("sidecar %s: %s", cfg.Name, sc.Text())
 		}
 	}()
 
-	br := bufio.NewReaderSize(stdout, 64<<10)
+	br := bufio.NewReaderSize(stdout, stdoutReaderBytes)
 	type helloResult struct {
 		h   hello
 		err error
@@ -263,7 +305,7 @@ func (c *Client) fail(err error) {
 	c.kill()
 	_ = c.stdin.Close()
 	for _, ch := range pending {
-		ch <- result{err: fmt.Errorf("%w: %w: %v", ErrUnavailable, ErrInterrupted, err)}
+		ch <- result{err: interrupted(err)}
 	}
 }
 
@@ -365,7 +407,7 @@ func (c *Client) call(ctx context.Context, op string, req any, body []byte, resp
 	envJSON, _ := json.Marshal(env)
 	if err := c.send(merge(envJSON, reqJSON), body); err != nil {
 		c.fail(fmt.Errorf("write: %w", err))
-		return nil, fmt.Errorf("%w: %w: %v", ErrUnavailable, ErrInterrupted, err)
+		return nil, interrupted(err)
 	}
 
 	select {
@@ -386,10 +428,12 @@ func (c *Client) call(ctx context.Context, op string, req any, body []byte, resp
 		cancelID := c.nextID
 		c.mu.Unlock()
 		cancel, _ := json.Marshal(map[string]any{"id": cancelID, "op": "cancel", "target": id})
+		// Best effort: the caller already gave up. A failed write means the sidecar is wedged or
+		// gone; the supervisor's ping detects that, so this error has no one left to act on it.
 		_ = c.send(cancel, nil)
 		return nil, ctx.Err()
 	case <-c.done:
-		return nil, fmt.Errorf("%w: %w", ErrUnavailable, ErrInterrupted)
+		return nil, interrupted(nil)
 	}
 }
 
@@ -397,7 +441,7 @@ func (c *Client) call(ctx context.Context, op string, req any, body []byte, resp
 // otherwise block the writer (and, through wmu, every other caller and the
 // supervisor's ping) forever; on expiry the write fails and the caller tears
 // the sidecar down.
-var sendTimeout = 15 * time.Second
+var sendTimeout = defaultSendTimeout
 
 func (c *Client) send(msg, body []byte) error {
 	c.wmu.Lock()

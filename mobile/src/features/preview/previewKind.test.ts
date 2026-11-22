@@ -21,6 +21,16 @@ describe('previewKindOf', () => {
     expect(previewKindOf(e('noext'))).toBe('none');
     expect(previewKindOf(e('trail.'))).toBe('none');
   });
+  it('recognises OOXML documents by MIME and by extension', () => {
+    expect(previewKindOf(e('x', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))).toBe('xlsx');
+    expect(previewKindOf(e('x', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'))).toBe('pptx');
+    expect(previewKindOf(e('x', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'))).toBe('docx');
+    expect(previewKindOf(e('Budget.XLSX'))).toBe('xlsx');
+    expect(previewKindOf(e('deck.pptx', 'application/octet-stream'))).toBe('pptx');
+    expect(previewKindOf(e('letter.docx'))).toBe('docx');
+    expect(previewKindOf(e('old.xls'))).toBe('none');
+    expect(isPreviewable(e('a.xlsx'))).toBe(true);
+  });
   it('folders are never previewable', () => {
     expect(isPreviewable(e('a.png', 'image/png', true))).toBe(false);
   });

@@ -30,7 +30,6 @@ const (
 
 var (
 	macBundleIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,254}$`)
-	macIconNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 )
 
 type macAppRoot struct {
@@ -260,7 +259,7 @@ func safeMacIconName(icon string) string {
 		return ""
 	}
 	icon = strings.TrimSuffix(strings.ToLower(icon), ".icns")
-	if !macIconNamePattern.MatchString(icon) {
+	if !safeIconNamePattern.MatchString(icon) {
 		return ""
 	}
 	return icon

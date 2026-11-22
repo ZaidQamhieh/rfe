@@ -9,10 +9,10 @@ import { AgentApiError } from '../core/api/agentClient';
 import type { Entry } from '../core/api/models';
 import { Pressable, Text, useDialogs, useToast } from '../design/components';
 import { useScheme } from '../design/theme';
-import { FontFamily, Radii } from '../design/tokens';
+import { FontFamily, Radii, Spacing } from '../design/tokens';
 import { t } from '../i18n';
 import { clientForHost } from '../services';
-import { humanizeError } from '../features/pairing/pairingService';
+import { humanizeError } from '../core/humanizeError';
 import { PreviewIconButton } from '../features/preview/PreviewChrome';
 import { fetchPreviewFile, MAX_EDITABLE_BYTES } from '../features/preview/previewFile';
 import { useEditorSession } from '../features/preview/session';
@@ -30,7 +30,7 @@ export default function Editor() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text muted>Nothing to edit.</Text>
+        <Text muted>{t('nothingToEdit')}</Text>
       </View>
     );
   }
@@ -116,7 +116,7 @@ function EditorBody() {
       const before = await client.meta(entry.path);
       const uri = await fetchPreviewFile(host, before, MAX_EDITABLE_BYTES);
       const after = await client.meta(entry.path);
-      if (after.modified !== before.modified || after.size !== before.size) throw new Error('File changed while reloading — try again.');
+      if (after.modified !== before.modified || after.size !== before.size) throw new Error(t('fileChangedWhileReloading'));
       const fresh = decodeAsText(await new File(uri).bytes());
       text.current = fresh;
       base.current = after.modified;
@@ -133,14 +133,14 @@ function EditorBody() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <PreviewIconButton label="Back" onPress={() => navigation.goBack()}>
+      <View style={{ paddingTop: insets.top + 6, paddingBottom: Spacing.sm, paddingHorizontal: Spacing.md2, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <PreviewIconButton label={t('backLabel')} onPress={() => navigation.goBack()}>
           <ArrowLeft size={19} color={c.onSurfaceVariant} />
         </PreviewIconButton>
         <Text numberOfLines={1} style={{ flex: 1, fontSize: 15.5, fontFamily: FontFamily.semibold }}>{entry.name}</Text>
         {saving ? <ActivityIndicator /> : null}
         <Pressable onPress={() => void save()} disabled={!dirty || saving} accessibilityLabel={t('saveButton')} pressedScale={0.96}>
-          <View style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radii.stadium, backgroundColor: dirty && !saving ? c.primary : c.surfaceContainerHighest }}>
+          <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radii.stadium, backgroundColor: dirty && !saving ? c.primary : c.surfaceContainerHighest }}>
             <Text style={{ fontFamily: FontFamily.semibold, fontSize: 13.5 }} color={dirty && !saving ? c.onPrimary : c.onSurfaceVariant}>{t('saveButton')}</Text>
           </View>
         </Pressable>
@@ -159,7 +159,7 @@ function EditorBody() {
         spellCheck={false}
         textAlignVertical="top"
         accessibilityLabel={entry.name}
-        style={[MONO, { flex: 1, color: c.onSurface, paddingHorizontal: 16, paddingBottom: insets.bottom + 16 }]}
+        style={[MONO, { flex: 1, color: c.onSurface, paddingHorizontal: Spacing.md, paddingBottom: insets.bottom + 16 }]}
       />
     </KeyboardAvoidingView>
   );

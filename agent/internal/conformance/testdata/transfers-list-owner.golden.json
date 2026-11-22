@@ -1,0 +1,62 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "activeNow": 0,
+    "counts": {
+      "completed": 2,
+      "open": 1
+    },
+    "devices": [
+      {
+        "id": "<id>",
+        "label": "owner phone",
+        "username": "conf-owner"
+      }
+    ],
+    "total": 3,
+    "transfers": [
+      {
+        "deviceId": "<deviceId>",
+        "id": "<id>",
+        "name": "resume.txt",
+        "path": "<ROOT>/made/resume.txt",
+        "progress": 0,
+        "receivedBytes": 0,
+        "status": "open",
+        "totalSize": 10,
+        "updatedAt": "<updatedAt>"
+      },
+      {
+        "deviceId": "<deviceId>",
+        "id": "<id>",
+        "name": "resume.txt",
+        "path": "<ROOT>/made/resume.txt",
+        "progress": 100,
+        "receivedBytes": 10,
+        "status": "completed",
+        "totalSize": 10,
+        "updatedAt": "<updatedAt>"
+      },
+      {
+        "deviceId": "<deviceId>",
+        "id": "<id>",
+        "name": "up.txt",
+        "path": "<ROOT>/made/up.txt",
+        "progress": 100,
+        "receivedBytes": 10,
+        "status": "completed",
+        "totalSize": 10,
+        "updatedAt": "<updatedAt>"
+      }
+    ],
+    "users": [
+      "conf-owner"
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 import type { AgentStatus, Device } from '../../core/api/models';
-import { buildPermissions, identityState } from './trustLogic';
+import { buildPermissions, identityState, PERMISSION_COPY } from './trustLogic';
 
 type S = Pick<AgentStatus, 'fileCapabilities' | 'readOnly' | 'allowSharing' | 'accessDenied'>;
 const all = (v: boolean) => ({ browse: v, download: v, upload: v, modify: v, delete: v, share: v });
@@ -54,5 +54,16 @@ describe('identityState', () => {
     expect(identityState({ pinned: true, outcome: 'ok' })).toBe('verified');
     expect(identityState({ pinned: true, outcome: 'pinMismatch' })).toBe('mismatch');
     expect(identityState({ pinned: true, outcome: 'failed' })).toBe('unreachable');
+  });
+});
+
+describe('English text', () => {
+  it('pins the permission titles, subtitles and notes', () => {
+    expect(PERMISSION_COPY.delete).toEqual({ title: 'Delete files', subtitle: 'Remove files and folders' });
+    expect(PERMISSION_COPY.viewApps.subtitle).toBe('See the computer’s app list');
+    expect(PERMISSION_COPY.launchApps.title).toBe('Launch apps');
+    expect(buildPermissions(status({ accessDenied: true }), device()).find((r) => r.key === 'browse')?.note).toBe('No folder access for this phone');
+    expect(buildPermissions(status({ readOnly: true }), device()).find((r) => r.key === 'modify')?.note).toBe('This computer is in read-only mode');
+    expect(buildPermissions(status({ allowSharing: false }), device()).find((r) => r.key === 'share')?.note).toBe('Share links are turned off on this computer');
   });
 });

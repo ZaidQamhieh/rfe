@@ -1,0 +1,57 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Triage — an inbox for what needs you</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.tr{background:#f3f4f6;color:#111827;font-family:"Inter",system-ui,sans-serif;font-size:13.5px}
+.tr .tb{background:#111827;color:#4b5563}
+.tr .wrap{flex:1;display:grid;grid-template-columns:64px 380px 1fr;min-height:0}
+.tr nav{background:#111827;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0}
+.tr nav a{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#9ca3af;font-size:18px;position:relative;text-decoration:none}
+.tr nav a.on{background:#374151;color:#fff}
+.tr nav a sup{position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;font:700 9.5px system-ui;border-radius:7px;padding:1px 4px}
+.tr nav .sp{flex:1}
+.tr .inbox{background:#fff;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;min-height:0}
+.tr .ih{padding:16px 18px 10px;display:flex;align-items:baseline;gap:8px}.tr .ih h2{margin:0;font-size:19px}.tr .ih span{color:#6b7280}
+.tr .ih small{margin-left:auto;color:#6b7280}
+.tr .it{padding:12px 18px;border-top:1px solid #f3f4f6;display:grid;grid-template-columns:10px 1fr auto;gap:10px;cursor:pointer}
+.tr .it i{width:8px;height:8px;border-radius:50%;margin-top:6px}
+.tr .it .t{font-weight:600}.tr .it p{margin:2px 0 0;color:#6b7280;font-size:12.5px}
+.tr .it time{color:#9ca3af;font-size:12px}
+.tr .it.on{background:#eef2ff;box-shadow:inset 3px 0 0 #4f46e5}
+.tr .done{margin-top:auto;padding:14px 18px;color:#9ca3af;font-size:12px;border-top:1px solid #f3f4f6}
+.tr .detail{padding:28px 40px;display:flex;flex-direction:column;gap:18px;overflow:auto}
+.tr .tag{display:inline-block;font:600 11px system-ui;letter-spacing:.06em;text-transform:uppercase;color:#b45309;background:#fef3c7;border-radius:6px;padding:4px 8px}
+.tr .detail h1{margin:0;font-size:26px;letter-spacing:-.01em}
+.tr .detail .sub{color:#6b7280;margin-top:-10px}
+.tr .codes{display:flex;gap:18px;align-items:center}
+.tr .codebox{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px 24px;text-align:center}
+.tr .codebox small{display:block;color:#6b7280;font-size:12px;margin-bottom:6px}
+.tr .codebox b{font:700 34px ui-monospace,monospace;letter-spacing:.16em}
+.tr .codebox.ph{border-style:dashed;color:#6b7280}
+.tr .facts{display:grid;grid-template-columns:140px 1fr;gap:8px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 20px;max-width:560px}
+.tr .facts dt{color:#6b7280}.tr .facts dd{margin:0}
+.tr .acts{display:flex;gap:10px;align-items:center}
+.tr .acts button{border:0;border-radius:10px;padding:11px 18px;font:600 14px system-ui;cursor:pointer}
+.tr .acts .p{background:#4f46e5;color:#fff}.tr .acts .s{background:#fff;border:1px solid #e5e7eb;color:#111827}
+.tr .acts kbd{font:600 11px ui-monospace,monospace;opacity:.7;margin-left:8px}
+.tr .acts .hint{color:#6b7280;font-size:12.5px;margin-left:8px}
+.tr .zero{margin-top:auto;display:flex;gap:10px;color:#6b7280;font-size:12.5px}
+.tr .zero div{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px}
+</style></head><body class="mk">
+<div class="win tr">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="wrap">
+  <nav><a class="on" title="Needs you">✓<sup>4</sup></a><a title="Files">▤</a><a title="Search">⌕</a><a title="Computers">▣</a><a title="Devices">☍</a><span class="sp"></span><a title="History">◷</a><a title="Settings">⚙</a></nav>
+  <div class="inbox"><div class="ih"><h2>Needs you</h2><span>4</span><small>J/K move · E done</small></div>
+   <div class="it on"><i style="background:#f59e0b"></i><div><div class="t">Pixel 9 asks to pair</div><p>studio-pc · 192.168.1.40 · 1:42 left</p></div><time>now</time></div>
+   <div class="it"><i style="background:#ef4444"></i><div><div class="t">nas-box certificate changed</div><p>The key differs from the one pinned at pairing</p></div><time>07:58</time></div>
+   <div class="it"><i style="background:#3b82f6"></i><div><div class="t">report.pdf already exists</div><p>Upload to work-laptop / Docs is waiting</p></div><time>10:02</time></div>
+   <div class="it"><i style="background:#ef4444"></i><div><div class="t">album.zip failed</div><p>media-mini went offline · 33% kept</p></div><time>08:14</time></div>
+   <div class="it"><i style="background:#9ca3af"></i><div><div class="t">27 Trash items older than 30 days</div><p>work-laptop · 1.8 GB</p></div><time>Fri</time></div>
+   <div class="done">Handled today: 6 · Running quietly: 2 transfers · Everything else is fine</div></div>
+  <div class="detail"><span class="tag">Pairing request · studio-pc</span><h1>“Sam's Pixel 9” wants to join studio-pc</h1><div class="sub">The name is whatever the phone sent. Trust the code, not the name.</div>
+   <div class="codes"><div class="codebox"><small>This PC computed</small><b>482 913</b></div><span style="font-size:22px;color:#9ca3af">=</span><div class="codebox ph"><small>Your phone shows</small>look at the phone</div></div>
+   <dl class="facts"><dt>From</dt><dd>192.168.1.40 (LAN)</dd><dt>Waiting</dt><dd>18 s · expires in 1:42</dd><dt>Starts with</dt><dd>Browse only · change in Devices afterwards</dd><dt>Takes over</dt><dd>nothing (new device)</dd></dl>
+   <div class="acts"><button class="p">Codes match — accept<kbd>A</kbd></button><button class="s">Reject<kbd>R</kbd></button><span class="hint">Next item opens after you answer.</span></div>
+   <div class="zero"><div>Upload ⇪ drop anywhere</div><div>Ctrl K: everything else</div><div>Inbox zero → files open by themselves</div></div></div>
+ </div>
+</div></body></html>

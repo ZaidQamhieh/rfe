@@ -1,3 +1,4 @@
+import { invalidNameReason } from './nameValidation';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import type { AgentClient } from '../../core/api/agentClient';
@@ -48,7 +49,8 @@ export function createDestinationPicker(deps: PickerDeps): StoreApi<PickerState>
     async load() {
       const path = pickerPath(get());
       const gen = ++generation;
-      set({ loading: true, error: null, nextCursor: null });
+      // A page fetch the user left behind by navigating never finishes its bookkeeping, so its flag is cleared here.
+      set({ loading: true, loadingMore: false, error: null, nextCursor: null });
       try {
         const listing = await (await deps.getClient()).list(path);
         if (gen !== generation) return;
@@ -72,16 +74,19 @@ export function createDestinationPicker(deps: PickerDeps): StoreApi<PickerState>
       }
     },
     navigate(path) {
-      set({ pathStack: [...get().pathStack, path] });
+      // The old folder's rows would otherwise show under the new path and hide a load error.
+      set({ pathStack: [...get().pathStack, path], folders: [] });
       void api.load();
     },
     navigateTo(index) {
       const s = get();
       if (index >= s.pathStack.length) return;
-      set({ pathStack: s.pathStack.slice(0, index + 1) });
+      set({ pathStack: s.pathStack.slice(0, index + 1), folders: [] });
       void api.load();
     },
     async createFolder(name) {
+      const bad = invalidNameReason(name);
+      if (bad) throw new Error(bad);
       await (await deps.getClient()).createFolder(joinRemotePath(pickerPath(get()), name));
       await api.load();
     },

@@ -1,12 +1,14 @@
-import { archiveExtensions, audioExtensions, docExtensions, imageExtensions, videoExtensions, type EntryRole } from '../../core/entryCategory';
+import { phoneRemovedMessage } from '../../core/humanizeError';
+import { t } from '../../i18n';
+import { archiveExtensions, audioExtensions, docExtensions, imageExtensions, roleOf, videoExtensions, type EntryRole } from '../../core/entryCategory';
 import type { TransferRecord } from '../../core/native';
 import { basenameOf } from '../explorer/paths';
 import { relativeLabel } from '../hosts/relative';
 
 export const isUpload = (r: TransferRecord) => r.direction === 'UPLOAD';
 
-/** The file name shown for a transfer: the target's name on the host for both directions. */
-export const transferName = (r: TransferRecord) => basenameOf(r.remotePath) || r.remotePath;
+/** The file name shown for a transfer: the name a download was saved under (a duplicate is "a (1).pdf"), else the target's name on the host. */
+export const transferName = (r: TransferRecord) => r.savedName || basenameOf(r.remotePath) || r.remotePath;
 
 /** 0..1, or null while the size is unknown. */
 export function transferProgress(r: TransferRecord): number | null {
@@ -17,8 +19,8 @@ export function transferProgress(r: TransferRecord): number | null {
 
 /** Where a finished transfer lives, for the row's status line. */
 export function savedWhere(r: TransferRecord): string {
-  if (isUpload(r)) return 'Uploaded';
-  return r.publicUri ? 'Saved to Downloads' : 'Saved in app storage';
+  if (isUpload(r)) return t('transferUploaded');
+  return r.publicUri ? t('transferSavedToDownloads') : t('transferSavedInAppStorage');
 }
 
 /** When a finished transfer completed, as a relative phrase ("3 minutes ago"); empty for journals that predate the timestamp. */
@@ -29,47 +31,57 @@ export function finishedWhen(r: TransferRecord, now: Date = new Date()): string 
 export const isActive = (r: TransferRecord) => r.state === 'RUNNING' || r.state === 'QUEUED';
 export const isFinished = (r: TransferRecord) => r.state === 'DONE' || r.state === 'CANCELLED';
 
+const DENIED_UPLOAD = t('transferDeniedUpload');
+const DAMAGED_IN_TRANSIT = t('transferDamagedInTransit');
+
+// One row per engine error code: the plain-language reason, and whether trying again can work. Retryable codes: the host
+// was unreachable or busy, or the data was damaged in transit. Everything else (name clash, no permission, changed
+// identity, full phone) fails the same way until something changes. `auto` marks the codes the app retries on its own (a
+// bounded number of times, see autoRetry.ts): only "could not reach the computer". A Map, so codes like "constructor" are not inherited.
+const FAILURES = new Map<string, { message: string; retryable: boolean; auto?: boolean }>([
+  ['CONFLICT', { message: t('transferConflict'), retryable: false }],
+  ['FORBIDDEN', { message: DENIED_UPLOAD, retryable: false }],
+  ['READ_ONLY', { message: DENIED_UPLOAD, retryable: false }],
+  ['CAPABILITY_DENIED', { message: t('transferCapabilityDenied'), retryable: false }],
+  ['HASH_MISMATCH', { message: DAMAGED_IN_TRANSIT, retryable: true }],
+  ['CHUNK_HASH_MISMATCH', { message: DAMAGED_IN_TRANSIT, retryable: true }],
+  ['PAYLOAD_TOO_LARGE', { message: t('transferTooLarge'), retryable: false }],
+  ['RESOURCE_LIMIT', { message: t('transferResourceLimit'), retryable: true }],
+  ['TRANSFER_ACTIVE', { message: t('transferStillFinishing'), retryable: true }],
+  ['NOT_FOUND', { message: t('transferNotFound'), retryable: true }],
+  ['ERR_STORAGE_FULL', { message: t('transferStorageFull'), retryable: false }],
+  ['ERR_CERT_PIN_MISMATCH', { message: t('transferIdentityChanged'), retryable: false }],
+  ['ERR_CONNECTION', { message: t('transferCouldNotReach'), retryable: true, auto: true }],
+  ['ERR_TLS', { message: t('transferTlsFailed'), retryable: false }],
+  ['DEVICE_KEY_MISMATCH', { message: t('deviceKeyMismatch'), retryable: false }],
+  ['UNAUTHORIZED', { get message() { return phoneRemovedMessage(); }, retryable: false }],
+]);
+
+/** The engine error code: the text before the first colon. */
+const codeOf = (error: string): string => error.split(':')[0].trim();
+
 /** Plain-language reason for a failed transfer, from the engine's error text (an agent API code or an ERR_ tag). */
 export function transferErrorMessage(error: string | null): string {
   if (!error) return '';
-  const code = error.split(':')[0].trim();
-  switch (code) {
-    case 'CONFLICT':
-      return 'A file with this name already exists on the computer.';
-    case 'FORBIDDEN':
-    case 'READ_ONLY':
-      return 'This device is not allowed to upload here.';
-    case 'CAPABILITY_DENIED':
-      return 'This device has not been given permission for this. Allow it on the computer, in the device’s access settings.';
-    case 'HASH_MISMATCH':
-    case 'CHUNK_HASH_MISMATCH':
-      return 'The file changed or was damaged in transit. Try again.';
-    case 'PAYLOAD_TOO_LARGE':
-      return 'The file is too large for this computer to accept.';
-    case 'RESOURCE_LIMIT':
-      return 'The computer has too many uploads open. Wait for one to finish.';
-    case 'TRANSFER_ACTIVE':
-      return 'The computer is still finishing the previous attempt. Try again in a moment.';
-    case 'NOT_FOUND':
-      return 'The computer no longer has this file or upload. Try again.';
-    case 'ERR_STORAGE_FULL':
-      return 'This phone is out of storage. Free some space, then tap Retry.';
-    case 'ERR_CERT_PIN_MISMATCH':
-      return 'The computer’s identity changed. Check it in Devices.';
-    case 'ERR_CONNECTION':
-      return 'Could not reach the computer.';
-    default:
-      return error.startsWith('source file is missing') ? 'The file to upload is no longer on this phone.' : error;
-  }
+  const known = FAILURES.get(codeOf(error));
+  if (known) return known.message;
+  return error.startsWith('source file is missing') ? t('transferSourceMissing') : error;
 }
 
-// Failures where trying again can work: the host was unreachable or busy, or the data was damaged in transit.
-// Everything else (name clash, no permission, changed identity, full phone) fails the same way until something changes.
-const RETRYABLE = new Set(['ERR_CONNECTION', 'TRANSFER_ACTIVE', 'HASH_MISMATCH', 'CHUNK_HASH_MISMATCH', 'NOT_FOUND', 'RESOURCE_LIMIT']);
+/** The failed transfers of computer [hostId] that it refused for authorization ("no longer accepts this phone"): stale once the phone is paired again. */
+export const staleAuthFailures = (all: readonly TransferRecord[], hostId: string): TransferRecord[] =>
+  all.filter((r) => r.hostId === hostId && r.state === 'FAILED' && r.error !== null && codeOf(r.error) === 'UNAUTHORIZED');
+
+/** An upload the computer refused because a file with this name is already there: it waits for the owner's choice. */
+export const isNameClash = (r: TransferRecord): boolean => r.direction === 'UPLOAD' && r.state === 'FAILED' && r.error !== null && codeOf(r.error) === 'CONFLICT';
 
 /** Failed transfers worth a one-tap "Retry all". */
 export const retryableFailures = (all: readonly TransferRecord[]): TransferRecord[] =>
-  all.filter((r) => r.state === 'FAILED' && r.error !== null && RETRYABLE.has(r.error.split(':')[0].trim()));
+  all.filter((r) => r.state === 'FAILED' && r.error !== null && FAILURES.get(codeOf(r.error))?.retryable === true);
+
+/** A failed transfer the app may resume on its own, within the limits in autoRetry.ts. */
+export const isAutoRetryable = (r: TransferRecord): boolean =>
+  r.state === 'FAILED' && r.error !== null && FAILURES.get(codeOf(r.error))?.auto === true;
 
 export type VerifyOutcome = 'verified' | 'mismatch' | 'unavailable';
 
@@ -79,12 +91,47 @@ export function verifyOutcome(localHash: string | null, hostHash: string | null)
   return localHash.toLowerCase() === hostHash.toLowerCase() ? 'verified' : 'mismatch';
 }
 
-/** Newest first. Ids are a kind letter then the enqueue time in base 36, so the time orders them across kinds. */
+/** Id made by newTransferId: a kind letter, then the time in base 36 (8 digits), then a random tail. */
+const ID_TIME = /^[a-z]([0-9a-z]{8})/;
+
+/** When a transfer was queued: the engine's own time, else the one in the id (a kind letter then the time in base 36), else NaN (photo backup ids carry none). */
+const queuedAt = (r: TransferRecord): number => {
+  if (r.enqueuedAt && r.enqueuedAt > 0) return r.enqueuedAt;
+  const m = ID_TIME.exec(r.id);
+  return m ? parseInt(m[1], 36) : NaN;
+};
+
+/**
+ * Newest first, by queue time across kinds. A row with no known queue time sorts before every row that has one (by id,
+ * highest first, among themselves), so the comparison stays a consistent total order.
+ */
 export function newestFirst(a: TransferRecord, b: TransferRecord): number {
-  const at = parseInt(a.id.slice(1, 9), 36);
-  const bt = parseInt(b.id.slice(1, 9), 36);
-  if (Number.isNaN(at) || Number.isNaN(bt)) return b.id.localeCompare(a.id);
-  return bt - at || b.id.localeCompare(a.id);
+  const at = queuedAt(a);
+  const bt = queuedAt(b);
+  const aKnown = !Number.isNaN(at);
+  if (aKnown !== !Number.isNaN(bt)) return aKnown ? 1 : -1;
+  return (aKnown ? bt - at : 0) || b.id.localeCompare(a.id);
+}
+
+/** The list the native engine returned merged with the events that arrived meanwhile: an event is newer than the snapshot row with its id. */
+export function mergeSnapshot(snapshot: TransferRecord[], live: TransferRecord[] | null): TransferRecord[] {
+  if (!live) return snapshot;
+  const seen = new Set(live.map((r) => r.id));
+  return [...snapshot.filter((r) => !seen.has(r.id)), ...live];
+}
+
+/**
+ * The list with one engine update folded in: the update replaces the row with its id (or is added). Only a FAILED
+ * record keeps an error text, so a retried transfer that is queued or running never shows its earlier failure.
+ */
+export function applyTransferUpdate(list: readonly TransferRecord[] | null, r: TransferRecord): TransferRecord[] {
+  const row = r.state !== 'FAILED' && r.error !== null ? { ...r, error: null } : r;
+  return [...(list ?? []).filter((x) => x.id !== r.id), row];
+}
+
+/** The list after the owner taps Retry on `id`: a failed row is queued at once with its failure cleared, until the engine's own update arrives. Any other row is left as it is. */
+export function markRetrying(list: readonly TransferRecord[], id: string): TransferRecord[] {
+  return list.map((r) => (r.id === id && r.state === 'FAILED' ? { ...r, state: 'QUEUED', error: null } : r));
 }
 
 export type TransferGroups = { active: TransferRecord[]; failed: TransferRecord[]; finished: TransferRecord[] };
@@ -123,12 +170,13 @@ export type TransferKind = { glyph: 'image' | 'video' | 'audio' | 'archive' | 'd
 export function transferKind(name: string): TransferKind {
   const dot = name.lastIndexOf('.');
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
-  if (imageExtensions.has(ext)) return { glyph: 'image', role: 'photo' };
-  if (videoExtensions.has(ext)) return { glyph: 'video', role: 'photo' };
-  if (audioExtensions.has(ext)) return { glyph: 'audio', role: 'route' };
-  if (archiveExtensions.has(ext)) return { glyph: 'archive', role: 'warn' };
-  if (docExtensions.has(ext)) return { glyph: 'doc', role: 'doc' };
-  return { glyph: 'file', role: null };
+  const role = roleOf({ isDir: false, name });
+  if (imageExtensions.has(ext)) return { glyph: 'image', role };
+  if (videoExtensions.has(ext)) return { glyph: 'video', role };
+  if (audioExtensions.has(ext)) return { glyph: 'audio', role };
+  if (archiveExtensions.has(ext)) return { glyph: 'archive', role };
+  if (docExtensions.has(ext)) return { glyph: 'doc', role };
+  return { glyph: 'file', role };
 }
 
 /** The page subtitle: real counts only ("1 in progress · 2 complete · 1 failed"). */

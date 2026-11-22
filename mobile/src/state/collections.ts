@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { serialQueue } from '../core/serialQueue';
+
 import {
   SavedSearches,
   addPin,
@@ -10,6 +12,7 @@ import {
   recordSearch,
   removeBookmark,
   removePin,
+  isSameFavorite,
   toggleFavorite,
   upsertBookmark,
   type Bookmark,
@@ -48,12 +51,11 @@ type S = {
 
 // Every mutation reads the current list and writes the next one, so two overlapping calls would each start from the
 // same list and the later write would drop the earlier change (audit F-67). Run them one after another.
-let tail: Promise<unknown> = Promise.resolve();
-function queued<T>(job: () => Promise<T>): Promise<T> {
-  const run = tail.then(job, job);
-  tail = run.catch(() => undefined);
-  return run;
-}
+const queued = serialQueue();
+
+/** Re-hydrates the listing cache's pinned set for [hostId] from the full pin list. */
+const syncListingPins = (hostId: string, pins: Pin[]) =>
+  listingCache.syncPinned(hostId, pins.filter((p) => p.hostId === hostId).map((p) => p.remotePath));
 
 /** Favorites, bookmarks, offline pins and searches: persisted first, then mirrored in memory. Keys/encodings match the Flutter app. */
 export const useCollections = create<S>((set, get) => ({
@@ -76,7 +78,7 @@ export const useCollections = create<S>((set, get) => ({
   },
   removeFavorite(hostId, path) {
     return queued(async () => {
-      const next = get().favorites.filter((f) => !(f.hostId === hostId && f.path === path));
+      const next = get().favorites.filter((f) => !isSameFavorite(f, hostId, path));
       await favs.save(next);
       set({ favorites: next });
     });
@@ -100,7 +102,7 @@ export const useCollections = create<S>((set, get) => ({
       const next = addPin(get().pins, { hostId, remotePath: path });
       await pinsStore.save(next);
       set({ pins: next });
-      listingCache.syncPinned(hostId, next.filter((p) => p.hostId === hostId).map((p) => p.remotePath));
+      syncListingPins(hostId, next);
     });
   },
   unpin(hostId, path) {
@@ -108,7 +110,7 @@ export const useCollections = create<S>((set, get) => ({
       const next = removePin(get().pins, hostId, path);
       await pinsStore.save(next);
       set({ pins: next });
-      listingCache.syncPinned(hostId, next.filter((p) => p.hostId === hostId).map((p) => p.remotePath));
+      syncListingPins(hostId, next);
     });
   },
   recordSearch(q) {

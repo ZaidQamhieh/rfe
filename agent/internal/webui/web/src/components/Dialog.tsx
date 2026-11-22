@@ -2,9 +2,8 @@ import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-// Shared modal primitive (shadcn/ui-style: thin wrapper over Radix), styled
-// with the mockup's own surface/border/radius tokens so it matches every
-// other surface without a separate one-off stylesheet.
+// Shared modal primitive (shadcn/ui-style: thin wrapper over Radix). It uses the
+// card, cmdk-backdrop and iconbtn classes from index.css, plus the inline position and size below.
 export function Dialog({
   open,
   onOpenChange,

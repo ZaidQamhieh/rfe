@@ -1,6 +1,7 @@
 # Maintainer: Zaid Qamhieh
 # Repackages the official agent release (agent + sidecars + manifest) for Arch. The agent refuses sidecars that do
 # not match rfe-sidecars.txt, so all four files are installed together into /usr/bin.
+# Agent and desktop share one host-vX.Y.Z release (agent-v* before 1.1.0); bump this and rfe-desktop-bin together.
 # After the version or checksums change: updpkgsums, then makepkg --printsrcinfo > .SRCINFO.
 pkgname=rfe-bin
 pkgver=1.0.0
@@ -16,7 +17,7 @@ conflicts=('rfe' 'rfe-agent' 'rfe-agent-bin')
 replaces=('rfe-agent-bin')
 options=('!strip')
 install=rfe-bin.install
-_rel="$url/releases/download/agent-v$pkgver"
+_rel="$url/releases/download/host-v$pkgver"
 source_x86_64=("agent-v$pkgver-linux-amd64.tar.gz::$_rel/agent-v$pkgver-linux-amd64.tar.gz")
 source_aarch64=("agent-v$pkgver-linux-arm64.tar.gz::$_rel/agent-v$pkgver-linux-arm64.tar.gz")
 source=('rfe.service')

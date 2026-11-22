@@ -139,6 +139,70 @@ class TransferEngineTest {
     assertArrayEquals(payload, File(dest("c.bin")).readBytes())
   }
 
+  private val etag = "\"12c-18d4a1f2c3b-9\""
+
+  private fun interruptedWithETag(id: String, name: String): Int {
+    server.enqueue(full().setHeader("ETag", etag).setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
+    engine.enqueue(id, "h", address, "/$name", dest(name))
+    await(id, TransferState.FAILED)
+    server.takeRequest()
+    val partLen = File(dest(name) + ".part").length().toInt()
+    assertTrue("partial written ($partLen)", partLen in 1 until payload.size)
+    return partLen
+  }
+
+  @Test fun resumeSendsTheStoredETagAsIfRangeAndAcceptsAMatchingTail() {
+    val partLen = interruptedWithETag("e1", "e1.bin")
+    server.enqueue(
+      MockResponse().setResponseCode(206).setHeader("ETag", etag)
+        .setHeader("Content-Range", "bytes $partLen-${payload.size - 1}/${payload.size}")
+        .setBody(Buffer().write(payload, partLen, payload.size - partLen)),
+    )
+    engine.resume("e1")
+    await("e1", TransferState.DONE)
+    val req = server.takeRequest()
+    assertEquals(etag, req.getHeader("If-Range"))
+    assertEquals("bytes=$partLen-", req.getHeader("Range"))
+    assertArrayEquals(payload, File(dest("e1.bin")).readBytes())
+  }
+
+  @Test fun resumeAnsweredWithAnotherETagIsDiscardedAndRestartedNeverSpliced() {
+    val partLen = interruptedWithETag("e2", "e2.bin")
+    val changed = ByteArray(payload.size) { (it * 13 % 241).toByte() }
+    // A 206 that names a different version: its tail must not be appended to the old prefix.
+    server.enqueue(
+      MockResponse().setResponseCode(206).setHeader("ETag", "\"other\"")
+        .setHeader("Content-Range", "bytes $partLen-${changed.size - 1}/${changed.size}")
+        .setBody(Buffer().write(changed, partLen, changed.size - partLen)),
+    )
+    server.enqueue(MockResponse().setBody(Buffer().write(changed)).setHeader("ETag", "\"other\""))
+    engine.resume("e2")
+    await("e2", TransferState.DONE)
+    server.takeRequest() // the rejected ranged request
+    val restart = server.takeRequest(2, TimeUnit.SECONDS)
+    assertNotNull("the engine must send a second, unranged request", restart)
+    assertEquals(null, restart!!.getHeader("Range"))
+    assertEquals(null, restart.getHeader("If-Range"))
+    assertArrayEquals(changed, File(dest("e2.bin")).readBytes())
+  }
+
+  @Test fun partialAnswerStartingAtTheWrongOffsetIsDiscardedAndRestarted() {
+    val partLen = interruptedWithETag("e3", "e3.bin")
+    server.enqueue(
+      MockResponse().setResponseCode(206).setHeader("ETag", etag)
+        .setHeader("Content-Range", "bytes 0-${payload.size - partLen - 1}/${payload.size}")
+        .setBody(Buffer().write(payload, partLen, payload.size - partLen)),
+    )
+    server.enqueue(full().setHeader("ETag", etag))
+    engine.resume("e3")
+    await("e3", TransferState.DONE)
+    server.takeRequest()
+    val restart = server.takeRequest(2, TimeUnit.SECONDS)
+    assertNotNull("the engine must send a second, unranged request", restart)
+    assertEquals(null, restart!!.getHeader("Range"))
+    assertArrayEquals(payload, File(dest("e3.bin")).readBytes())
+  }
+
   @Test fun pauseKeepsPartialAndResumeCompletes() {
     server.enqueue(full().throttleBody(20_000, 100, TimeUnit.MILLISECONDS))
     engine.enqueue("t4", "h", address, "/d.bin", dest("d.bin"))
@@ -248,6 +312,23 @@ class TransferEngineTest {
       while (pub.list().none { it.id == "p3" && it.state == TransferState.DONE } && System.currentTimeMillis() < end) Thread.sleep(20)
       assertEquals(TransferState.DONE, pub.list().first { it.id == "p3" }.state)
       assertFalse(folder.exists())
+    } finally {
+      pub.shutdown()
+    }
+  }
+
+  @Test fun recordsWhenItWasQueuedAndTheNameTheCopyWasSavedUnder() {
+    val pub = TransferEngine(File(dir, "journal-pub4"), creds, timeoutMs = 5000, publisher = { "content://media/external/downloads/9" }, publishedName = { "a (1).bin" })
+    try {
+      server.enqueue(full())
+      val before = System.currentTimeMillis()
+      pub.enqueue("p4", "h", address, "/a.bin", dest("p4.bin"))
+      val end = System.currentTimeMillis() + 10_000
+      while (pub.list().none { it.id == "p4" && it.state == TransferState.DONE } && System.currentTimeMillis() < end) Thread.sleep(20)
+      val r = pub.list().first { it.id == "p4" }
+      assertEquals("a (1).bin", r.savedName)
+      assertTrue(r.enqueuedAt >= before)
+      assertEquals(r.enqueuedAt, TransferRecord.fromJson(r.toJson()).enqueuedAt)
     } finally {
       pub.shutdown()
     }

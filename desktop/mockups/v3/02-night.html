@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Night — the dashboard Overview, transfers in a corner dock</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d02{--bg:#111113;--sf:#18181b;--rz:#222226;--t1:#ececee;--t2:#a0a0a8;--t3:#80808a;--line:rgba(236,236,238,.08);--line2:rgba(236,236,238,.14);--ac:#8fb4ff;--on-ac:#111113;--ac-ink:#a6c3ff;--ac-soft:rgba(143,180,255,.12);--pos:#4cc38a;--neg:#e5484d;--warn:#e0a43b;--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",monospace;--shadow:0 12px 32px rgba(0,0,0,.45)}
+.d02 .k-btn.pri{background:#ececee;color:#111113;box-shadow:none}.d02 .k-qr{background:#ececee}
+.d02 .top{height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--line)}.d02 .top .k-sbox{width:380px;margin-right:auto}
+.d02 .cd{position:absolute;right:16px;bottom:16px;width:380px;background:var(--sf);border-radius:12px;box-shadow:var(--shadow),inset 0 0 0 1px var(--line2);padding:12px 16px;z-index:30}
+.d02 .cd h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font:500 13px var(--font)}.d02 .cd h4 small{color:var(--t3);font:12px var(--mono)}
+.d02 .cd .x{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px;margin-bottom:8px}.d02 .cd .x small{color:var(--t3)}.d02 .cd .x .k-bar{grid-column:1/-1;margin:0}
+.d02 .db{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.d02 .stat{grid-column:span 3;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px}.d02 .stat small{color:var(--t3);font-size:12px}.d02 .stat b{display:block;font:500 28px/1.2 var(--mono);margin:8px 0 4px}.d02 .stat span{font-size:12px;color:var(--t2)}
+.d02 .chart{grid-column:span 8;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px;position:relative}
+.d02 .chart h2,.d02 .card h2{font:500 14px var(--font);margin:0;display:flex;align-items:center;gap:12px}.d02 .chart h2 small{color:var(--t3);font-weight:400}
+.d02 .chart>svg{display:block;width:100%;height:232px;margin-top:12px}.d02 .chart>svg text{font:11px var(--mono);fill:var(--t3)}
+.d02 .chart .ov{position:absolute;inset:48px 20px 20px;display:grid;place-items:center;color:var(--t3);font-size:13px}
+.d02 .card{grid-column:span 4;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px;display:flex;flex-direction:column;gap:12px}.d02 .card.w{grid-column:span 6}
+.d02 .need{display:grid;grid-template-columns:20px 1fr auto;gap:12px;align-items:center;font-size:13px}.d02 .need small{display:block;color:var(--t3);font-size:12px}
+.d02 .pcr{display:grid;grid-template-columns:12px 1fr 120px 64px;gap:12px;align-items:center;font-size:13px;height:36px}.d02 .pcr small{color:var(--t3);font:12px var(--mono)}.d02 .pcr .k-bar{margin:0}.d02 .pcr span .k-e{margin-right:6px}
+.d02 .rc{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.d02 .rc div{font-size:12px;color:var(--t2)}.d02 .rc svg{border-radius:8px;display:block;width:100%;height:auto;margin-bottom:6px}.d02 .rc b{display:block;color:var(--t1);font-weight:500;font-size:13px}
+.d02 .nil{color:var(--t3);font-size:13px;display:grid;gap:12px;justify-items:start}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d02">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="A dark dashboard: four numbers, today\u2019s throughput, what waits for you, computers and recent files. Transfers live in a dock pinned to the bottom right of every page, so the pages stay about their subject.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Overview", "Speed, moved today, computers up, devices; throughput chart", 0], ["Transfers", "Corner dock on every page; Transfers page for everything", 1], ["Requests", "Waiting for you card; Devices badge", 1], ["Search", "Top bar or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=K.C.searchBox('Search all connected computers')+K.C.actions();
+const cd=document.getElementById('pop');cd.className='cd';
+cd.innerHTML=EM?`<h4>${K.E('updown_arrow',16)}Transfers<small>nothing moving</small></h4><small class="mut">Drag files onto a folder in Files to upload them.</small>`:`<h4>${K.C.ring(64)}Transfers<small>52.4 MB/s · 3 need you</small><span class="sp"></span>${K.ib('pause','Pause all transfers')}${K.ib('right','Open Transfers','go:transfers')}</h4><div class="x"><span>walkthrough-full.mov</span><small>71% · 23 s</small>${K.bar(71)}</div><div class="x"><span>tax-2025.pdf</span><small>checking</small>${K.bar(100)}</div><div class="x"><span class="warn">bed-layout.pdf: name exists</span>${K.btn('Keep both',{k:'sm'})}</div>`;
+const up=[2,3,2,6,14,22,18,30,41,38,47,52,49,53,52,51],dn=[1,1,4,9,6,4,12,8,6,11,9,7,14,10,6,8];
+const X=i=>40+i*(800/15),Y=v=>200-v*3,line=a=>a.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(v)}`).join(' ');
+const grid=`${[0,20,40,60].map(v=>`<path d="M40 ${Y(v)}H840" stroke="var(--line)"/><text x="0" y="${Y(v)+4}">${v}</text>`).join('')}${['08:00','09:00','10:00','11:00'].map((t,i)=>`<text x="${40+i*266-16}" y="226">${t}</text>`).join('')}`;
+const stats=EM?[['Moving now','—','nothing to move yet'],['Moved today','0 B','since RFE started'],['Computers up','0','add one to start'],['Devices','0','pair a phone after']]:[['Moving now','52.4 MB/s','2 transfers · 23 s left'],['Moved today','1.9 GB','+640 MB vs yesterday'],['Computers up','2 of 4','nas key changed · media-mini off'],['Devices','4 allowed','2 asking to pair']];
+const home=()=>`<div class="db">${stats.map(s=>`<div class="stat"><small>${s[0]}</small><b>${s[1]}</b><span>${s[2]}</span></div>`).join('')}
+<div class="chart"><h2>Throughput today <small>MB/s · upload and download</small></h2><svg viewBox="0 0 860 232">${grid}${EM?'':`<path d="${line(dn)}" fill="none" stroke="var(--t3)" stroke-width="1.5"/><path d="${line(up)}" fill="none" stroke="var(--ac)" stroke-width="2"/>`}</svg>${EM?'<div class="ov">The line starts with your first transfer</div>':''}</div>
+<div class="card"><h2>Waiting for you ${EM?'':'<em class="k-badge bad">4</em>'}</h2>${EM?`<div class="nil">Nothing waits for you.<small>Pairing requests, name conflicts and key changes come here.</small></div>`:[['phone','Pixel 9 asks to join studio-pc','Match 4829 1307 · 1:42 left',K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})],['laptop','sam-thinkpad wants work-laptop’s place','Match 0316 8842',K.btn('Review…',{k:'sm',a:'dlg:accept'})],['doc','bed-layout.pdf exists on work-laptop','Upload to /Users/sam/Documents',K.btn('Keep both',{k:'sm'})],['warning','notes.txt was damaged while uploading','Discarded; try again',K.btn('Retry',{k:'sm',i:'refresh'})]].map(n=>`<div class="need">${E(n[0],20)}<div>${n[1]}<small>${n[2]}</small></div>${n[3]}</div>`).join('')}</div>
+<div class="card w"><h2>Computers</h2>${EM?`<div class="nil">No computers yet.${K.btn('Add a computer',{i:'plus',k:'sm pri',a:'dlg:newconn'})}</div>`:D.servers.map(s=>`<div class="pcr">${K.dot(s.dot)}<span>${K.mach(s,16)}${s.name} <small>${s.tag}</small></span>${K.bar(Math.round(s.used/s.total*100))}<small>${Math.round(s.used/s.total*100)}% full</small></div>`).join('')}</div>
+<div class="card w"><h2>Recent files</h2>${EM?`<div class="nil">Files you open or move show here.</div>`:`<div class="rc">${[[2,'north-bed-after.jpg','studio-pc · 12 min ago'],[1,'north-bed-before.jpg','downloaded'],[3,'garden-sketch.png','this computer']].map(r=>`<div data-k="dlg:preview" style="cursor:pointer">${K.photo(r[0],180,100,8)}<b>${r[1]}</b>${r[2]}</div>`).join('')}</div>`}</div></div>`;
+B.mount({views:{home}});
+
+</script></body></html>

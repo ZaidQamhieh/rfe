@@ -9,16 +9,24 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
+// x11SocketDir is where X servers create their listening sockets (X0, X1, ...).
+// It is a variable only so tests can point it at a temporary directory.
+var x11SocketDir = "/tmp/.X11-unix"
+
+// launchHandoffWait is how long a launch waits for the launcher process to
+// report a failure before the request is answered as started. gio normally
+// exits within milliseconds after handing the app to the session.
+var launchHandoffWait = 3 * time.Second
+
 const maxDesktopEntries = 10000
 const maxDesktopEntryBytes = 1 << 20
-
-var safeIconNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 
 func listHostApps() (string, []appRecord, error) {
 	dirs := xdgApplicationDirs()
@@ -106,8 +114,18 @@ func launchHostApp(ctx context.Context, requested appRecord) error {
 	if !requested.Launchable {
 		return errAppNotLaunchable
 	}
+	// A service started by systemd --user usually has neither variable even
+	// though the user is logged in; find the session from its sockets instead.
+	var sessionEnv []string
 	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
-		return errNoDesktopSession
+		x11Dir := x11SocketDir
+		if v := os.Getenv("RFE_TEST_X11_SOCKET_DIR"); v != "" { // tests only: keep a real X server out of the lookup
+			x11Dir = v
+		}
+		sessionEnv = discoverDesktopSession(os.Getenv, os.Getuid(), x11Dir)
+		if len(sessionEnv) == 0 {
+			return errNoDesktopSession
+		}
 	}
 	gio, err := exec.LookPath("gio")
 	if err != nil {
@@ -135,17 +153,96 @@ func launchHostApp(ctx context.Context, requested appRecord) error {
 		return errAppNotLaunchable
 	}
 
-	launchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(launchCtx, gio, "launch", current.launchRef)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
-		// GIO can confirm that it accepted a launch even if the app later fails
-		// during startup; the API reports only this handoff result.
+	// GIO can confirm that it accepted a launch even if the app later fails
+	// during startup; the API reports only this handoff result.
+	return startDetached(gio, []string{"launch", current.launchRef}, append(os.Environ(), sessionEnv...))
+}
+
+// startDetached runs a launcher as its own session leader with stdin, stdout
+// and stderr on /dev/null, so no pipe is shared with the agent and a GUI app
+// the launcher spawns cannot keep the request waiting. It answers nil when the
+// launcher exits 0, or is still running after launchHandoffWait; a failed
+// start or a non-zero exit within that time is errAppStartFailed. The process
+// is always reaped in a background goroutine and never killed by the request.
+// The wait deliberately ignores request cancellation: a client that drops
+// mid-wait does not stop the launcher, so the answer must still be the real
+// handoff result (a cancelled wait would report failure for a launch that
+// goes on to succeed, and a retry would start a second instance).
+func startDetached(path string, args, env []string) error {
+	cmd := exec.Command(path, args...)
+	cmd.Env = env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// Nil Stdin/Stdout/Stderr make os/exec open os.DevNull for the child.
+	if err := cmd.Start(); err != nil {
 		return errAppStartFailed
 	}
-	return nil
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+	timer := time.NewTimer(launchHandoffWait)
+	defer timer.Stop()
+	select {
+	case err := <-exited:
+		if err != nil {
+			return errAppStartFailed
+		}
+		return nil
+	case <-timer.C:
+		return nil
+	}
+}
+
+// discoverDesktopSession finds a running graphical session for the current
+// user when the agent's own environment has none. It returns the extra
+// KEY=VALUE entries to give a launched app: a wayland-N socket in the user's
+// runtime directory (WAYLAND_DISPLAY plus XDG_RUNTIME_DIR) and/or an X server
+// socket XN owned by uid in x11Dir (DISPLAY=:N); the lowest number of each
+// kind wins. It returns nil when the environment already names a session or
+// none is found.
+func discoverDesktopSession(getenv func(string) string, uid int, x11Dir string) []string {
+	if getenv("DISPLAY") != "" || getenv("WAYLAND_DISPLAY") != "" {
+		return nil
+	}
+	runtimeDir := getenv("XDG_RUNTIME_DIR")
+	if !filepath.IsAbs(runtimeDir) {
+		runtimeDir = filepath.Join("/run/user", strconv.Itoa(uid))
+	}
+	var extra []string
+	if name := lowestSocket(runtimeDir, uid, "wayland-"); name != "" {
+		extra = append(extra, "WAYLAND_DISPLAY="+name, "XDG_RUNTIME_DIR="+runtimeDir)
+	}
+	if name := lowestSocket(x11Dir, uid, "X"); name != "" {
+		extra = append(extra, "DISPLAY=:"+strings.TrimPrefix(name, "X"))
+	}
+	return extra
+}
+
+// lowestSocket returns the name of the unix socket in dir owned by uid whose
+// name is prefix followed only by a decimal number (so "wayland-0.lock" and
+// non-sockets are skipped), choosing the smallest number; "" when none.
+func lowestSocket(dir string, uid int, prefix string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	best, bestN := "", -1
+	for _, entry := range entries {
+		name := entry.Name()
+		n, err := strconv.Atoi(strings.TrimPrefix(name, prefix))
+		if !strings.HasPrefix(name, prefix) || err != nil || n < 0 {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || info.Mode().Type() != fs.ModeSocket {
+			continue
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); !ok || int(st.Uid) != uid {
+			continue
+		}
+		if bestN < 0 || n < bestN {
+			best, bestN = name, n
+		}
+	}
+	return best
 }
 
 func xdgApplicationDirs() []string {

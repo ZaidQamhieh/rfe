@@ -19,6 +19,22 @@ fn paths(list: Option<Vec<tauri_plugin_dialog::FilePath>>) -> Vec<String> {
         .collect()
 }
 
+/// A file dialog with the title, and the start folder when it is an existing folder.
+fn file_dialog(
+    app: &tauri::AppHandle,
+    title: Option<String>,
+    start_dir: Option<String>,
+) -> tauri_plugin_dialog::FileDialogBuilder<tauri::Wry> {
+    let mut d = app.dialog().file();
+    if let Some(t) = title {
+        d = d.set_title(t);
+    }
+    if let Some(s) = start_dir.filter(|s| std::path::Path::new(s).is_dir()) {
+        d = d.set_directory(s);
+    }
+    d
+}
+
 /// Lets the person choose files on this computer. An empty list means they cancelled.
 #[tauri::command]
 pub async fn pick_files(
@@ -29,13 +45,7 @@ pub async fn pick_files(
     filters: Option<Vec<Filter>>,
 ) -> Result<Vec<String>, String> {
     tokio::task::spawn_blocking(move || {
-        let mut d = app.dialog().file();
-        if let Some(t) = title {
-            d = d.set_title(t);
-        }
-        if let Some(s) = start_dir.filter(|s| std::path::Path::new(s).is_dir()) {
-            d = d.set_directory(s);
-        }
+        let mut d = file_dialog(&app, title, start_dir);
         for f in filters.unwrap_or_default() {
             let ext: Vec<&str> = f.extensions.iter().map(String::as_str).collect();
             d = d.add_filter(f.name, &ext);
@@ -58,13 +68,7 @@ pub async fn pick_folder(
     start_dir: Option<String>,
 ) -> Result<Option<String>, String> {
     tokio::task::spawn_blocking(move || {
-        let mut d = app.dialog().file();
-        if let Some(t) = title {
-            d = d.set_title(t);
-        }
-        if let Some(s) = start_dir.filter(|s| std::path::Path::new(s).is_dir()) {
-            d = d.set_directory(s);
-        }
+        let d = file_dialog(&app, title, start_dir);
         paths(d.blocking_pick_folder().map(|p| vec![p]))
             .into_iter()
             .next()

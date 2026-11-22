@@ -25,6 +25,27 @@ describe('cross-host search', () => {
     expect(groupByHost(st.results).map((g) => g.host.id).sort()).toEqual(['a', 'c']);
   });
 
+  it('logs why a host failed instead of swallowing the error', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const s = createCrossHostSearch({
+        hosts: [host('a')],
+        getClient: async () => ({
+          async search(): Promise<SearchResult> {
+            throw new Error('offline');
+          },
+        }),
+      });
+      await s.run('file');
+      expect(s.getState().failed).toEqual(['a']);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('cross-host search');
+      expect(warn.mock.calls[0][0]).toContain('offline');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('does not search for a single character', async () => {
     let calls = 0;
     const s = createCrossHostSearch({ hosts: [host('a')], getClient: async () => ({ search: async () => (calls++, res('x')) }) });

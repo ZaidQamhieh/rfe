@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Bento — the Overview as tiles, one per thing you own</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d05{--bg:#f3f1ee;--sf:#fffdfa;--rz:#ebe7e1;--t1:#1d1b18;--t2:#57524b;--t3:#7a746b;--line:rgba(29,27,24,.07);--line2:rgba(29,27,24,.14);--ac:#c2410c;--ac-ink:#b23a09;--ac-soft:rgba(194,65,12,.08);--font:"Manrope",system-ui,sans-serif;--mono:"Space Mono",monospace;--rc:18px}
+.d05 .top{height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 24px}.d05 .top .k-sbox{width:360px;margin-right:auto;border-radius:18px}
+.d05 .bt{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:150px;gap:14px}
+.d05 .t{background:var(--sf);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line);padding:18px;display:flex;flex-direction:column;gap:6px;cursor:pointer;overflow:hidden;position:relative;transition:box-shadow .15s}
+.d05 .t:hover{box-shadow:inset 0 0 0 1px var(--line2),0 6px 18px rgba(0,0,0,.05)}
+.d05 .t h3{margin:0;font:500 13px var(--font);color:var(--t2);display:flex;gap:8px;align-items:center}.d05 .t b{font:700 30px var(--mono);letter-spacing:-.02em}.d05 .t small{color:var(--t3)}
+.d05 .w2{grid-column:span 2}.d05 .w3{grid-column:span 3}.d05 .h2{grid-row:span 2}
+.d05 .t.ghost{background:none;box-shadow:inset 0 0 0 1.5px var(--line2);border:0;color:var(--t3)}.d05 .t.ghost h3{color:var(--t3)}
+.d05 .t.add{background:var(--ac);color:#fff;box-shadow:none}.d05 .t.add h3,.d05 .t.add small{color:rgba(255,255,255,.85)}.d05 .t.add b{font-family:var(--font);font-size:24px}
+.d05 .rqt{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13px}.d05 .rqt small{display:block;color:var(--t3);font-size:12px}.d05 .rqt code{background:none;font:700 15px var(--mono);letter-spacing:.04em}.d05 .rqt .k-btn{grid-column:1/-1;justify-self:start}
+.d05 .ring{display:flex;gap:16px;align-items:center}.d05 .ring svg{flex:none}
+.d05 .ph3{display:flex;gap:8px;margin-top:auto}.d05 .ph3 svg{border-radius:10px}
+.d05 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.d05 .st{background:var(--sf);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line);padding:20px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+.d05 .st.bad{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--neg) 45%,transparent)}.d05 .st b{font-weight:600;font-size:16px}.d05 .st small{display:block;color:var(--t3);font-size:12px}.d05 .st .k-row{grid-column:1/-1}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d05">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The Overview is a grid of tiles, one per subject: speed, each computer\u2019s disk, phones asking, recent photos, links, sync, trash. Each tile opens its page. Servers are big tiles with a disk ring.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Overview", "Tiles; each opens its page", 0], ["Servers", "Big tiles with a disk ring; menu on each", 1], ["Transfers", "Speed tile; Transfers page", 1], ["Search", "Top bar or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=K.C.searchBox('Search all connected computers')+K.C.actions();
+const ring=(p,c='var(--ac)',sz=72)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--rz)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="${c}" stroke-width="4" stroke-dasharray="${p*0.94} 100" transform="rotate(-90 18 18)" stroke-linecap="round"/><text x="18" y="21" text-anchor="middle" style="font:700 8px var(--mono);fill:var(--t1)">${p}%</text></svg>`;
+const t=(cls,a,h,body)=>`<div class="t ${cls}" data-k="${a}"><h3>${h}</h3>${body}</div>`;
+const home=()=>EM?`<div class="bt">${t('add w2 h2','dlg:newconn',`${I('plus',16)}Start here`,`<b>Add a computer</b><small>Install RFE on a PC, run rfe setup there, then add it by address, network or pairing code.</small>`)}${[['updown_arrow','Speed','w2','The speed of your transfers'],['desktop_computer','Disk','w2','Each computer’s disk use'],['mobile_phone','Phones','w2','Phones asking to pair'],['framed_picture','Recent','w2','Photos and files you opened'],['link','Links','','Live share links'],['counterclockwise_arrows_button','Sync','','Folder sync rules']].map(x=>t('ghost '+x[2],'dlg:newconn',`${E(x[0],18)}${x[1]}`,`<small>${x[3]} appear here after you add a computer.</small>`)).join('')}</div>`
+:`<div class="bt">${t('w2','go:transfers',`${E('updown_arrow',18)}Moving now`,`<b>52.4 MB/s</b><small>2 transfers · 23 s left · 3 need you</small>${K.bar(71)}`)}${t('w2','go:servers',`${K.mach(D.servers[0],18)}studio-pc`,`<div class="ring">${ring(41)}<small>812 GB of 2 TB<br>12 ms LAN</small></div>`)}${t('w2 h2','go:devices',`${E('phone',18)}Asking to pair`,`<b>2</b>${D.requests.map(r=>`<div class="rqt"><span>${r.n}<small>${r.exp} left${r.over?' · takes over '+r.over:''}</small></span><code>${r.code}</code>${K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})}</div>`).join('')}`)}${t('w2','go:servers',`${K.mach(D.servers[1],18)}work-laptop`,`<div class="ring">${ring(79,'var(--warn)')}<small>402 of 512 GB<br>48 ms Tailscale</small></div>`)}${t('w2','go:servers',`${E('key',18)}nas`,`<b style="font-size:20px;color:var(--neg)">Key changed</b><small>Compare before its files open</small>`)}${t('w3','go:files',`${E('framed_picture',18)}Recent`,`<div class="ph3">${[2,1,3,0].map(s=>K.photo(s,120,70,10)).join('')}</div>`)}${t('','tool:share',`${E('link',18)}Links`,`<b>2</b><small>live</small>`)}${t('','tool:sync',`${E('counterclockwise_arrows_button',18)}Sync`,`<b>2</b><small>rules</small>`)}${t('','tool:trash',`${E('wastebasket',18)}Trash`,`<b>4</b><small>items</small>`)}</div>`;
+const servers=()=>K.head('Servers','4 saved · 2 connected',K.btn('New connection',{i:'plug',k:'pri',a:'dlg:newconn'}))+`<div class="tiles">${D.servers.map(s=>{const p=Math.round(s.used/s.total*100);return `<div class="st${s.dot==='bad'?' bad':''}">${ring(p,s.dot==='ok'?'var(--ac)':'var(--t3)',64)}<span><b>${K.mach(s,18)} ${s.name}</b><small>${K.dot(s.dot)} ${s.state} · ${s.route} · ${s.sys}</small><small class="mono">${s.addr}</small></span>${K.ib('more','More for '+s.name,'menu:server')}<div class="k-row">${s.state==='Connected'?K.btn('Open files',{i:'folder',k:'sm pri',a:'go:files'}):s.state==='Key changed'?K.btn('Review key…',{k:'sm warn',a:'dlg:keychanged'}):K.btn('Wake computer',{i:'power',k:'sm'})}</div></div>`}).join('')}</div>`;
+B.mount({views:EM?{home}:{home,servers}});
+
+</script></body></html>

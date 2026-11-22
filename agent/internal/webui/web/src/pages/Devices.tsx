@@ -1,33 +1,38 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Monitor, Smartphone, Shield, Trash2 } from 'lucide-react';
-import { api, type Device } from '@/lib/api';
+import { api, apiMessage, type Device } from '@/lib/api';
+import { formatAgo, usedBytesOf, wholeGB } from '@/lib/format';
+import { DEVICES_REFRESH_MS, isOnline, statusQuery } from '@/lib/queries';
 import { useToast } from '@/lib/toast-context';
+import { confirmDestructive } from '@/lib/confirm';
+import { ListError } from '@/components/ListError';
 
-function formatAgo(unixSeconds: number): string {
-  const s = Date.now() / 1000 - unixSeconds;
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
-
-const ONLINE_WINDOW_SECONDS = 300;
-function isOnline(d: Device): boolean {
-  return Date.now() / 1000 - d.lastSeen < ONLINE_WINDOW_SECONDS;
-}
+/** How often the "now" clock on this page ticks, in milliseconds. */
+const CLOCK_TICK_MS = 1000;
 
 function DeviceCard({ device }: { device: Device }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [jailRoot, setJailRoot] = useState(device.jailRoot ?? '');
+  // The jail text the user typed, or null while they have not touched it: then the box follows the device's own value,
+  // and Save stays off, so it can never send a jail the box did not show.
+  const [jailEdit, setJailEdit] = useState<string | null>(null);
+  const jailRoot = jailEdit ?? device.jailRoot ?? '';
 
   const patch = useMutation({
     mutationFn: (body: Parameters<typeof api.patchDevice>[1]) => api.patchDevice(device.id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },
-    onError: () => toast('Update failed'),
+    onError: (err) => toast(apiMessage(err, 'Update failed')),
+  });
+
+  const revoke = useMutation({
+    mutationFn: () => api.deleteDevice(device.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+    },
+    onError: (err) => toast(apiMessage(err, 'Revoke failed')),
   });
 
   const online = isOnline(device);
@@ -41,6 +46,8 @@ function DeviceCard({ device }: { device: Device }) {
     ['Modify files', device.modify ?? false, () => patch.mutate({ modify: !device.modify })],
     ['Delete files', device.delete ?? false, () => patch.mutate({ delete: !device.delete })],
     ['Create share links', device.share ?? false, () => patch.mutate({ share: !device.share })],
+    // Older agents do not report the Wake-on-LAN grant, so its switch is offered only when it is there.
+    ...(device.wake != null ? [['Wake computers', device.wake, () => patch.mutate({ wake: !device.wake })] as const] : []),
   ] as const;
 
   return (
@@ -89,14 +96,14 @@ function DeviceCard({ device }: { device: Device }) {
         <input
           type="text"
           value={jailRoot}
-          onChange={(e) => setJailRoot(e.target.value)}
+          onChange={(e) => setJailEdit(e.target.value)}
           placeholder="Jail path (empty = unrestricted)"
           style={{ flex: 1, minWidth: 0 }}
         />
         <button
           className="btn btn-ghost btn-sm"
-          disabled={jailRoot === (device.jailRoot ?? '')}
-          onClick={() => patch.mutate({ jailRoot })}
+          disabled={jailEdit === null || jailEdit === (device.jailRoot ?? '')}
+          onClick={() => patch.mutate({ jailRoot }, { onSuccess: () => setJailEdit(null) })}
         >
           Save
         </button>
@@ -126,29 +133,40 @@ function DeviceCard({ device }: { device: Device }) {
         </div>
       )}
 
-      <button
-        className="btn btn-danger btn-sm"
-        style={{ width: '100%', marginTop: 8 }}
-        onClick={() => patch.mutate({ revoked: !device.revoked })}
-      >
-        <Trash2 />
-        {device.revoked ? 'Unrevoke' : 'Revoke'}
-      </button>
+      {!device.revoked && (
+        <button
+          className="btn btn-danger btn-sm"
+          style={{ width: '100%', marginTop: 8 }}
+          onClick={() => {
+            if (confirmDestructive(`Revoke "${device.label}"? It will be signed out and can no longer reach this PC.`)) revoke.mutate();
+          }}
+        >
+          <Trash2 />
+          Revoke
+        </button>
+      )}
     </div>
   );
 }
 
 export function Devices() {
   const { toast } = useToast();
-  const devices = useQuery({ queryKey: ['devices'], queryFn: api.listDevices, refetchInterval: 15000 });
-  const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 15000 });
+  const devices = useQuery({ queryKey: ['devices'], queryFn: api.listDevices, refetchInterval: DEVICES_REFRESH_MS });
+  const status = useQuery(statusQuery(DEVICES_REFRESH_MS));
 
-  const [code, setCode] = useState<{ code: string; expiresAt: number; qrPngBase64?: string } | null>(null);
+  const [code, setCode] = useState<Awaited<ReturnType<typeof api.generatePairingCode>> | null>(null);
   const [now, setNow] = useState(Date.now());
+  // The countdown clock runs only while a pairing code is on screen, and stops once it has expired, so an idle page
+  // does not re-render every second.
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    if (!code) return;
+    setNow(Date.now());
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() / 1000 >= code.expiresAt) clearInterval(t);
+    }, CLOCK_TICK_MS);
     return () => clearInterval(t);
-  }, []);
+  }, [code]);
 
   const generate = useMutation({
     mutationFn: api.generatePairingCode,
@@ -160,13 +178,16 @@ export function Devices() {
   });
 
   const list = devices.data ?? [];
-  const total = list.length;
-  const online = list.filter(isOnline).length;
-  const guests = list.filter((d) => !d.viaLogin).length;
-  const admins = list.filter((d) => d.viaLogin).length;
-  const readOnlyCount = list.filter((d) => d.readOnly).length;
-  const revokedCount = list.filter((d) => d.revoked).length;
-  const usedBytes = status.data ? status.data.totalBytes - status.data.freeBytes : undefined;
+  // A failed query with nothing cached shows "--", not a believable zero.
+  const failed = devices.isError && !devices.data;
+  const count = (n: number) => (failed ? '--' : n);
+  const total = count(list.length);
+  const online = count(list.filter(isOnline).length);
+  const guests = count(list.filter((d) => !d.viaLogin).length);
+  const admins = count(list.filter((d) => d.viaLogin).length);
+  const readOnlyCount = count(list.filter((d) => d.readOnly).length);
+  const revokedCount = count(list.filter((d) => d.revoked).length);
+  const usedBytes = status.data ? usedBytesOf(status.data) : undefined;
 
   const remaining = code ? Math.max(0, Math.floor(code.expiresAt - now / 1000)) : 0;
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
@@ -184,7 +205,7 @@ export function Devices() {
         <div className="mini-stat"><div className="label">Revoked</div><div className="value" style={{ color: 'var(--red)' }}>{revokedCount}</div></div>
         <div className="mini-stat">
           <div className="label">Storage used</div>
-          <div className="value">{usedBytes != null ? `${(usedBytes / 1e9).toFixed(0)}GB` : '--'}</div>
+          <div className="value">{usedBytes != null ? `${wholeGB(usedBytes)}GB` : '--'}</div>
         </div>
       </div>
 
@@ -237,7 +258,9 @@ export function Devices() {
       </div>
 
       <div className="section-label">Paired devices</div>
-      {list.length === 0 ? (
+      {failed ? (
+        <ListError title="Could not load devices" error={devices.error} />
+      ) : list.length === 0 ? (
         <div className="empty">
           <div className="ico">
             <Monitor />

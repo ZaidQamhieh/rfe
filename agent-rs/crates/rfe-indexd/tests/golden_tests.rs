@@ -4,8 +4,11 @@
 //! The Go adapter replays the same file in agent/internal/server (TestSidecarIndexMatchesFrozenGoIndex).
 #![cfg(unix)]
 
+mod common;
+
+use common::TEST_LIMITS;
 use rfe_indexd::filter::{Compiled, Filters};
-use rfe_indexd::index::{Index, Limits};
+use rfe_indexd::index::Index;
 use rfe_indexd::recents;
 use serde::Deserialize;
 use std::fs;
@@ -129,13 +132,27 @@ fn load() -> Golden {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
 }
 
+/// One entry as compared: path, is_dir, size, mtime_ns, is_symlink, symlink target.
+type Row = (String, bool, u64, i64, bool, String);
+
+fn norm(
+    path: String,
+    is_dir: bool,
+    size: u64,
+    mtime_ns: i64,
+    is_symlink: bool,
+    target: String,
+) -> Row {
+    (path, is_dir, size, mtime_ns, is_symlink, target)
+}
+
 fn check(ctx: &str, w: &World, got: &[rfe_indexd::entry::WireEntry], want: &[Want]) {
-    let render = |it: Vec<(String, bool, u64, i64, bool, String)>| format!("{it:#?}");
+    let render = |it: Vec<Row>| format!("{it:#?}");
     let g: Vec<_> = got
         .iter()
         .map(|e| {
             let size = if e.is_dir || e.is_symlink { 0 } else { e.size };
-            (
+            norm(
                 e.path.clone(),
                 e.is_dir,
                 size,
@@ -148,7 +165,7 @@ fn check(ctx: &str, w: &World, got: &[rfe_indexd::entry::WireEntry], want: &[Wan
     let x: Vec<_> = want
         .iter()
         .map(|e| {
-            (
+            norm(
                 w.sub(&e.path),
                 e.is_dir,
                 e.size,
@@ -173,10 +190,7 @@ fn index_answers_match_the_frozen_go_index() {
     let w = materialize(&g);
     let idx = Index::build(
         std::slice::from_ref(&w.root),
-        Limits {
-            max_entries: 1_000_000,
-            max_bytes: 1 << 30,
-        },
+        TEST_LIMITS,
         &AtomicBool::new(false),
     );
     for q in &g.queries {

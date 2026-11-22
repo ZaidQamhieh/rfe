@@ -6,8 +6,9 @@ import type { Host } from '../../../core/models/host';
 import { Text } from '../../../design/components';
 import { useScheme } from '../../../design/theme';
 import { FontFamily, Spacing } from '../../../design/tokens';
+import { t } from '../../../i18n';
 import { parseCsv } from '../csv';
-import { textStateView, usePreviewText } from './TextViewer';
+import { EmptyFileNotice, textStateView, usePreviewText } from './TextViewer';
 
 const COL_WIDTH = 140;
 
@@ -16,26 +17,20 @@ export function CsvViewer({ host, entry }: { host: Host; entry: Entry }) {
   const c = useScheme();
   const { file, text, retry } = usePreviewText(host, entry);
   const data = useMemo(() => (text.status === 'ready' ? parseCsv(text.text) : null), [text]);
-  const pending = textStateView(file, text, retry, 'Loading CSV…');
+  const pending = textStateView(file, text, retry, t('loadingCsv'));
   if (pending) return pending;
-  if (!data || (data.headers.length === 0 && data.rows.length === 0)) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text color={c.outline}>(empty file)</Text>
-      </View>
-    );
-  }
+  if (!data || (data.headers.length === 0 && data.rows.length === 0)) return <EmptyFileNotice />;
   const cols = data.headers.length;
   const width = cols * COL_WIDTH;
   const cell = (v: string, header: boolean, key: number) => (
-    <Text key={key} numberOfLines={header ? 1 : 3} style={{ width: COL_WIDTH, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, fontFamily: header ? FontFamily.semibold : FontFamily.regular }}>
+    <Text key={key} numberOfLines={header ? 1 : 3} style={{ width: COL_WIDTH, paddingHorizontal: 10, paddingVertical: Spacing.sm, fontSize: 13, fontFamily: header ? FontFamily.semibold : FontFamily.regular }}>
       {v}
     </Text>
   );
   return (
     <View style={{ flex: 1 }}>
       <Text variant="bodySmall" muted style={{ alignSelf: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: Spacing.xs }}>
-        {`${data.totalRows} row${data.totalRows === 1 ? '' : 's'}`}
+        {t('csvRowCount', { count: data.totalRows })}
       </Text>
       <ScrollView horizontal contentContainerStyle={{ padding: Spacing.md }}>
         <View style={{ width }}>

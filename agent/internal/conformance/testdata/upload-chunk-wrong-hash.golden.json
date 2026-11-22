@@ -1,0 +1,13 @@
+{
+  "status": 409,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "CHUNK_HASH_MISMATCH",
+    "message": "chunk sha256 mismatch: got db2e7f1bd5ab9968ae76199b7cc74795ca7404d5a08d78567715ce532f9d2669 want a07224d9bfbcc5f13a1127ee55d4b89ae91057c0c26c462a28765b976a257b82"
+  }
+}

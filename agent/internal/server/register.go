@@ -12,6 +12,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +27,12 @@ const (
 	registerRateLimitAttempts = 10
 	registerRateLimitWindow   = time.Minute
 )
+
+// minPasswordChars is the shortest password register accepts, counted in characters (runes).
+const minPasswordChars = 8
+
+// registerPasswordMsg is the 400 message for a missing username or a password outside the allowed length.
+var registerPasswordMsg = fmt.Sprintf("username required and password must be %d characters to %d bytes", minPasswordChars, security.MaxPasswordBytes)
 
 type registerRequest struct {
 	PairingCode string `json:"pairingCode"`
@@ -44,7 +51,7 @@ func registerHandler(cfg Config, db *store.DB, pm *pairing.Manager, nonces *nonc
 	// Per source first, so one noisy address spends its own allowance and not everyone's; the global
 	// window behind it still caps total guessing at the pairing code from many addresses (audit F-147).
 	perIP := newKeyedLimiter(registerRateLimitAttempts, registerRateLimitWindow)
-	limiter := newFixedWindowLimiter(registerRateLimitAttempts*4, registerRateLimitWindow)
+	limiter := newFixedWindowLimiter(registerRateLimitAttempts*globalRateFactor, registerRateLimitWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !perIP.Allow(clientIP(r)) || !limiter.Allow() {
 			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many registration attempts, try again later")
@@ -60,8 +67,8 @@ func registerHandler(cfg Config, db *store.DB, pm *pairing.Manager, nonces *nonc
 		// is a recoverable client-side mistake — burning the code on that
 		// would force a trip back to the PC for something that wasn't the
 		// code's fault. See pairHandler for the same reasoning.
-		if req.Username == "" || utf8.RuneCountInString(req.Password) < 8 || len(req.Password) > security.MaxPasswordBytes {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "username required and password must be 8 characters to 72 bytes")
+		if req.Username == "" || utf8.RuneCountInString(req.Password) < minPasswordChars || len(req.Password) > security.MaxPasswordBytes {
+			writeError(w, http.StatusBadRequest, codeBadRequest, registerPasswordMsg)
 			return
 		}
 		// One account per agent (see the `users` table doc comment in
@@ -78,12 +85,17 @@ func registerHandler(cfg Config, db *store.DB, pm *pairing.Manager, nonces *nonc
 			writeError(w, http.StatusConflict, "ACCOUNT_ALREADY_EXISTS", "this computer already has an account — log in instead, or ask the owner to add a device")
 			return
 		}
-		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rePinOnKeyChange, requireBoundProof); err != nil {
+		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rePinOnKeyChange); err != nil {
 			return // verifyDeviceProof already wrote the error response
 		}
 		// An ordinary code must not be spent by a register attempt it can never satisfy (audit F-07).
 		if peek := pm.Peek(req.PairingCode); peek.Valid && !peek.CanRegister {
 			writeError(w, http.StatusForbidden, "CODE_CANNOT_REGISTER", "this code can't create an account — run `rfe pair --owner` on the computer")
+			return
+		}
+		// A valid code must not re-pin another phone's key either: refuse before the code is spent, and only
+		// for a valid code so an unauthenticated caller learns nothing about known device ids (as in pairHandler).
+		if pm.Peek(req.PairingCode).Valid && refuseKeyReplacement(w, db, req.DeviceID, req.DevicePublicKey) {
 			return
 		}
 		codeInfo := pm.Consume(req.PairingCode)
@@ -105,16 +117,27 @@ func registerHandler(cfg Config, db *store.DB, pm *pairing.Manager, nonces *nonc
 		}
 
 		if req.DeviceLabel == "" {
-			req.DeviceLabel = "unnamed-device"
+			req.DeviceLabel = unnamedDeviceLabel
 		}
-		token, err := randomToken(32)
+		token, err := randomToken(tokenBytes)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to generate token")
+			writeError(w, http.StatusInternalServerError, "INTERNAL", tokenGenerateFailedMsg)
 			return
 		}
 		// One transaction for the account + its device: the HasAnyUser check
 		// above is only an early, friendly 409 — RegisterAccount re-checks it
-		// atomically, so two simultaneous registrations can't both win (PR-45).
+		// atomically, so two simultaneous registrations can't both win.
+		// Checked again now the code is spent: a concurrent pairing may have created the row since the first check.
+		if refuseKeyReplacement(w, db, req.DeviceID, req.DevicePublicKey) {
+			return
+		}
+		// Decided before the upsert overwrites the row, as pair does: a revoked device registering again
+		// with its own key must not inherit its old grants (a different key was refused above).
+		replaces, err := pairReplaces(db, req.DeviceID, req.DevicePublicKey)
+		if err != nil {
+			writeInternal(w, "register", err)
+			return
+		}
 		deviceID, err := db.RegisterAccount(req.DeviceID, req.DeviceLabel, token, req.DevicePublicKey, req.Username, hash)
 		if err != nil {
 			switch {
@@ -130,15 +153,14 @@ func registerHandler(cfg Config, db *store.DB, pm *pairing.Manager, nonces *nonc
 			}
 			return
 		}
+		if replaces != "" {
+			if err := db.ResetDeviceAccess(deviceID); err != nil {
+				writeInternal(w, "register", err)
+				return
+			}
+		}
 		auditAs(db, req.Username, store.AuditRegister, req.DeviceLabel, "from "+clientIP(r))
 
-		writePairResponse(w, r, pairResponse{
-			DeviceToken:      token,
-			DeviceID:         deviceID,
-			AgentName:        cfg.Name,
-			CertFingerprint:  cfg.CertFingerprint,
-			Address:          cfg.Address,
-			TailscaleAddress: cfg.TailscaleAddress,
-		})
+		writePairResponse(w, r, newPairResponse(cfg, token, deviceID))
 	}
 }

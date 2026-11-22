@@ -1,11 +1,19 @@
 // Path helpers ported from explorer_state.dart. Hosts can be POSIX (`/`) or Windows (`C:\`); the
 // separator of the path in hand is always preserved (PR-66).
 
-const SEP_RE = /[/\\]/;
+import { t } from '../../i18n';
 
-/** Final path component (works for both separators). */
+const SEP_RE = /[/\\]/;
+const POSIX_SEP_RE = /\//;
+
+/** A Windows path has a drive prefix (`C:`) or is a UNC share (`\\host\share`); any other path is POSIX, whose names may hold a backslash. */
+function isWindowsPath(path: string): boolean {
+  return /^[A-Za-z]:/.test(path) || path.startsWith('\\\\');
+}
+
+/** Final path component, split on the separators of the path's own style. */
 export function basenameOf(path: string): string {
-  const parts = path.split(SEP_RE).filter(Boolean);
+  const parts = path.split(isWindowsPath(path) ? SEP_RE : POSIX_SEP_RE).filter(Boolean);
   return parts[parts.length - 1] ?? '';
 }
 
@@ -26,8 +34,11 @@ export function dedupedName(name: string, existing: ReadonlySet<string>): string
 }
 
 /** Display name for a folder path, or "Root" for a filesystem root. */
+/** True for a filesystem root: "/" or a drive such as "C:\". */
+export const isFsRoot = (path: string): boolean => path === '/' || /^[A-Za-z]:\\?$/.test(path);
+
 export function folderLabel(path: string): string {
-  if (path === '/' || /^[A-Za-z]:\\?$/.test(path)) return 'Root';
+  if (isFsRoot(path)) return t('rootFolderLabel');
   const name = basenameOf(path);
   return name === '' ? path : name;
 }
@@ -35,11 +46,29 @@ export function folderLabel(path: string): string {
 /** Breadcrumb label: the root crumb shows the root folder's name (never a lone "/"), the rest their last segment. */
 export const crumbLabel = (stack: string[], index: number): string => {
   if (index === 0) return stack[0] ? folderLabel(stack[0]) : '/';
-  return stack[index].split(/[/\\]/).pop() ?? '';
+  const path = stack[index];
+  // A backslash separates names only in a Windows path; on Linux it is part of a name.
+  return path.split(isWindowsPath(path) ? SEP_RE : POSIX_SEP_RE).pop() ?? '';
 };
 
+/** Comparable form of a path: forward slashes, no trailing slash, lower-cased when [lowerCase] (case-insensitive drive matching). */
+export function comparablePath(p: string, lowerCase = false): string {
+  const s = p.replace(/\\/g, '/').replace(/\/+$/, '');
+  return lowerCase ? s.toLowerCase() : s;
+}
+
+/** The path's separator: a backslash for a Windows path that uses one, else a slash. */
+function sepOf(path: string): string {
+  return isWindowsPath(path) && path.includes('\\') ? '\\' : '/';
+}
+
+/** The prompt submits trimmed text, so a name counts as unchanged when it matches the current name trimmed. */
+export function isSameName(current: string, submitted: string): boolean {
+  return submitted === current.trim();
+}
+
 export function renameDestination(oldPath: string, newName: string): string {
-  const sep = oldPath.includes('\\') ? '\\' : '/';
+  const sep = sepOf(oldPath);
   const idx = oldPath.lastIndexOf(sep);
   const parent = idx <= 0 ? sep : oldPath.slice(0, idx);
   return parent === sep ? `${sep}${newName}` : `${parent}${sep}${newName}`;
@@ -47,7 +76,7 @@ export function renameDestination(oldPath: string, newName: string): string {
 
 /** Parent directory of [path], keeping its separator style; the root's parent is the root. */
 export function parentDirOf(path: string): string {
-  const sep = path.includes('\\') ? '\\' : '/';
+  const sep = sepOf(path);
   const idx = path.lastIndexOf(sep);
   if (idx <= 0) return sep;
   const parent = path.slice(0, idx);
@@ -56,7 +85,7 @@ export function parentDirOf(path: string): string {
 }
 
 export function joinRemotePath(dir: string, name: string): string {
-  const sep = dir.includes('\\') ? '\\' : '/';
+  const sep = sepOf(dir);
   if (dir === '' || dir === sep) return `${sep}${name}`;
   return dir.endsWith(sep) ? `${dir}${name}` : `${dir}${sep}${name}`;
 }

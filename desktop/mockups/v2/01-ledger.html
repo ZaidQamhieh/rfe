@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ledger — computers as a tree in the sidebar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d01{--bg:#f7f4ee;--sf:#fdfbf7;--rz:#efe9df;--t1:#1f1b16;--t2:#5e554a;--t3:#7b7266;--line:rgba(31,27,22,.08);--line2:rgba(31,27,22,.15);--ac:#a8471f;--ac-ink:#9a3f1a;--ac-soft:rgba(168,71,31,.09);--font:"Instrument Sans",system-ui,sans-serif;--display:"Newsreader",Georgia,serif;
+  display:grid;grid-template-columns:256px 1fr;}
+.d01 .side{background:#f1ece3;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 12px;gap:4px;min-height:0}
+.d01 .brand{display:flex;align-items:center;gap:8px;padding:4px 8px 16px;font:500 18px var(--display)}
+.d01 .brand svg{color:var(--ac)}
+.d01 .lbl{font-size:12px;color:var(--t3);padding:16px 8px 8px;display:flex;justify-content:space-between;align-items:center}
+.d01 .lbl .k-ib{width:24px;height:24px}
+.d01 .ti{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:8px;color:var(--t2);font-size:14px;width:100%;text-align:left}
+.d01 .ti:hover{background:var(--rz);color:var(--t1)} .d01 .ti.on{background:var(--sf);color:var(--t1);box-shadow:inset 0 0 0 1px var(--line)}
+.d01 .ti .i{color:var(--t3)} .d01 .ti small{margin-left:auto;color:var(--t3);font:12px var(--mono)}
+.d01 .ti.sub{padding-left:32px;height:28px;font-size:13px}
+.d01 .ti .k-badge{margin-left:auto}
+.d01 .ti.warn small{color:var(--neg)}
+.d01 .foot{margin-top:auto;display:grid;gap:8px}
+.d01 .content{display:flex;flex-direction:column;min-width:0;min-height:0}
+.d01 .top{height:60px;flex:none;display:flex;align-items:center;gap:8px;padding:0 24px;border-bottom:1px solid var(--line)}
+.d01 .top .k-sbox{width:320px;margin-right:auto}
+.d01 .stage{flex:1;overflow:auto;padding:24px 28px;min-height:0}
+.d01 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}
+.d01 .k-files{flex:1}
+.d01 .k-title{font-weight:400;font-size:32px}
+.d01 .k-dockwrap{position:absolute;left:268px;bottom:16px;width:560px;display:none;z-index:40}.d01 .k-dockwrap.open{display:block}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d01">
+ <aside class="side" id="side"></aside>
+ <div class="content"><div class="top" id="top"></div><main class="stage" id="st"></main></div>
+ <div class="k-dockwrap" id="dock"></div>
+</div>
+<script>
+window.IDEA='The sidebar is a ledger of your computers. Each one expands into the folders its login may open, so switching computer and opening a location is one click. Pages that are not about one computer sit below.';
+window.MAP=[['Navigation','Sidebar: computers tree, then Transfers, Devices, Search, Tools, History, Settings',1],['Connect and trust','+ beside Computers, or New connection in the palette; trust and sign-in dialogs follow',1],['Servers and status','Servers page from the sidebar; each card has Status, diagnostics, wake, forget in its menu',2],['Switch computer','Click a computer in the tree',1],['Files and preview','Default page; right panel Details and Local files; right-click for every file action',0],['Upload and download','Upload button, Ctrl U, drag to the list; Download in Details, Ctrl D',1],['Pair a phone','QR icon in the top bar',1],['Pairing requests','Devices in the sidebar shows the count; Accept opens the confirmation',2],['Transfers','Ring at the foot of the sidebar opens the dock; Transfers page for everything',1],['Search','Search box, or /',1],['Tools','Tools page tabs: favorites and offline, storage, trash, links, sync, apps',2],['History and audit','History page, Security filter; Agent log button',1],['Settings','Settings page, eleven sections',1],['Tray and notifications','Bell in the top bar; tray menu outside the window',1]];
+const I=K.I, side=document.getElementById('side');
+function drawSide(v){
+  const srv=K.D.servers.map(s=>`<button class="ti${s.id==='studio'&&v==='files'?' on':''}${s.dot==='bad'?' warn':''}" data-k="${s.state==='Connected'?'go:files':s.state==='Key changed'?'dlg:keychanged':'go:servers'}">${K.dot(s.dot)}${K.mach(s,16)}${s.name}<small>${s.ms?s.ms+' ms':s.state==='Key changed'?'key changed':'offline'}</small></button>`+(s.id==='studio'?K.D.roots.map(r=>`<button class="ti sub" data-k="go:files">${K.E(r.k,16)}${r.n}</button>`).join(''):'')).join('');
+  const pages=[['transfers','transfer','Transfers','<small>3 need you</small>'],['devices','phone','Devices','<em class="k-badge bad">2</em>'],['servers','server','Servers',''],['search','search','Search',''],['tools','layers','Tools',''],['history','history','History',''],['settings','sliders','Settings','']];
+  side.innerHTML=`<div class="brand">${I('key',18)}RFE</div><div class="lbl">Computers <button class="k-ib" data-k="dlg:newconn" aria-label="New connection" data-tip="New connection">${I('plus',14)}</button></div>${srv}<div class="lbl">Favorites</div>${K.D.favs.map(f=>`<button class="ti" data-k="go:files">${K.E('dir',16)}${f[0]}<small>${f[1]}</small></button>`).join('')}<div class="lbl">App</div>${pages.map(p=>`<button class="ti${v===p[0]?' on':''}" data-k="go:${p[0]}">${I(p[1])}${p[2]}${p[3]}</button>`).join('')}<div class="foot">${K.C.pill()}</div>`;
+}
+document.getElementById('top').innerHTML=K.C.searchBox()+K.C.actions();
+document.getElementById('dock').innerHTML=K.C.dock();
+K.mount({stage:document.getElementById('st'),onGo:drawSide});
+</script></body></html>

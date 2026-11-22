@@ -355,8 +355,8 @@ func TestCopyAcross(t *testing.T) {
 	}
 }
 
-// TestComplete_NoReplaceWhenTargetAppearsDuringUpload is the PR-50
-// regression: OpenSession's overwrite=false check runs before the bytes are
+// TestComplete_NoReplaceWhenTargetAppearsDuringUpload is a regression test:
+// OpenSession's overwrite=false check runs before the bytes are
 // uploaded, so a file created in the meantime used to be silently replaced by
 // Complete's rename. The publish must fail instead, leaving the file intact.
 func TestComplete_NoReplaceWhenTargetAppearsDuringUpload(t *testing.T) {
@@ -420,7 +420,7 @@ func TestComplete_OverwriteReplacesTarget(t *testing.T) {
 	}
 }
 
-// TestWriteChunk_RejectsOutOfRangeIndex is the PR-12 regression: the chunk
+// TestWriteChunk_RejectsOutOfRangeIndex is a regression: the chunk
 // index becomes a WriteAt offset, so an unchecked one lets a client seek far
 // beyond the declared size and materialise a sparse file of its choosing.
 func TestWriteChunk_RejectsOutOfRangeIndex(t *testing.T) {
@@ -448,7 +448,7 @@ func TestWriteChunk_RejectsOutOfRangeIndex(t *testing.T) {
 	}
 }
 
-// TestWriteChunk_RejectsWrongLength is PR-12's other half: the body cap only
+// TestWriteChunk_RejectsWrongLength is the other half: the body cap only
 // bounds the maximum, so a short chunk would leave a hole of zeros inside the
 // file that only the whole-file hash would (much later) catch.
 func TestWriteChunk_RejectsWrongLength(t *testing.T) {
@@ -475,12 +475,12 @@ func TestWriteChunk_RejectsWrongLength(t *testing.T) {
 }
 
 // TestOpenSession_RejectsOversizedDeclaration: OpenSession truncates to the
-// declared size, so an unbounded declaration is a free sparse file (PR-12).
+// declared size, so an unbounded declaration is a free sparse file.
 func TestOpenSession_RejectsOversizedDeclaration(t *testing.T) {
 	tm, _, dataDir := setupManager(t)
 	target := filepath.Join(dataDir, "huge.bin")
 	id := uuid.New().String()
-	_, err := tm.OpenSession(id, target, maxTransferSize+1, 1024, "deadbeef", false, "")
+	_, err := tm.OpenSession(id, target, MaxTransferSize+1, 1024, "deadbeef", false, "")
 	if !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("want ErrTooLarge, got %v", err)
 	}

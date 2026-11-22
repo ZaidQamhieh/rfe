@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Steps — find the PC, check its key, sign in, with the way ahead shown</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.dc{--bg:#f6f6f1;--sf:#fff;--rz:#ecece4;--t1:#1d2016;--t2:#4f5446;--t3:#6e7363;--line:rgba(29,32,22,.08);--line2:rgba(29,32,22,.15);--ac:#4d6b1f;--ac-ink:#435e1a;--ac-soft:rgba(77,107,31,.09);--font:"Figtree",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.dc .top{height:54px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}
+.dc .cx-f{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line2);background:var(--sf);color:var(--t3)}
+.dc .cx-f.on{box-shadow:inset 0 0 0 1px var(--ac),0 0 0 3px var(--ac-soft)}
+.dc .cx-f input{flex:1;min-width:0;border:0;outline:0;background:none;font:15px var(--mono);color:var(--t1)}
+.dc .cx-f input::placeholder{font-family:var(--font);color:var(--t3)}
+.dc .cx-h{font:500 12px var(--font);color:var(--t3);margin:20px 0 8px;display:flex;align-items:center;gap:8px}.dc .cx-h .sp{flex:1}
+.dc .cx-pc{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:10px;cursor:pointer;width:100%;text-align:left;color:var(--t1)}
+.dc .cx-pc:hover{background:var(--rz)}.dc .cx-pc.on{background:var(--ac-soft);box-shadow:inset 0 0 0 1px var(--ac)}
+.dc .cx-pc b{font-weight:500}.dc .cx-pc small{display:block;color:var(--t3);font:12px var(--mono)}.dc .cx-pc .st{font-size:12px;color:var(--t3)}
+.dc .cx-tip{font-size:13px;color:var(--t2);margin:12px 0 0;display:flex;gap:8px;align-items:flex-start}.dc .cx-tip svg{flex:none;margin-top:2px;color:var(--t3)}
+.dc .cx-tip code,.dc .cx-none code{font:12px var(--mono);background:var(--rz);padding:1px 6px;border-radius:4px}
+.dc .cx-none{padding:16px;border-radius:10px;background:var(--rz);font-size:13px;color:var(--t2);display:grid;gap:6px}.dc .cx-none b{color:var(--t1);font-weight:500}
+.dc .cx-scan{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t3)}.dc .cx-scan i{width:6px;height:6px;border-radius:3px;background:var(--ac)}
+
+.dc .c2 .k-db{display:grid;grid-template-columns:180px 1fr;gap:0;padding:0}
+.dc .c2 .sx{background:var(--rz);padding:20px 16px;display:grid;align-content:start;gap:4px;border-radius:0 0 0 16px}
+.dc .c2 .sx div{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:8px;border-radius:8px;font-size:13px;color:var(--t3)}.dc .c2 .sx div.on{background:var(--sf);color:var(--t1);box-shadow:inset 0 0 0 1px var(--line)}
+.dc .c2 .sx i{width:22px;height:22px;border-radius:11px;display:grid;place-items:center;font:500 12px var(--mono);font-style:normal;box-shadow:inset 0 0 0 1px var(--line2)}.dc .c2 .sx .on i{background:var(--ac);color:#fff;box-shadow:none}
+.dc .c2 .sx small{display:block;font-size:12px;color:var(--t3)}
+.dc .c2 .pane{padding:20px 24px}.dc .c2 .pane h3{font:500 15px var(--font);margin:0 0 4px}.dc .c2 .pane p{margin:0 0 12px;font-size:13px}
+.dc .c2 .or{display:flex;align-items:center;gap:12px;color:var(--t3);font-size:12px;margin:16px 0 12px}.dc .c2 .or:before,.dc .c2 .or:after{content:"";flex:1;height:1px;background:var(--line)}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe dc">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Adding a computer is three steps, and the dialog says so: find it, check its key, sign in. The steps sit on the left so you always know how far you are; step one offers the network list and a typed address side by side, never as tabs.";
+window.MAP=[];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=`<button class="b-st" data-k="dlg:newconn">${I('plus',16)}Add a computer</button>`+K.C.actions();
+const FOUND=EM?[]:[{n:'garage-pi',a:'192.168.1.44:8765',os:'Raspberry Pi OS',k:'5C1E 88A0',em:'server'},{n:'den-desktop',a:'192.168.1.52:8765',os:'Windows 11',k:'A3F0 19C7',em:'desktop_computer'}];
+const SAVED=EM?[]:[{n:'studio-pc',a:'192.168.1.20:8765'}];
+const keyc=k=>`<span class="k-tag mono">${I('key',12)}${k}</span>`;
+const scan=t=>`<span class="cx-scan"><i></i>${t}</span>`;
+const NONE=`<div class="cx-none"><b>Nothing found on this network yet</b><span>On the PC, install RFE and run <code>rfe setup</code>. It starts the agent and shows a pairing code. PCs reached over Tailscale or the internet are not listed here: type their address.</span></div>`;
+const dl=(t,body,acts,w,cls='')=>`<div class="k-dlg ${cls}" role="dialog" aria-label="${t}" style="width:${w}px"><div class="k-dh"><h2>${t}</h2>${K.ib('x','Close (Esc)','close')}</div><div class="k-db">${body}</div>${acts?`<div class="k-da">${acts}</div>`:''}</div>`;
+
+
+K.DLG.newconn=()=>dl('Add a computer',`<div class="sx">${[['Find the PC','on the network or by address'],['Check its key','compare with the PC'],['Sign in','account or pairing code']].map((s,i)=>`<div class="${i?'':'on'}"><i>${i+1}</i><span>${s[0]}<small>${s[1]}</small></span></div>`).join('')}</div>
+<div class="pane"><h3>Which PC?</h3><p>Pick one RFE found on this network, or type the address of any other.</p>${EM?NONE:FOUND.map((p,i)=>`<button class="cx-pc${i?'':' on'}">${E(p.em,24)}<span><b>${p.n}</b><small>${p.a} · ${p.os}</small></span><span class="st">${scan('online')}</span></button>`).join('')}
+<div class="or">or type an address</div><label class="cx-f">${I('globe',16)}<input placeholder="host:port, e.g. 100.71.4.18:8765" aria-label="Address"></label></div>`,
+K.btn('Cancel',{a:'close'})+K.btn('Next: check the key',{k:'pri',a:'dlg:trust',i:'right',dis:EM}),720,'c2');
+
+B.mount({});
+</script></body></html>

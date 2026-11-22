@@ -25,11 +25,12 @@ export function categoryOf(e: Pick<Entry, 'isDir' | 'mimeType'>): EntryCategory 
 /** Icon tint/background per category (mockup file-type palette). `bg` is the tonal chip behind the glyph. */
 export type IconKind = { icon: 'folder' | 'image' | 'video' | 'music' | 'fileArchive' | 'fileText' | 'file'; color: string | null; bg: string | null };
 
+const FOLDER = { color: '#4C8DFF', bg: 'rgba(76,141,255,0.14)' };
+const VIOLET = { color: '#9B87F5', bg: 'rgba(155,135,245,0.14)' };
+const RED = { color: '#F1596B', bg: 'rgba(241,89,107,0.14)' };
+const AMBER = { color: '#F3A73F', bg: 'rgba(243,167,63,0.14)' };
+
 export function iconKindFor(e: Pick<Entry, 'isDir' | 'mimeType'>): IconKind {
-  const FOLDER = { color: '#4C8DFF', bg: 'rgba(76,141,255,0.14)' };
-  const VIOLET = { color: '#9B87F5', bg: 'rgba(155,135,245,0.14)' };
-  const RED = { color: '#F1596B', bg: 'rgba(241,89,107,0.14)' };
-  const AMBER = { color: '#F3A73F', bg: 'rgba(243,167,63,0.14)' };
   const mime = e.mimeType ?? '';
   switch (categoryOf(e)) {
     case 'folder':

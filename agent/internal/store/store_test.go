@@ -156,7 +156,7 @@ func TestPairingCodeLifecycle(t *testing.T) {
 	defer db.Close()
 
 	// A valid code can be consumed exactly once.
-	if err := db.CreatePairingCode("ABC123", time.Now().Add(time.Hour), "", false); err != nil {
+	if err := db.CreatePairingCodeFor("ABC123", time.Now().Add(time.Hour), "", false, false); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if !db.ConsumePairingCode("ABC123").Valid {
@@ -167,7 +167,7 @@ func TestPairingCodeLifecycle(t *testing.T) {
 	}
 
 	// An expired code is rejected.
-	if err := db.CreatePairingCode("OLD999", time.Now().Add(-time.Minute), "", false); err != nil {
+	if err := db.CreatePairingCodeFor("OLD999", time.Now().Add(-time.Minute), "", false, false); err != nil {
 		t.Fatalf("create expired: %v", err)
 	}
 	if db.ConsumePairingCode("OLD999").Valid {
@@ -180,7 +180,7 @@ func TestPairingCodeLifecycle(t *testing.T) {
 	}
 
 	// A guest code carries its jailRoot/readOnly defaults through to Consume.
-	if err := db.CreatePairingCode("GUEST01", time.Now().Add(time.Hour), "/home/pc/Shared", true); err != nil {
+	if err := db.CreatePairingCodeFor("GUEST01", time.Now().Add(time.Hour), "/home/pc/Shared", true, false); err != nil {
 		t.Fatalf("create guest: %v", err)
 	}
 	info := db.ConsumePairingCode("GUEST01")
@@ -405,7 +405,7 @@ func TestTouchDeviceRecordsAddressAndVersion(t *testing.T) {
 	}
 
 	// A subsequent touch with an empty version overwrites the previous one.
-	// Clear the debounce window (PR-41) so this second touch actually persists
+	// Clear the debounce window so this second touch actually persists
 	// rather than being coalesced within touchInterval.
 	db.touchMu.Lock()
 	db.lastTouch = make(map[string]time.Time)
@@ -436,7 +436,7 @@ func TestConsumeShareTokenLifecycle(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	path, ok, err := db.ConsumeShareToken("hash-1")
+	path, _, ok, err := db.ConsumeShareTokenFor("hash-1")
 	if err != nil {
 		t.Fatalf("consume: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestConsumeShareTokenLifecycle(t *testing.T) {
 	}
 
 	// Single-use: a second consume of the same hash fails.
-	_, ok, err = db.ConsumeShareToken("hash-1")
+	_, _, ok, err = db.ConsumeShareTokenFor("hash-1")
 	if err != nil {
 		t.Fatalf("consume 2: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestConsumeShareTokenLifecycle(t *testing.T) {
 	if err := db.CreateShareToken("hash-old", "/srv/old.txt", "", time.Now().Add(-time.Minute)); err != nil {
 		t.Fatalf("create expired: %v", err)
 	}
-	_, ok, err = db.ConsumeShareToken("hash-old")
+	_, _, ok, err = db.ConsumeShareTokenFor("hash-old")
 	if err != nil {
 		t.Fatalf("consume expired: %v", err)
 	}
@@ -466,7 +466,7 @@ func TestConsumeShareTokenLifecycle(t *testing.T) {
 	}
 
 	// An unknown token is rejected.
-	_, ok, err = db.ConsumeShareToken("does-not-exist")
+	_, _, ok, err = db.ConsumeShareTokenFor("does-not-exist")
 	if err != nil {
 		t.Fatalf("consume unknown: %v", err)
 	}
@@ -674,7 +674,7 @@ func TestMarkChunkReceivedConcurrent(t *testing.T) {
 		t.Fatalf("MarkChunkReceived: %v", err)
 	}
 
-	// PR-42: the chunk set lives in transfer_chunks now, not a JSON column on
+	// the chunk set lives in transfer_chunks now, not a JSON column on
 	// the transfer row — GetTransfer deliberately no longer carries it.
 	chunks, err := db.ChunkNumbers(tr.ID)
 	if err != nil {
@@ -767,7 +767,7 @@ func TestCreateUser_DuplicateUsernameFails(t *testing.T) {
 	}
 }
 
-// TestMigrate_SetsVersionAndIsIdempotent is the PR-46 regression: migrations
+// TestMigrate_SetsVersionAndIsIdempotent is a regression: migrations
 // are versioned and transactional, and reopening an already-migrated DB is a
 // no-op rather than a replay.
 func TestMigrate_SetsVersionAndIsIdempotent(t *testing.T) {
@@ -826,8 +826,8 @@ func TestMigrate_UpgradesLegacyZeroVersionDB(t *testing.T) {
 	db.Close()
 }
 
-// TestMigrate_RefusesNewerSchema: a DB written by a newer agent must not be
-// run against older code that doesn't know its schema.
+// TestMigrate_RefusesNewerSchema: a DB whose min_compatible is above what this build supports must be
+// refused with ErrSchemaTooNew rather than run against code that doesn't know its schema.
 func TestMigrate_RefusesNewerSchema(t *testing.T) {
 	dir := t.TempDir()
 	db, err := Open(dir)
@@ -838,12 +838,15 @@ func TestMigrate_RefusesNewerSchema(t *testing.T) {
 	if _, err := db.db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, len(migrations)+1)); err != nil {
 		t.Fatalf("bump version: %v", err)
 	}
-	if err := db.migrate(); err == nil {
-		t.Fatal("expected migrate to refuse a newer schema version")
+	if _, err := db.db.Exec(`UPDATE schema_meta SET value=? WHERE key='min_compatible'`, len(migrations)+1); err != nil {
+		t.Fatalf("bump min_compatible: %v", err)
+	}
+	if err := db.migrate(); !errors.Is(err, ErrSchemaTooNew) {
+		t.Fatalf("migrate err = %v, want ErrSchemaTooNew", err)
 	}
 }
 
-// TestMigrateChunkTable_BackfillsLegacyJSON is the PR-42 upgrade path: a
+// TestMigrateChunkTable_BackfillsLegacyJSON is the upgrade path: a
 // database still carrying received_chunks JSON must come out the other side
 // with the same chunks in transfer_chunks, so an in-flight transfer keeps its
 // resume progress across the upgrade.
@@ -860,7 +863,7 @@ func TestMigrateChunkTable_BackfillsLegacyJSON(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// Rebuild the pre-PR-42 shape: JSON column present, chunk table empty.
+	// Rebuild the pre-change shape: JSON column present, chunk table empty.
 	if _, err := db.db.Exec(`DROP TABLE transfer_chunks`); err != nil {
 		t.Fatalf("drop chunk table: %v", err)
 	}
@@ -903,8 +906,8 @@ func addColumnDirect(db *DB, table, column, spec string) error {
 	return err
 }
 
-// TestRegisterAccount_EnforcesSingleAccountAtomically is the PR-45
-// regression: "this computer has exactly one account" used to be decided by a
+// TestRegisterAccount_EnforcesSingleAccountAtomically is a regression check:
+// "this computer has exactly one account" used to be decided by a
 // SELECT in one transaction and enforced by an INSERT in another, so a second
 // registration slipping between them created a second full admin.
 func TestRegisterAccount_EnforcesSingleAccountAtomically(t *testing.T) {

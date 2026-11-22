@@ -1,38 +1,81 @@
-import { File as FileIcon, FileArchive, FileText, Image as ImageIcon, Music, Pause, Play, RotateCw, ShieldCheck, Trash2, Video, X, type LucideIcon } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { FolderOpen, MoreVertical, RotateCw, Trash2 } from 'lucide-react-native';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FlatList, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { formatSize } from '../../core/format';
-import { openPublicUri, sha256File, transfers, type TransferRecord } from '../../core/native';
-import { mix } from '../../design/color';
-import { Button, EmptyState, GroupedCard, PageHead, Pressable, SectionLabel, Text, TopBar, useDialogs, useToast } from '../../design/components';
+import { humanizeError } from '../../core/humanizeError';
+import { ignoreError } from '../../core/log';
+import type { Host } from '../../core/models/host';
+import { transfers, type TransferRecord } from '../../core/native';
+import { AppBarIconButton, Button, DuoIcon, Text, useDialogs, useToast } from '../../design/components';
 import { LumenType } from '../../design/lumen';
-import { useRoles, useScheme } from '../../design/theme';
+import { useScheme } from '../../design/theme';
+import { ExplainerText, Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
-import { clientForHost, hostStore } from '../../services';
-import { externalMime } from '../preview/externalFiles';
-import { etaSeconds, formatEta, formatSpeed, SpeedTracker } from './speedTracker';
-import { finishedWhen, groupTransfers, isActive, isUpload, retryableFailures, savedWhere, transferErrorMessage, transferKind, transferName, transferPillLabel, transferProgress, transferSummary, transferTone, verifyOutcome, type TransferKind, type VerifyOutcome } from './transferLogic';
+import { hostStore } from '../../services';
+import { restartAutoRetry } from './useAutoRetry';
+import { NameClashRow } from './NameClashRow';
+import { SpeedTracker } from './speedTracker';
+import { BackupSummaryRow, FinishedRow, MovingRow } from './TransferRows';
+import { forgetTransfers } from './forgetTransfers';
+import { applyTransferUpdate, markRetrying, mergeSnapshot, retryableFailures } from './transferLogic';
+import { pauseAllTarget, sectionTransfers, splitBackupDone } from './transferSections';
 
-const GLYPHS: Record<TransferKind['glyph'], LucideIcon> = { image: ImageIcon, video: Video, audio: Music, archive: FileArchive, doc: FileText, file: FileIcon };
+type Tone = 'wait' | 'stop' | 'plain';
+type Item =
+  | { kind: 'head'; key: string; title: string; tone: Tone; clear?: TransferRecord[] }
+  | { kind: 'row'; key: string; section: 'waiting' | 'moving' | 'failed' | 'done'; r: TransferRecord }
+  | { kind: 'backup'; key: string; count: number };
 
-type Item = { kind: 'head'; key: string; title: string; clear?: TransferRecord[] } | { kind: 'row'; key: string; r: TransferRecord };
+/** `.sec`: a 14/500 sentence-case label; amber when something waits for the owner, red when it failed. */
+function SectionHead({ title, tone, trailing }: { title: string; tone: Tone; trailing?: ReactNode }) {
+  const c = useScheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.md3, paddingBottom: 6, paddingHorizontal: Spacing.md }}>
+      <Text accessibilityRole="header" style={[LumenType.sectionLabel, { flex: 1 }]} color={tone === 'wait' ? c.wait : tone === 'stop' ? c.stop : c.onSurfaceVariant}>
+        {title}
+      </Text>
+      {trailing}
+    </View>
+  );
+}
 
-/** Every transfer the native engine knows, sectioned Active / Completed / Failed, each with its own controls. */
+
+/** Nothing moved yet: a short title and one plain sentence (`.empty`). */
+function EmptyMoves() {
+  return (
+    <View style={{ paddingTop: Spacing.md, paddingHorizontal: Spacing.lg }}>
+      <Text style={LumenType.rowTitle} accessibilityRole="header">
+        {t('trEmptyTitle')}
+      </Text>
+      <Text muted style={[{ ...ExplainerText, marginTop: Spacing.sm }]}>
+        {t('trEmptyBody')}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Every transfer the native engine knows, as flat rows in four groups: waiting for the owner (a name clash, with a
+ * this-one-or-that-one compare), moving now, couldn't finish, and done. The engine and its queue are untouched.
+ */
 export function TransfersScreen() {
   const router = useRouter();
   const c = useScheme();
+  const insets = useSafeAreaInsets();
   const dialogs = useDialogs();
+  const toast = useToast();
   const [items, setItems] = useState<TransferRecord[] | null>(null);
   const [speeds, setSpeeds] = useState<Record<string, number>>({});
-  const [hostNames, setHostNames] = useState<Record<string, string>>({});
+  const [hosts, setHosts] = useState<Host[]>([]);
 
   useEffect(() => {
     let live = true;
     const tracker = new SpeedTracker();
-    void transfers.list().then((l) => live && setItems(l));
-    void hostStore.listHosts().then((hs) => live && setHostNames(Object.fromEntries(hs.map((h) => [h.id, h.label || h.address]))));
+    // Events can arrive before the list answers: the snapshot must not overwrite them.
+    void transfers.list().then((l) => live && setItems((cur) => mergeSnapshot(l, cur))).catch(ignoreError('transfers: list'));
+    void hostStore.listHosts().then((hs) => live && setHosts(hs)).catch(ignoreError('transfers: hosts'));
     const off = transfers.subscribe((r) => {
       const speed = tracker.sample(r.id, r.received, r.state === 'RUNNING');
       setSpeeds((cur) => {
@@ -43,7 +86,7 @@ export function TransfersScreen() {
         }
         return { ...cur, [r.id]: speed };
       });
-      setItems((cur) => [...(cur ?? []).filter((x) => x.id !== r.id), r]);
+      setItems((cur) => applyTransferUpdate(cur, r));
     });
     return () => {
       live = false;
@@ -51,198 +94,96 @@ export function TransfersScreen() {
     };
   }, []);
 
-  const groups = useMemo(() => groupTransfers(items ?? []), [items]);
-  const running = groups.active.filter(isActive).length;
-  const data = useMemo<Item[]>(() => {
-    const out: Item[] = [];
-    const add = (key: string, title: string, rows: TransferRecord[], clear?: TransferRecord[]) => {
-      if (rows.length === 0) return;
-      out.push({ kind: 'head', key: `h-${key}`, title, clear });
-      for (const r of rows) out.push({ kind: 'row', key: r.id, r });
-    };
-    add('active', 'In progress', groups.active);
-    // Failures need a decision (Retry or Remove), so they come before the finished list rather than under it.
-    add('failed', 'Failed', groups.failed);
-    add('done', 'Recent', groups.finished, groups.finished);
-    return out;
-  }, [groups]);
-
-  const forget = async (rs: TransferRecord[]) => {
-    await Promise.all(rs.map((r) => transfers.remove(r.id)));
-    const gone = new Set(rs.map((r) => r.id));
-    setItems((cur) => (cur ?? []).filter((x) => !gone.has(x.id)));
+  /** A Retry the owner taps: the transfer's automatic attempts start again. */
+  const retryNow = (id: string) => {
+    restartAutoRetry(id);
+    setItems((cur) => (cur ? markRetrying(cur, id) : cur));
+    // If the engine refuses, show what it really holds instead of a row that only looks queued.
+    transfers.resume(id).catch(() => transfers.list().then((l) => setItems(l)).catch(ignoreError('transfers: list')));
   };
 
+  const sections = useMemo(() => sectionTransfers(items ?? []), [items]);
+  const pauseAll = pauseAllTarget(sections.moving);
+  const hostById = useMemo(() => new Map(hosts.map((h) => [h.id, h])), [hosts]);
+  const nameOf = (id: string) => {
+    const h = hostById.get(id);
+    return h ? h.label || h.address : undefined;
+  };
+
+  const forget = async (rs: TransferRecord[]) => {
+    const fresh = await forgetTransfers(rs, transfers, (e) => toast.error(humanizeError(e)));
+    if (fresh) setItems(fresh);
+  };
+
+  const data = useMemo<Item[]>(() => {
+    const out: Item[] = [];
+    const add = (section: 'waiting' | 'moving' | 'failed' | 'done', title: string, tone: Tone, rows: TransferRecord[], clear?: TransferRecord[]) => {
+      if (rows.length === 0) return;
+      out.push({ kind: 'head', key: `h-${section}`, title, tone, clear });
+      for (const r of rows) out.push({ kind: 'row', key: r.id, section, r });
+    };
+    add('waiting', t('trWaiting'), 'wait', sections.waiting);
+    add('moving', t('trMoving'), 'plain', sections.moving);
+    add('failed', t('trFailed'), 'stop', sections.failed);
+    if (sections.done.length > 0) {
+      const finished = splitBackupDone(sections.done);
+      out.push({ kind: 'head', key: 'h-done', title: t('trDone'), tone: 'plain', clear: sections.done });
+      if (finished.backups.length > 0) out.push({ kind: 'backup', key: 'backup-done', count: finished.backups.length });
+      for (const r of finished.others) out.push({ kind: 'row', key: r.id, section: 'done', r });
+    }
+    return out;
+  }, [sections]);
+
   const more = async () => {
-    const options: { value: string; label: string; icon: React.ReactNode }[] = [];
-    if (groups.finished.length > 0) options.push({ value: 'clear', label: 'Clear completed', icon: <Trash2 size={20} color={c.onSurface} /> });
-    if (groups.failed.length > 0) options.push({ value: 'clearFailed', label: 'Clear failed', icon: <Trash2 size={20} color={c.onSurface} /> });
-    const retryable = retryableFailures(groups.failed);
-    if (retryable.length > 0) options.unshift({ value: 'retryAll', label: t('retryAllFailed', { count: retryable.length }), icon: <RotateCw size={20} color={c.onSurface} /> });
-    options.push({ value: 'files', label: 'Open Files', icon: <FileIcon size={20} color={c.onSurface} /> });
-    const pick = await dialogs.choose({ title: t('transfersSettingsTitle'), options });
-    if (pick === 'retryAll') void Promise.all(retryable.map((r) => transfers.resume(r.id)));
-    if (pick === 'clear') void forget(groups.finished);
-    if (pick === 'clearFailed') void forget(groups.failed);
+    const options: { value: string; label: string; icon: ReactNode }[] = [];
+    const retryable = retryableFailures(sections.failed);
+    if (retryable.length > 0) options.push({ value: 'retryAll', label: t('retryAllFailed', { count: retryable.length }), icon: <RotateCw size={20} color={c.onSurface} /> });
+    if (sections.done.length > 0) options.push({ value: 'clear', label: t('trClearCompleted'), icon: <Trash2 size={20} color={c.onSurface} /> });
+    if (sections.failed.length > 0) options.push({ value: 'clearFailed', label: t('trClearFailed'), icon: <Trash2 size={20} color={c.onSurface} /> });
+    options.push({ value: 'files', label: t('trOpenFiles'), icon: <FolderOpen size={20} color={c.onSurface} /> });
+    const pick = await dialogs.choose({ title: t('trTitle'), options });
+    if (pick === 'retryAll') retryable.forEach((r) => retryNow(r.id));
+    if (pick === 'clear') void forget(sections.done);
+    if (pick === 'clearFailed') void forget(sections.failed);
     if (pick === 'files') router.navigate('/files');
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <TopBar context="Activity" sub="Transfer activity" right={running > 0 ? <Pill label={`${running} active`} color={c.primary} /> : undefined} onMore={() => void more()} />
-      <PageHead title="Transfers" subtitle={items === null ? undefined : transferSummary(groups)} />
+    <View style={{ flex: 1, backgroundColor: c.surface }}>
+      <View style={{ paddingTop: insets.top, paddingLeft: 28, paddingRight: Spacing.xs, flexDirection: 'row', alignItems: 'center', minHeight: 56 + insets.top }}>
+        <Text style={[LumenType.appbar, { flex: 1 }]} accessibilityRole="header">
+          {t('trTitle')}
+        </Text>
+        {pauseAll.ids.length > 0 ? (
+          <Button
+            kind="text"
+            size="s"
+            label={pauseAll.resume ? t('trResumeAll') : t('trPauseAll')}
+            onPress={() => void Promise.all(pauseAll.ids.map((id) => (pauseAll.resume ? transfers.resume(id) : transfers.pause(id))))}
+          />
+        ) : null}
+        <AppBarIconButton label={t('trMore')} onPress={() => void more()}>
+          <DuoIcon icon={MoreVertical} size={24} />
+        </AppBarIconButton>
+      </View>
       {items === null ? null : items.length === 0 ? (
-        <EmptyState message="No transfers yet" action={{ label: 'Open Files', onPress: () => router.navigate('/files') }} />
+        <EmptyMoves />
       ) : (
         <FlatList
           data={data}
           keyExtractor={(i) => i.key}
-          contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24 }}
-          renderItem={({ item }) =>
-            item.kind === 'head' ? (
-              <SectionLabel title={item.title} trailing={item.clear ? <TextAction label="Clear" onPress={() => void forget(item.clear!)} /> : undefined} />
-            ) : (
-              <View style={{ marginBottom: 12 }}>
-                <Row r={item.r} speed={speeds[item.r.id]} hostName={hostNames[item.r.hostId]} onForget={() => void forget([item.r])} />
-              </View>
-            )
-          }
+          contentContainerStyle={{ paddingBottom: Spacing.lg }}
+          renderItem={({ item }) => {
+            if (item.kind === 'head')
+              return <SectionHead title={item.title} tone={item.tone} trailing={item.clear ? <Button kind="text" size="s" label={t('trClear')} onPress={() => void forget(item.clear!)} /> : undefined} />;
+            if (item.kind === 'backup') return <BackupSummaryRow count={item.count} />;
+            const r = item.r;
+            if (item.section === 'waiting') return <NameClashRow r={r} host={hostById.get(r.hostId)} />;
+            if (item.section === 'moving') return <MovingRow r={r} hostName={nameOf(r.hostId)} speed={speeds[r.id]} />;
+            return <FinishedRow r={r} hostName={nameOf(r.hostId)} onForget={() => void forget([r])} onRetry={() => retryNow(r.id)} />;
+          }}
         />
       )}
     </View>
-  );
-}
-
-function TextAction({ label, onPress }: { label: string; onPress: () => void }) {
-  const c = useScheme();
-  return (
-    <Pressable onPress={onPress} accessibilityLabel={`${label} completed transfers`} style={{ minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' }}>
-      <Text style={LumenType.pill} color={c.primary}>{label}</Text>
-    </Pressable>
-  );
-}
-
-/** `.state-pill` in any colour: 15% of the tone over the card. */
-function Pill({ label, color }: { label: string; color: string }) {
-  const c = useScheme();
-  return (
-    <View style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 24, backgroundColor: mix(color, c.surfaceContainer, 0.15) }}>
-      <Text style={LumenType.pill} color={color} numberOfLines={1}>{label}</Text>
-    </View>
-  );
-}
-
-/** `.transfer-card`: file glyph + name + state pill, a detail line, then the bar and pace for live transfers. */
-function Row({ r, speed, hostName, onForget }: { r: TransferRecord; speed?: number; hostName?: string; onForget: () => void }) {
-  const c = useScheme();
-  const roles = useRoles();
-  const toast = useToast();
-  // The result of "Verify" for this row; kept only while the screen is open.
-  const [verified, setVerified] = useState<VerifyOutcome | 'checking' | null>(null);
-  // "5s ago" must not stay frozen while the screen is open: draw the row again every 20 s (audit F-37).
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 20_000);
-    return () => clearInterval(id);
-  }, []);
-  const name = transferName(r);
-  const kind = transferKind(name);
-  const Glyph = GLYPHS[kind.glyph];
-  const glyphColor = kind.role ? roles[kind.role] : c.onSurfaceVariant;
-  const up = isUpload(r);
-  const progress = transferProgress(r);
-  const failed = r.state === 'FAILED';
-  const live = r.state === 'RUNNING' || r.state === 'QUEUED';
-  const paused = r.state === 'PAUSED';
-  const done = r.state === 'DONE';
-  const tone = transferTone(r.state);
-  const tint = tone === 'error' ? c.error : tone === 'muted' ? c.onSurfaceVariant : roles[tone];
-  const openable = done && !!r.publicUri;
-  const tappable = openable || paused;
-
-  const open = async () => {
-    if (!r.publicUri || !(await openPublicUri(r.publicUri, externalMime({ name })))) toast.info('No app can open this file');
-  };
-  const tap = () => {
-    if (paused) void transfers.resume(r.id);
-    else if (openable) void open();
-  };
-
-  const verify = async () => {
-    setVerified('checking');
-    try {
-      const host = (await hostStore.listHosts()).find((h) => h.id === r.hostId);
-      if (!host) return setVerified('unavailable');
-      const [local, remote] = await Promise.all([sha256File(r.publicUri ?? r.destPath), clientForHost(host).then((cl) => cl.checksum(r.remotePath))]);
-      setVerified(verifyOutcome(local, remote));
-    } catch {
-      setVerified('unavailable');
-    }
-  };
-
-  const place = hostName ? ` ${up ? 'to' : 'from'} ${hostName}` : '';
-  const size = r.total > 0 ? formatSize(r.total) : r.received > 0 ? formatSize(r.received) : '';
-  const lead = size ? `${size} · ` : '';
-  const detail = failed
-    ? transferErrorMessage(r.error)
-    : done
-      ? `${lead}${savedWhere(r)}${place}${finishedWhen(r) ? ` · ${finishedWhen(r)}` : ''}`
-      : r.state === 'CANCELLED'
-        ? `${lead}Cancelled`
-        : paused
-          ? `${lead}Tap to resume`
-          : r.state === 'QUEUED'
-            ? `${lead}Waiting${place}`
-            : `${lead}${up ? 'Sending' : 'Receiving'}${place}`;
-  const verdictText = verified === 'checking' ? t('verifyChecking') : verified === 'verified' ? t('verifyVerified') : verified === 'mismatch' ? t('verifyMismatch') : verified === 'unavailable' ? t('verifyUnavailable') : '';
-  const eta = live && speed !== undefined ? etaSeconds(r.total, r.received, speed) : null;
-  const pace = live && speed !== undefined ? `${formatSpeed(speed)}${eta === null ? '' : ` · about ${formatEta(eta)} left`}` : '';
-  const showBar = progress !== null && !done && r.state !== 'CANCELLED';
-
-  const actions: { key: string; label: string; Icon: LucideIcon; primary?: boolean; onPress: () => void }[] = [];
-  if (live) actions.push({ key: 'pause', label: 'Pause', Icon: Pause, onPress: () => void transfers.pause(r.id) });
-  if (paused) actions.push({ key: 'resume', label: 'Resume', Icon: Play, primary: true, onPress: () => void transfers.resume(r.id) });
-  if (failed) actions.push({ key: 'retry', label: 'Retry', Icon: RotateCw, primary: true, onPress: () => void transfers.resume(r.id) });
-  if (openable) actions.push({ key: 'open', label: 'Open', Icon: FileIcon, primary: true, onPress: () => void open() });
-  if (done && !up && verified !== 'checking') actions.push({ key: 'verify', label: t('verifyDownloadButton'), Icon: ShieldCheck, onPress: () => void verify() });
-  if (live || paused) actions.push({ key: 'cancel', label: 'Cancel', Icon: X, onPress: () => void transfers.cancel(r.id) });
-  if (failed || done || r.state === 'CANCELLED') actions.push({ key: 'remove', label: 'Remove', Icon: Trash2, onPress: onForget });
-
-  return (
-    <GroupedCard padded={false} style={{ padding: 16 }}>
-      <Pressable disabled={!tappable} onPress={tap} accessibilityRole={tappable ? 'button' : 'summary'} accessibilityLabel={tappable ? `${paused ? 'Resume' : 'Open'} ${name}` : undefined}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Glyph size={26} color={glyphColor} />
-          <Text style={[LumenType.rowTitle, { flex: 1 }]} numberOfLines={1}>{name}</Text>
-          <Pill label={transferPillLabel(r)} color={tint} />
-        </View>
-        <Text style={[LumenType.meta, { marginTop: 6, marginLeft: 38 }]} color={c.onSurfaceVariant} numberOfLines={failed ? 3 : 2}>{verdictText ? `${detail} · ${verdictText}` : detail}</Text>
-        {showBar ? (
-          <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }} style={{ height: 6, borderRadius: 8, marginTop: 12, backgroundColor: c.surfaceContainerHigh, overflow: 'hidden' }}>
-            <View style={{ width: `${progress * 100}%`, height: 6, borderRadius: 8, backgroundColor: tint }} />
-          </View>
-        ) : null}
-        {showBar && r.total > 0 ? (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 10 }}>
-            <Text style={[LumenType.meta, { flex: 1 }]} color={c.onSurfaceVariant} numberOfLines={2}>{pace}</Text>
-            <Text style={LumenType.meta} color={tint}>{`${formatSize(r.received)} of ${formatSize(r.total)}`}</Text>
-          </View>
-        ) : null}
-      </Pressable>
-      {actions.length > 0 ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
-          {/* Wraps: Open + Verify + Remove do not fit one row on a 360 dp phone (the first button was pushed out of the card). */}
-          {actions.map((a) => (
-            <Button
-              key={a.key}
-              kind={a.primary ? 'filled' : 'neutral'}
-              label={a.label}
-              onPress={a.onPress}
-              renderIcon={(fg) => <a.Icon size={16} color={fg} />}
-            />
-          ))}
-        </View>
-      ) : null}
-    </GroupedCard>
   );
 }

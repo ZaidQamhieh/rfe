@@ -152,7 +152,7 @@ async fn an_agent_that_is_down_is_reported_at_once_with_what_to_check() {
     assert!(text.contains("cannot reach the agent"), "{text}");
     assert!(text.contains("Check that the agent is running"), "{text}");
     assert!(
-        started.elapsed() < health::REQUEST_TIMEOUT + Duration::from_secs(2),
+        started.elapsed() < health::HEALTH_TIMEOUT + Duration::from_secs(2),
         "took {:?}",
         started.elapsed()
     );

@@ -1,4 +1,4 @@
-import { isTrustedApkUrl, isUpdateAvailable, parseRelease, percent, shouldSurfaceUpdate, manifestSignatureOk } from './updateLogic';
+import { isTrustedApkUrl, isUpdateAvailable, parseRelease, percent, manifestSignatureOk } from './updateLogic';
 
 const good = { versionName: '2.1.0', versionCode: 82, size: 1000, url: 'https://github.com/ZaidQamhieh/rfe/releases/download/v2.1.0/app.apk', sha256: 'A'.repeat(64) };
 
@@ -35,9 +35,7 @@ test('newer than installed, and the banner respects a dismissal', () => {
   expect(isUpdateAvailable(81, r)).toBe(true);
   expect(isUpdateAvailable(82, r)).toBe(false);
   expect(isUpdateAvailable(81, null)).toBe(false);
-  expect(shouldSurfaceUpdate(r, 81)).toBe(true);
-  expect(shouldSurfaceUpdate(r, 82)).toBe(false);
-  expect(shouldSurfaceUpdate(null, 0)).toBe(false);
+  expect(isUpdateAvailable(0, null)).toBe(false);
 });
 
 test('percent clamps and tolerates an unknown total', () => {

@@ -112,6 +112,27 @@ class PinnedHttpTest {
     assertEquals(0, server.requestCount)
   }
 
+  /** The DNS lookup runs under the same deadline as the connect, so a resolver that never answers cannot hold the probe. */
+  @Test fun probeGivesUpWhenTheResolverHangs() {
+    val release = java.util.concurrent.CountDownLatch(1)
+    val start = System.nanoTime()
+    try {
+      assertThrows(java.net.SocketTimeoutException::class.java) {
+        PinnedHttp.probeFingerprint("https://slow.test:8443/", 300) { release.await(); java.net.InetAddress.getLoopbackAddress() }
+      }
+    } finally {
+      release.countDown()
+    }
+    val ms = (System.nanoTime() - start) / 1_000_000
+    assertTrue("probe took $ms ms for a 300 ms budget", ms < 3_000)
+  }
+
+  @Test fun probeConnectsToTheResolvedAddressAndStillChecksNothingButTheFingerprint() {
+    val fp = PinnedHttp.probeFingerprint("https://pinned.test:${server.port}/", 5_000) { java.net.InetAddress.getLoopbackAddress() }
+    assertEquals(pin(), fp)
+    assertEquals(0, server.requestCount)
+  }
+
   @Test fun publicTrustDoesNotBypassPin() {
     // system roots are empty: a wrong pin fails even though TLS itself is fine
     server.enqueue(MockResponse().setBody("x"))

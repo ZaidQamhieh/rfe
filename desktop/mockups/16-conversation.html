@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Conversation — say what you want, get a card back</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.cv2{background:#f4f2ee;color:#202020;font-family:"Inter",system-ui,sans-serif;font-size:14px}
+.cv2 .tb{background:#f4f2ee;color:#bdb6aa}
+.cv2 .main{flex:1;display:grid;grid-template-columns:1fr 280px;min-height:0}
+.cv2 .chat{display:flex;flex-direction:column;min-height:0;align-items:center}
+.cv2 .thread{flex:1;overflow:auto;width:720px;padding:10px 0;display:flex;flex-direction:column;gap:14px}
+.cv2 .me{align-self:flex-end;background:#202020;color:#fff;border-radius:18px 18px 4px 18px;padding:10px 15px;max-width:70%}
+.cv2 .bot{align-self:flex-start;max-width:92%;display:flex;flex-direction:column;gap:8px}
+.cv2 .bot p{margin:0;color:#4a4740}
+.cv2 .crd{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px 14px}
+.cv2 .crd .r{display:grid;grid-template-columns:22px 1fr 80px 80px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f1eee8;font-size:13px}
+.cv2 .crd .r:last-of-type{border:0}
+.cv2 .crd .r input{accent-color:#d9480f}
+.cv2 .crd .r span{color:#8a857b;text-align:right}
+.cv2 .btns{display:flex;gap:6px;margin-top:8px}
+.cv2 .btns button{border:1px solid #e6e1d7;background:#fff;border-radius:999px;padding:6px 13px;font:500 12.5px system-ui;cursor:pointer}
+.cv2 .btns button.p{background:#d9480f;color:#fff;border-color:#d9480f}
+.cv2 .pb{height:6px;background:#f1eee8;border-radius:3px;overflow:hidden;margin:8px 0 4px}.cv2 .pb i{display:block;height:100%;width:71%;background:#d9480f}
+.cv2 .code{font:700 26px ui-monospace,monospace;letter-spacing:.14em;color:#d9480f}
+.cv2 .compose{width:720px;margin:6px 0 18px}
+.cv2 .chips{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.cv2 .chips span{background:#fff;border:1px solid #e6e1d7;border-radius:999px;padding:5px 12px;font-size:12.5px;color:#4a4740;cursor:pointer}
+.cv2 .in{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.07);display:flex;align-items:center;padding:6px 6px 6px 16px;gap:10px}
+.cv2 .in input{flex:1;border:0;outline:none;font:15px system-ui;padding:8px 0}
+.cv2 .in .at{color:#8a857b;font-size:12.5px}
+.cv2 .in button{border:0;border-radius:11px;background:#202020;color:#fff;padding:9px 14px;font:600 13px system-ui}
+.cv2 aside{border-left:1px solid #e6e1d7;padding:18px;display:flex;flex-direction:column;gap:10px;font-size:13px}
+.cv2 aside h5{margin:6px 0 2px;font:700 10.5px system-ui;letter-spacing:.1em;text-transform:uppercase;color:#a7a093}
+.cv2 aside .h{display:flex;justify-content:space-between;padding:6px 0}
+.cv2 aside .h i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#2f9e44;margin-right:7px}
+.cv2 aside small{color:#8a857b}
+.cv2 .tag{font:600 11px ui-monospace,monospace;background:#f1eee8;border-radius:5px;padding:1px 5px;color:#4a4740}
+</style></head><body class="mk">
+<div class="win cv2">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="main"><div class="chat"><div class="thread">
+  <div class="me">invoices from october on work-laptop</div>
+  <div class="bot"><p>Found 4 PDFs in <b>work-laptop / Documents / Invoices</b> modified in October.</p>
+   <div class="crd"><div class="r"><input type="checkbox" checked>invoice-1038.pdf<span>88 KB</span><span>Oct 03</span></div><div class="r"><input type="checkbox" checked>invoice-1040.pdf<span>91 KB</span><span>Oct 12</span></div><div class="r"><input type="checkbox" checked>invoice-1041.pdf<span>90 KB</span><span>Oct 20</span></div><div class="r"><input type="checkbox" checked>invoice-1042.pdf<span>96 KB</span><span>Oct 31</span></div>
+    <div class="btns"><button class="p">Download 4</button><button>Zip &amp; download</button><button>Share link…</button><button>Open folder</button></div></div></div>
+  <div class="me">send them to studio-pc Accounting</div>
+  <div class="bot"><div class="crd"><b>Copying 4 files → studio-pc / Accounting</b><div class="pb"><i></i></div><span style="color:#8a857b;font-size:12.5px">3 of 4 · checksums checked as they land</span><div class="btns"><button>Pause</button><button>Cancel</button></div></div></div>
+  <div class="bot"><p>Meanwhile: <b>“Sam's Pixel 9”</b> asks to pair with studio-pc. Accept only if the phone shows:</p>
+   <div class="crd"><div class="code">482 913</div><div class="btns"><button class="p">It matches</button><button>Reject</button><button>Open Devices</button></div></div></div>
+ </div>
+ <div class="compose"><div class="chips"><span>Upload files…</span><span>Pair a phone</span><span>What's in Trash?</span><span>Who can access studio-pc?</span><span>Pause all transfers</span></div>
+  <div class="in"><span class="at">@studio-pc</span><input value="" placeholder="Find, send, share, pair, manage — or drop files here"><button>↵</button></div></div></div>
+  <aside><h5>Computers</h5><div class="h"><span><i></i>studio-pc</span><small>412 GB</small></div><div class="h"><span><i></i>work-laptop</span><small>102 GB</small></div><div class="h"><span><i style="background:#f59f00"></i>nas-box</span><small>check key</small></div>
+   <h5>Running</h5><div>↑ 4 files → studio-pc <small>71%</small></div>
+   <h5>Understands</h5><div><span class="tag">find</span> <span class="tag">send</span> <span class="tag">get</span> <span class="tag">share</span> <span class="tag">trash</span> <span class="tag">restore</span> <span class="tag">pair</span> <span class="tag">revoke</span> <span class="tag">grant</span> <span class="tag">open app</span> <span class="tag">status</span> <span class="tag">history</span> <span class="tag">settings</span></div>
+   <small style="margin-top:auto">Parsed on this computer: no text leaves it. Every destructive step shows a card to confirm.</small></aside></div>
+</div></body></html>

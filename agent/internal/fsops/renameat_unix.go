@@ -228,17 +228,6 @@ func linkUnsupported(err error) bool {
 		err == unix.ENOSYS || err == unix.EMLINK || err == unix.EXDEV || err == unix.EINVAL
 }
 
-// renameNoReplaceTo renames p to dst and fails with an error that matches
-// fs.ErrExist, instead of replacing the target, when dst exists or appears
-// concurrently. Like renameTo it only renames inside one jail root, or between
-// two unjailed paths.
-func (p *securePath) renameNoReplaceTo(dst *securePath) error {
-	if (p.root != nil && p.root == dst.root) || (p.root == nil && dst.root == nil) {
-		return renameAcrossRoots(p, dst)
-	}
-	return fmt.Errorf("cannot atomically rename across filesystem jail roots")
-}
-
 // dirHandle is an open parent directory.
 type dirHandle struct {
 	f *os.File

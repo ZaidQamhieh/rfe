@@ -1,4 +1,4 @@
-import sys, zipfile, tarfile, io, os, zlib
+import sys, zipfile, tarfile, io
 
 # usage: mkarch.py KIND OUT [args]
 kind, out = sys.argv[1], sys.argv[2]

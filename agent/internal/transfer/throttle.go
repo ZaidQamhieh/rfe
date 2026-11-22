@@ -62,16 +62,16 @@ func (t *ThrottledReader) Read(p []byte) (int, error) {
 		if sleepDur < time.Millisecond {
 			sleepDur = time.Millisecond
 		}
+		var done <-chan struct{} // nil without a context: never fires
 		if t.ctx != nil {
-			timer := time.NewTimer(sleepDur)
-			select {
-			case <-t.ctx.Done():
-				timer.Stop()
-				return 0, t.ctx.Err()
-			case <-timer.C:
-			}
-		} else {
-			time.Sleep(sleepDur)
+			done = t.ctx.Done()
+		}
+		timer := time.NewTimer(sleepDur)
+		select {
+		case <-done:
+			timer.Stop()
+			return 0, t.ctx.Err()
+		case <-timer.C:
 		}
 		t.bucket += want
 		t.lastFill = time.Now()

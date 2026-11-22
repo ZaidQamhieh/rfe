@@ -1,0 +1,57 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Cards — big computers, one sheet of files</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.nb{background:#fff4d6;color:#111;font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-size:14px}
+.nb .tb{background:#111;color:#666}
+.nb .home{flex:1;padding:24px 28px;display:flex;flex-direction:column;gap:18px;min-height:0}
+.nb .hd{display:flex;align-items:center;gap:14px}
+.nb .hd h1{margin:0;font-size:34px;letter-spacing:-.02em}
+.nb .bx{border:2.5px solid #111;border-radius:14px;box-shadow:5px 5px 0 #111;background:#fff}
+.nb .hd .s{margin-left:auto;width:340px;padding:10px 14px;font-size:14px;color:#555}
+.nb .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.nb .card{padding:16px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:transform .1s}
+.nb .card:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 #111}
+.nb .card .n{font-size:20px;font-weight:700}
+.nb .card .st{display:inline-block;font:700 11px system-ui;text-transform:uppercase;border:2px solid #111;border-radius:999px;padding:2px 8px}
+.nb .c1{background:#a3e3ff}.nb .c2{background:#ffb3d1}.nb .c3{background:#c6f68d}.nb .c4{background:#e7e7e7}
+.nb .card .big{font-size:13px}
+.nb .card .bar{height:12px;border:2px solid #111;border-radius:6px;background:#fff;overflow:hidden}.nb .card .bar i{display:block;height:100%;background:#111}
+.nb .card.add{background:transparent;border-style:dashed;box-shadow:none;align-items:center;justify-content:center;font-weight:700}
+.nb .lower{flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;min-height:0}
+.nb .lower .bx{padding:14px 16px;overflow:hidden}
+.nb .lower h3{margin:0 0 10px;font-size:15px;display:flex;justify-content:space-between}
+.nb .lower h3 span{font-size:12px;font-weight:500;text-decoration:underline}
+.nb .li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:2px solid #111;font-size:13px}.nb .li:last-child{border:0}
+.nb .li b{font-weight:600}
+.nb .btn{border:2.5px solid #111;border-radius:10px;padding:8px 14px;font:700 13px system-ui;background:#ffd400;box-shadow:3px 3px 0 #111;cursor:pointer}
+.nb .sheet{position:absolute;top:30px;right:0;bottom:0;width:560px;background:#fff;border-left:2.5px solid #111;box-shadow:-8px 0 0 rgba(0,0,0,.12);display:flex;flex-direction:column;padding:20px 22px;gap:12px}
+.nb .sheet .top{display:flex;align-items:center;gap:10px}.nb .sheet .top h2{margin:0;font-size:22px}
+.nb .sheet .top .x{margin-left:auto;font-size:20px}
+.nb .path{font-size:13px;color:#444}
+.nb .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;overflow:auto}
+.nb .fi{border:2px solid #111;border-radius:12px;padding:8px;font-size:12.5px;font-weight:600}
+.nb .fi .t{height:72px;border-radius:8px;border:2px solid #111;margin-bottom:6px;background:#a3e3ff}
+.nb .fi.s{background:#ffd400;box-shadow:3px 3px 0 #111}
+.nb .sbar{margin-top:auto;display:flex;gap:10px}
+.nb .scrim{position:absolute;inset:30px 560px 0 0;background:rgba(255,244,214,.55)}
+</style></head><body class="mk">
+<div class="win nb">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="home">
+  <div class="hd"><h1>Your computers</h1><div class="bx s">⌕ Find a file anywhere</div></div>
+  <div class="cards">
+   <div class="bx card c1"><span class="st">● online</span><div class="n">studio-pc</div><div class="big">Linux · 412 GB free</div><div class="bar"><i style="width:62%"></i></div></div>
+   <div class="bx card c2"><span class="st">● online</span><div class="n">work-laptop</div><div class="big">Windows · 102 GB free</div><div class="bar"><i style="width:81%"></i></div></div>
+   <div class="bx card c3"><span class="st">⚠ check key</span><div class="n">nas-box</div><div class="big">Certificate changed</div><div class="bar"><i style="width:44%"></i></div></div>
+   <div class="bx card add">＋ Add a computer</div></div>
+  <div class="lower">
+   <div class="bx"><h3>Moving now <span>pause all</span></h3><div class="li"><b>↑ raw-footage-day3.mov</b>71%</div><div class="li"><b>↓ tax-2025.pdf</b>✓</div><div class="li"><b>↑ thesis-v12.docx</b>waiting</div></div>
+   <div class="bx" style="background:#ffd400"><h3>Pixel 9 wants in</h3><div style="font:700 30px ui-monospace,monospace;letter-spacing:.12em">482 913</div><p style="font-size:13px;margin:6px 0 12px">Same code on the phone? Let it in.</p><button class="btn" style="background:#fff">Yes, matches</button> <button class="btn" style="background:#ffd400">Reject</button></div>
+   <div class="bx"><h3>Phones &amp; access <span>all devices</span></h3><div class="li"><b>Pixel 7</b>browse · download</div><div class="li"><b>Sam's tablet</b>browse</div><div class="li"><b>This app</b>owner</div></div></div>
+ </div>
+ <div class="scrim"></div>
+ <div class="sheet"><div class="top"><h2>studio-pc</h2><span class="st" style="font:700 11px system-ui;border:2px solid #111;border-radius:999px;padding:2px 8px;background:#a3e3ff">● online</span><span class="x">✕</span></div>
+  <div class="path">home / Projects / <b>launch-kit</b> — drop files on this sheet to upload</div>
+  <div class="fgrid"><div class="fi"><div class="t" style="background:#ffd400"></div>assets/</div><div class="fi"><div class="t" style="background:#ffd400"></div>drafts/</div><div class="fi s"><div class="t" style="background:#ffb3d1"></div>hero-final.png</div><div class="fi"><div class="t" style="background:#e7e7e7"></div>brief.md</div><div class="fi"><div class="t" style="background:#c6f68d"></div>budget-q4.xlsx</div><div class="fi"><div class="t" style="background:#a3e3ff"></div>moodboard.jpg</div></div>
+  <div class="sbar"><button class="btn">⇩ Download</button><button class="btn" style="background:#fff">Share link</button><button class="btn" style="background:#fff">Rename</button><button class="btn" style="background:#fff">⋯</button></div></div>
+</div></body></html>

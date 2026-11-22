@@ -129,7 +129,7 @@ test("a download is queued as a task, paused, resumed through retry, and finishe
   const { tasks } = E.enqueue({ dir: "down", host: HOST, srcDir: "/srv", dstDir: "", names: ["big.bin"] });
   assert.equal(tasks.length, 1);
   await until(() => tasks[0].rids.length, "the core to take the transfer");
-  assert.deepEqual(calls.find(([c]) => c === "transfer_download_tree")[1], { host: HOST, remotePath: "/srv/big.bin", isDir: false, askWhere: false });
+  assert.deepEqual(calls.find(([c]) => c === "transfer_download_tree")[1], { host: HOST, remotePath: "/srv/big.bin", isDir: false, askWhere: false, destDir: null });
   await E.pollTransfers();
   assert.equal(tasks[0].state, "running");
   assert.equal(tasks[0].done, 5);
@@ -347,6 +347,46 @@ test("a Pause all from the tray stays paused: the window does not start it again
   await E.pollTransfers();
   assert.equal(retries, 0);
   assert.equal(tasks[0].state, "paused");
+});
+
+test("Pause all then Resume all before the core has taken a download does not start it twice", async () => {
+  let release;
+  const { E, calls } = await boot({
+    files_list: () => ({ entries: [entry("big.bin", { size: 10 })], nextCursor: null }),
+    transfer_download_tree: () => new Promise((r) => { release = r; }),
+    transfer_pause: () => {},
+  });
+  await E.fs.load(HOST, "/srv");
+  const { tasks } = E.enqueue({ dir: "down", host: HOST, srcDir: "/srv", dstDir: "", names: ["big.bin"] });
+  await until(() => release, "the core to be asked");
+  E.pauseAll();
+  assert.equal(tasks[0].state, "paused");
+  E.resumeAll();
+  assert.equal(tasks[0].state, "queued");
+  await sleep(20);
+  assert.equal(calls.filter(([c]) => c === "transfer_download_tree").length, 1, "one set of transfers in the core, not two");
+  release(["r1"]);
+  await until(() => tasks[0].rids.length, "the core to take it");
+  assert.deepEqual(tasks[0].rids, ["r1"]);
+});
+
+test("a task resumed before the core had taken it is not paused again when the core answers", async () => {
+  let release;
+  const { E, calls } = await boot({
+    files_list: () => ({ entries: [entry("big.bin", { size: 10 })], nextCursor: null }),
+    transfer_download_tree: () => new Promise((r) => { release = r; }),
+    transfer_pause: () => {},
+  });
+  await E.fs.load(HOST, "/srv");
+  const { tasks } = E.enqueue({ dir: "down", host: HOST, srcDir: "/srv", dstDir: "", names: ["big.bin"] });
+  await until(() => release, "the core to be asked");
+  E.pauseAll();
+  E.resumeAll();
+  release(["r1"]);
+  await until(() => tasks[0].rids.length, "the core to take it");
+  await sleep(20);
+  assert.equal(calls.filter(([c]) => c === "transfer_pause").length, 0, "the resumed task is left running");
+  assert.equal(tasks[0].held, false);
 });
 
 test("searching this computer asks the core and returns what it found", async () => {

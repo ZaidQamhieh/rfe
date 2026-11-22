@@ -1,0 +1,13 @@
+/* Backdrop and the strip above each mockup. Not part of any design. */
+html, body { margin: 0; }
+body.mk { background: #202124; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 56px 0 32px; font: 13px/1.4 system-ui, sans-serif; }
+.mk-strip { position: fixed; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 16px; padding: 0 16px; background: #121314; color: #9a9ca1; z-index: 999; }
+.mk-strip a, .mk-strip button { color: #e4e5e7; text-decoration: none; background: none; border: 0; font: inherit; cursor: pointer; padding: 6px 8px; border-radius: 6px; }
+.mk-strip a:hover, .mk-strip button:hover { background: #26282b; }
+.mk-strip b { color: #fff; font-weight: 500; } .mk-strip .sp { flex: 1; }
+.mk-map { position: fixed; top: 40px; right: 0; bottom: 0; width: 460px; background: #17181a; color: #d5d7da; overflow: auto; padding: 20px 24px; z-index: 998; box-shadow: -1px 0 0 #2a2c30; display: none; }
+.mk-map.open { display: block; }
+.mk-map h2 { font: 500 16px system-ui; color: #fff; margin: 0 0 4px; } .mk-map p { color: #8f9297; margin: 0 0 16px; }
+.mk-map dl { display: grid; grid-template-columns: 132px 1fr 28px; gap: 10px 12px; margin: 0; }
+.mk-map dt { color: #fff; } .mk-map dd { margin: 0; color: #b9bbbf; } .mk-map dd.n { text-align: right; font-family: ui-monospace, monospace; color: #8fd3a8; }
+.win { width: 1280px; height: 800px; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 24px 64px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .06); flex: none; }

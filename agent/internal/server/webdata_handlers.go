@@ -13,6 +13,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,7 +40,7 @@ func listTransfersHandler(db *store.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A non-admin device sees only the sessions it opened, and none of the
 		// whole-host aggregates or the device/user filter lists — those name
-		// other people's devices, accounts, and upload paths (PR-03). Its
+		// other people's devices, accounts, and upload paths. Its
 		// filter params are ignored rather than honoured, so they can't widen
 		// the scope back out.
 		caller := deviceFromContext(r)
@@ -162,16 +163,16 @@ func deleteTransferHandler(db *store.DB, managers ...*transfer.Manager) http.Han
 		id := chi.URLParam(r, "id")
 		// Only the device that opened the session (or an admin) may drop its
 		// history row. Non-owners get the same 404 a missing ID gets, so a
-		// foreign session ID is neither confirmed nor deletable (PR-03,
-		// matching callerOwnsTransfer's rule in transferhandlers.go).
+		// foreign session ID is neither confirmed nor deletable (matching
+		// callerOwnsDevice's rule in transferhandlers.go).
 		t, err := db.GetTransfer(id)
 		if err != nil {
 			writeInternal(w, "get transfer", err)
 			return
 		}
 		// GetTransfer reports a missing row as (nil, nil), not sql.ErrNoRows.
-		if t == nil || !callerOwnsTransfer(r, t) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "no such transfer")
+		if t == nil || !callerOwnsDevice(r, t.DeviceID) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", noSuchTransferMsg)
 			return
 		}
 		if manager != nil {
@@ -182,12 +183,10 @@ func deleteTransferHandler(db *store.DB, managers ...*transfer.Manager) http.Han
 		switch {
 		case err == nil:
 			w.WriteHeader(http.StatusNoContent)
-		case errors.Is(err, sql.ErrNoRows):
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "no such transfer")
-		case errors.Is(err, transfer.ErrNotFound):
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "no such transfer")
+		case errors.Is(err, sql.ErrNoRows), errors.Is(err, transfer.ErrNotFound):
+			writeError(w, http.StatusNotFound, "NOT_FOUND", noSuchTransferMsg)
 		case errors.Is(err, transfer.ErrSessionActive):
-			writeError(w, http.StatusConflict, "TRANSFER_ACTIVE", "transfer is currently in use; retry after the request finishes")
+			writeError(w, http.StatusConflict, codeTransferActive, "transfer is currently in use; retry after the request finishes")
 		default:
 			writeInternal(w, "delete transfer", err)
 		}
@@ -244,6 +243,15 @@ func deleteUserHandler(db *store.DB) http.HandlerFunc {
 // maxLogLines caps how much of the journal the logs endpoint returns.
 const maxLogLines = 200
 
+// agentUnitName is the systemd user unit the agent runs as; journald output and restarts address it.
+const agentUnitName = "rfe.service"
+
+// noSuchTransferMsg is the 404 message for a transfer the caller cannot see or that does not exist.
+const noSuchTransferMsg = "no such transfer"
+
+// listLogsTimeout bounds one journalctl run started by listLogsHandler.
+const listLogsTimeout = 10 * time.Second
+
 // listLogsHandler tails the agent's own journald output. Admin-gated at the
 // router (see the admin group in server.New): the journal spans every device,
 // so it is not a jailed or read-only caller's to read. Linux/systemd only —
@@ -252,10 +260,10 @@ func listLogsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A wedged journald must not pin a request goroutine and a process
 		// forever, so the command gets a deadline tied to the request.
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), listLogsTimeout)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "journalctl", "--user", "-u", "rfe.service",
-			"-n", "200", "--no-pager", "-o", "short-iso")
+		cmd := exec.CommandContext(ctx, "journalctl", "--user", "-u", agentUnitName,
+			"-n", strconv.Itoa(maxLogLines), "--no-pager", "-o", "short-iso")
 		raw, err := cmd.Output()
 		if err != nil {
 			// No journald (non-systemd, or not run as a unit): honestly empty.

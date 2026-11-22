@@ -80,8 +80,7 @@ func CategoryForName(name string, isDir bool) string {
 	if isDir {
 		return "folder"
 	}
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
-	if cat, ok := extToCategory[ext]; ok {
+	if cat, ok := extToCategory[extOfName(name)]; ok {
 		return cat
 	}
 	return "other"
@@ -198,7 +197,7 @@ func (f *searchFilters) applyQueryParam(rawQ string) (code, message string) {
 	// Validate the pattern eagerly so bad patterns 400 immediately rather
 	// than silently matching nothing on every entry.
 	if _, err := path.Match(f.glob, ""); err != nil {
-		return "BAD_REQUEST", "invalid glob pattern in q"
+		return codeBadRequest, "invalid glob pattern in q"
 	}
 	return "", ""
 }
@@ -215,7 +214,7 @@ func (f *searchFilters) applyTypesParam(typesParam string) (code, message string
 			continue
 		}
 		if !searchCategories[t] {
-			return "BAD_REQUEST", "invalid types value: " + t
+			return codeBadRequest, "invalid types value: " + t
 		}
 		set[t] = true
 	}
@@ -249,7 +248,7 @@ func (f *searchFilters) applySizeBounds(q url.Values) (code, message string) {
 	if minParam := strings.TrimSpace(q.Get("minSize")); minParam != "" {
 		n, err := strconv.ParseInt(minParam, 10, 64)
 		if err != nil {
-			return "BAD_REQUEST", "invalid minSize"
+			return codeBadRequest, "invalid minSize"
 		}
 		f.minSize = n
 		f.hasMinSize = true
@@ -257,7 +256,7 @@ func (f *searchFilters) applySizeBounds(q url.Values) (code, message string) {
 	if maxParam := strings.TrimSpace(q.Get("maxSize")); maxParam != "" {
 		n, err := strconv.ParseInt(maxParam, 10, 64)
 		if err != nil {
-			return "BAD_REQUEST", "invalid maxSize"
+			return codeBadRequest, "invalid maxSize"
 		}
 		f.maxSize = n
 		f.hasMaxSize = true
@@ -271,7 +270,7 @@ func (f *searchFilters) applyModifiedBounds(q url.Values) (code, message string)
 	if afterParam := strings.TrimSpace(q.Get("modifiedAfter")); afterParam != "" {
 		ts, err := time.Parse(time.RFC3339, afterParam)
 		if err != nil {
-			return "BAD_REQUEST", "invalid modifiedAfter"
+			return codeBadRequest, "invalid modifiedAfter"
 		}
 		f.modAfter = ts
 		f.hasModAfter = true
@@ -279,12 +278,31 @@ func (f *searchFilters) applyModifiedBounds(q url.Values) (code, message string)
 	if beforeParam := strings.TrimSpace(q.Get("modifiedBefore")); beforeParam != "" {
 		ts, err := time.Parse(time.RFC3339, beforeParam)
 		if err != nil {
-			return "BAD_REQUEST", "invalid modifiedBefore"
+			return codeBadRequest, "invalid modifiedBefore"
 		}
 		f.modBefore = ts
 		f.hasModBefore = true
 	}
 	return "", ""
+}
+
+// parseLimit reads a positive integer limit from raw, falling back to def when
+// raw is empty or not a positive integer, and caps the result at maxLimit. A
+// positive number too large for an int is clamped to maxLimit rather than
+// falling back to def, so "limit=99999999999999999999" asks for the most.
+func parseLimit(raw string, def, maxLimit int) int {
+	limit := def
+	n, err := strconv.Atoi(raw)
+	switch {
+	case err == nil && n > 0:
+		limit = n
+	case errors.Is(err, strconv.ErrRange) && !strings.HasPrefix(raw, "-"):
+		limit = maxLimit
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	return limit
 }
 
 // --------- /search GET ---------
@@ -296,7 +314,7 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 
 		q := strings.TrimSpace(query.Get("q"))
 		if q == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "q query param required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "q query param required")
 			return
 		}
 
@@ -306,15 +324,7 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 			return
 		}
 
-		limit := searchDefaultLimit
-		if l := query.Get("limit"); l != "" {
-			if n, err := strconv.Atoi(l); err == nil && n > 0 {
-				limit = n
-			}
-		}
-		if limit > searchMaxLimit {
-			limit = searchMaxLimit
-		}
+		limit := parseLimit(query.Get("limit"), searchDefaultLimit, searchMaxLimit)
 
 		// Determine the set of starting points to walk.
 		var roots []string
@@ -326,22 +336,15 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 			}
 			roots = []string{resolved}
 		} else {
-			roots = ops.Roots()
-			if len(roots) == 0 && !ops.IsDenyAll() {
-				// No jail configured — fall back to the user's home directory
-				// so an ordinary unjailed device doesn't walk the entire
-				// filesystem. A deny-all jail also has no roots, but must not
-				// gain access through this fallback.
-				if home, err := os.UserHomeDir(); err == nil && home != "" {
-					roots = []string{home}
-				}
-			}
+			roots = liveWalkRoots(ops)
 		}
 
 		// Fast path: a query containing a path separator is a path lookup, not
 		// a name search — under matchName's current semantics (matched against
 		// the bare basename) a "/" in q could never match anything anyway, so
 		// this only turns guaranteed-empty results into an instant real one.
+		// To stay equivalent to what a walk of roots could return, the hit must
+		// lie inside roots and not below a directory the walk prunes.
 		if entry, ok := tryDirectPathLookup(ops, q, roots, filters); ok {
 			writeJSON(w, http.StatusOK, []fsops.Entry{entry})
 			return
@@ -351,7 +354,7 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 		// (see sidecar_index.go) — query it directly instead of touching disk.
 		// Unavailable without the sidecar, while it is down, or before its first
 		// build finishes; then the live walk below is needed.
-		if results, truncated, ok := idx.query(filters, roots, limit); ok {
+		if results, truncated, ok := queryIndex(r.Context(), idx, filters, roots, limit); ok {
 			if truncated {
 				w.Header().Set(headerSearchTruncated, "1")
 			}
@@ -364,8 +367,10 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 
 		results := make([]fsops.Entry, 0, limit)
 		hitLimit := false
+		// Roots may overlap (a root inside another): list each path once, before the limit counts it.
+		seen := make(map[string]struct{})
 		for _, root := range roots {
-			walkForMatches(ctx, ops, root, filters, limit, &results, &hitLimit)
+			walkForMatchesDedup(ctx, ops, root, filters, limit, &results, &hitLimit, seen)
 			if hitLimit || ctx.Err() != nil {
 				break
 			}
@@ -384,12 +389,15 @@ func searchHandler(ops *fsops.Ops, idx indexBackend) http.HandlerFunc {
 
 // tryDirectPathLookup resolves q directly as a path (absolute, or relative to
 // one of roots) and stats it, instead of walking the tree for it. Returns
-// ok=false if q has no path separator, or doesn't resolve to a real entry
-// matching filters.
+// ok=false if q is a glob or has no path separator, or doesn't resolve to a
+// real entry that a walk of roots would also reach (inside roots, not below a
+// pruned directory) and that matches filters. The name match of a normal
+// search is deliberately not applied: q names the whole path, not a basename.
 func tryDirectPathLookup(ops *fsops.Ops, q string, roots []string, filters *searchFilters) (fsops.Entry, bool) {
-	if !strings.ContainsAny(q, "/\\") {
+	if filters.glob != "" || !strings.ContainsAny(q, "/\\") {
 		return fsops.Entry{}, false
 	}
+	scopes := prepareRootScopes(roots)
 	candidates := []string{q}
 	if !filepath.IsAbs(q) {
 		candidates = candidates[:0]
@@ -398,15 +406,47 @@ func tryDirectPathLookup(ops *fsops.Ops, q string, roots []string, filters *sear
 		}
 	}
 	for _, c := range candidates {
-		entry, err := ops.Meta(filepath.Clean(c))
+		c = filepath.Clean(c)
+		if !underAnyRootScopes(c, scopes) {
+			continue
+		}
+		entry, err := ops.Meta(c)
 		if err != nil {
 			continue
 		}
-		if filters.matchEntry(entry) {
+		if walkWouldVisit(c, entry.IsDir, scopes) && filters.matchEntry(entry) {
 			return *entry, true
 		}
 	}
 	return fsops.Entry{}, false
+}
+
+// walkWouldVisit reports whether a live walk of one of scopes would list p: p lies strictly inside a scope's
+// root (the walk never lists the root itself) and no directory on the way down, nor p itself when isDir, is one
+// shouldSkipVirtualDir prunes. Hidden files are not pruned, only directories.
+func walkWouldVisit(p string, isDir bool, scopes []rootScope) bool {
+	for _, sc := range scopes {
+		if !strings.HasPrefix(p, sc.descendantPrefix) {
+			continue
+		}
+		parts := strings.Split(p[len(sc.descendantPrefix):], string(filepath.Separator))
+		cur, pruned := sc.root, false
+		for i, part := range parts {
+			cur = filepath.Join(cur, part)
+			if fsops.IsPublishTemp(part) {
+				pruned = true // the live walk never lists an in-flight upload temp, nor anything under it
+				break
+			}
+			if (i < len(parts)-1 || isDir) && shouldSkipVirtualDir(cur) {
+				pruned = true
+				break
+			}
+		}
+		if !pruned {
+			return true
+		}
+	}
+	return false
 }
 
 // virtualLinuxDirs are pseudo-filesystem mount points and ostree/rpm-ostree
@@ -443,7 +483,7 @@ var noisyDirNames = map[string]bool{
 
 // shouldSkipVirtualDir reports whether path is a Linux pseudo-filesystem
 // mount point, a hidden (dot-prefixed) directory, or a known dependency/
-// package-cache directory that walkForMatches/walkForRecent and the
+// package-cache directory that walkForMatches/walkForRecentWithOps and the
 // indexer should prune while walking.
 func shouldSkipVirtualDir(path string) bool {
 	if runtime.GOOS == "linux" && virtualLinuxDirs[filepath.Clean(path)] {
@@ -460,42 +500,26 @@ func shouldSkipVirtualDir(path string) bool {
 // the walk stops because limit was reached by a matching entry (not merely
 // because the time budget expired).
 func walkForMatches(ctx context.Context, ops *fsops.Ops, rootPath string, filters *searchFilters, limit int, results *[]fsops.Entry, hitLimit *bool) {
-	root, err := ops.OpenDir(rootPath)
-	if err != nil {
-		return
-	}
-	defer root.Close()
-	_ = fs.WalkDir(root.FS(), ".", func(relPath string, d fs.DirEntry, err error) error {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-			// Other errors (e.g. transient stat failures): skip this entry.
-			if d != nil && d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		entryPath := rootPath
-		if relPath != "." {
-			entryPath = filepath.Join(rootPath, filepath.FromSlash(relPath))
-		}
-		if d.IsDir() && relPath != "." && shouldSkipVirtualDir(entryPath) {
-			return fs.SkipDir
-		}
+	walkForMatchesDedup(ctx, ops, rootPath, filters, limit, results, hitLimit, nil)
+}
 
+// walkForMatchesDedup is walkForMatches that also skips any path already in seen (and records the ones it adds),
+// so a caller walking overlapping roots lists each path once and duplicates never count toward limit. A nil
+// seen disables the check.
+func walkForMatchesDedup(ctx context.Context, ops *fsops.Ops, rootPath string, filters *searchFilters, limit int, results *[]fsops.Entry, hitLimit *bool, seen map[string]struct{}) {
+	walkLiveRoot(ctx, ops, rootPath, func(_ *os.Root, relPath string, d fs.DirEntry) error {
 		// Don't match the root itself — only its contents.
 		if relPath != "." && filters.matchName(d.Name()) {
 			info, infoErr := d.Info()
 			if infoErr == nil {
-				entry := fsops.EntryFromInfoNoSniff(info, entryPath)
+				entry := fsops.EntryFromInfoNoSniff(info, filepath.Join(rootPath, filepath.FromSlash(relPath)))
 				if filters.matchEntry(&entry) {
+					if seen != nil {
+						if _, dup := seen[entry.Path]; dup {
+							return nil
+						}
+						seen[entry.Path] = struct{}{}
+					}
 					*results = append(*results, entry)
 					if len(*results) >= limit {
 						*hitLimit = true

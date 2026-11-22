@@ -25,10 +25,30 @@ pub const MAX_TEXT_BYTES: usize = 1 << 20;
 /// Largest thumbnail the app accepts.
 const MAX_THUMB_BYTES: usize = 4 << 20;
 const MAX_QUERY_BYTES: usize = 256;
+/// Archive listings: the page size used when the caller gives none, and the most a caller may ask for.
+const ARCHIVE_DEFAULT_LIMIT: u32 = 500;
+const ARCHIVE_MAX_LIMIT: u32 = 5000;
+/// Search results: the page size used when the caller gives none, and the most a caller may ask for.
+const SEARCH_DEFAULT_LIMIT: u32 = 100;
+const SEARCH_MAX_LIMIT: u32 = 500;
+/// Recent files: the page size used when the caller gives none, and the most a caller may ask for.
+const RECENT_DEFAULT_LIMIT: u32 = 50;
+const RECENT_MAX_LIMIT: u32 = 500;
+/// Share links last at least a minute and at most a day.
+const MIN_SHARE_SECS: u32 = 60;
+const MAX_SHARE_SECS: u32 = 24 * 3600;
+/// Thumbnail edge length in pixels: the default when the caller gives none, and the allowed range.
+const THUMB_DEFAULT_PX: u32 = 256;
+const THUMB_MIN_PX: u32 = 32;
+const THUMB_MAX_PX: u32 = 1024;
 const ERR_UNCONFIRMED: &str = "The agent did not confirm that the change was made.";
 
-const ERR_QUERY: &str = "a search needs 1 to 256 characters";
-const ERR_BATCH: &str = "choose between 1 and 1000 items";
+fn err_query() -> String {
+    format!("a search needs 1 to {MAX_QUERY_BYTES} characters")
+}
+fn err_batch() -> String {
+    format!("choose between 1 and {MAX_BATCH} items")
+}
 const ERR_ALGO: &str = "the checksum must be sha256, sha1 or md5";
 const ERR_MODE: &str = "a permission mode is 3 or 4 octal digits, for example 0755";
 const ERR_TYPE: &str = "unknown file category";
@@ -40,7 +60,7 @@ fn local(msg: &str) -> AgentError {
 
 fn paths_ok(paths: &[String]) -> Result<(), AgentError> {
     if paths.is_empty() || paths.len() > MAX_BATCH {
-        return Err(local(ERR_BATCH));
+        return Err(local(&err_batch()));
     }
     paths.iter().try_for_each(|p| validate_path(p))
 }
@@ -121,7 +141,7 @@ pub async fn search(
     o: &SearchOpts,
 ) -> Result<Vec<FileEntry>, AgentError> {
     if o.query.is_empty() || o.query.len() > MAX_QUERY_BYTES || o.query.contains('\0') {
-        return Err(local(ERR_QUERY));
+        return Err(local(&err_query()));
     }
     if let Some(r) = &o.root {
         validate_path(r)?;
@@ -139,7 +159,11 @@ pub async fn search(
             ));
         }
     }
-    let limit = o.limit.unwrap_or(100).clamp(1, 500).to_string();
+    let limit = o
+        .limit
+        .unwrap_or(SEARCH_DEFAULT_LIMIT)
+        .clamp(1, SEARCH_MAX_LIMIT)
+        .to_string();
     let types = o.types.join(",");
     let min = o.min_size.map(|n| n.max(0).to_string());
     let max = o.max_size.map(|n| n.max(0).to_string());
@@ -175,7 +199,10 @@ pub async fn recent(
     if let Some(r) = root {
         validate_path(r)?;
     }
-    let limit = limit.unwrap_or(50).clamp(1, 500).to_string();
+    let limit = limit
+        .unwrap_or(RECENT_DEFAULT_LIMIT)
+        .clamp(1, RECENT_MAX_LIMIT)
+        .to_string();
     let mut query: Vec<(&str, &str)> = vec![("limit", limit.as_str())];
     if let Some(r) = root {
         query.push(("root", r));
@@ -293,7 +320,10 @@ pub async fn archive_list(
     limit: Option<u32>,
 ) -> Result<Vec<ArchiveEntry>, AgentError> {
     validate_path(path)?;
-    let limit = limit.unwrap_or(500).clamp(1, 5000).to_string();
+    let limit = limit
+        .unwrap_or(ARCHIVE_DEFAULT_LIMIT)
+        .clamp(1, ARCHIVE_MAX_LIMIT)
+        .to_string();
     let (client, token) = session(dir, store).await?;
     let r: Result<ArchiveList, AgentError> = client
         .authed_json(
@@ -436,7 +466,7 @@ pub async fn mint_share(
     expires_in_seconds: u32,
 ) -> Result<ShareLink, AgentError> {
     validate_path(path)?;
-    if !(60..=24 * 3600).contains(&expires_in_seconds) {
+    if !(MIN_SHARE_SECS..=MAX_SHARE_SECS).contains(&expires_in_seconds) {
         return Err(local("a share link lasts from 1 minute to 24 hours"));
     }
     let (client, token) = session(dir, store).await?;
@@ -507,7 +537,7 @@ fn ids_ok(ids: &[String]) -> Result<(), AgentError> {
     if ok {
         Ok(())
     } else {
-        Err(local(ERR_BATCH))
+        Err(local(&err_batch()))
     }
 }
 
@@ -634,7 +664,10 @@ pub async fn thumb(
     size: Option<u32>,
 ) -> Result<String, AgentError> {
     validate_path(path)?;
-    let size = size.unwrap_or(256).clamp(32, 1024).to_string();
+    let size = size
+        .unwrap_or(THUMB_DEFAULT_PX)
+        .clamp(THUMB_MIN_PX, THUMB_MAX_PX)
+        .to_string();
     let (client, token) = session(dir, store).await?;
     let r = client
         .authed_bytes(
@@ -646,6 +679,63 @@ pub async fn thumb(
         .await
         .map(|b| encode_mime(path, &b));
     settle(dir, store, &token, "thumbnail", r).await
+}
+
+/// The limits the window shows messages for, so it reads them here instead of keeping its own copies.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Limits {
+    pub max_video_bytes: u64,
+    pub max_batch: usize,
+    pub max_text_bytes: u64,
+    pub max_name: usize,
+    pub max_image_bytes: u64,
+}
+
+#[tauri::command]
+pub fn desktop_limits() -> Limits {
+    Limits {
+        max_video_bytes: MAX_VIDEO_BYTES as u64,
+        max_batch: MAX_BATCH,
+        max_text_bytes: MAX_TEXT_BYTES as u64,
+        max_name: crate::files::MAX_NAME_BYTES,
+        max_image_bytes: crate::local::MAX_IMAGE_BYTES,
+    }
+}
+
+/// The most bytes of a video the window will load to play it.
+pub const MAX_VIDEO_BYTES: usize = 256 << 20;
+/// Shown when a video is longer than `MAX_VIDEO_BYTES`.
+pub const ERR_VIDEO_BIG: &str = "This video is too big to play here. Download it instead.";
+/// Shown for a file ending the window's video player does not play.
+pub const ERR_VIDEO_TYPE: &str = "This kind of video cannot be played here. Download it instead.";
+
+/// Whether the name ends like a video the window's player handles (mp4, webm, mov, m4v, ogg).
+pub fn is_playable_video(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    [".mp4", ".webm", ".mov", ".m4v", ".ogg"]
+        .iter()
+        .any(|e| lower.ends_with(e))
+}
+
+/// The bytes of a video on the agent's computer, at most `MAX_VIDEO_BYTES`, for the window to play.
+/// The path is checked like every other and the agent applies its folders and the device's grants.
+pub async fn video(dir: &Path, store: &Offloaded, path: &str) -> Result<Vec<u8>, AgentError> {
+    validate_path(path)?;
+    if !is_playable_video(path) {
+        return Err(local(ERR_VIDEO_TYPE));
+    }
+    let (client, token) = session(dir, store).await?;
+    let r = client
+        .authed_large_bytes(
+            &token,
+            "/content",
+            &[("path", path)],
+            MAX_VIDEO_BYTES,
+            ERR_VIDEO_BIG,
+        )
+        .await;
+    settle(dir, store, &token, "video", r).await
 }
 
 /// Sends a Wake-on-LAN packet from the agent to a sleeping computer on its network.
@@ -675,19 +765,10 @@ pub async fn wake(dir: &Path, store: &Offloaded, mac: &str) -> Result<(), AgentE
 // Commands (registered in lib.rs)
 // ---------------------------------------------------------------------------------------------
 
-fn keystore(host: Option<String>) -> Offloaded {
-    Offloaded::os_keystore().scoped(host)
-}
-
-fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    use tauri::Manager;
-    app.path().app_data_dir().map_err(|e| e.to_string())
-}
-
 macro_rules! run {
     ($app:expr, $host:expr, |$d:ident, $s:ident| $body:expr) => {{
-        let $d = data_dir(&$app)?;
-        let $s = keystore($host);
+        let $d = crate::data_dir(&$app)?;
+        let $s = crate::keystore().scoped($host);
         $body.await.map_err(|e| user_message(&e))
     }};
 }
@@ -904,6 +985,17 @@ pub async fn files_thumb(
     size: Option<u32>,
 ) -> Result<String, String> {
     run!(app, host, |d, s| thumb(&d, &s, &path, size))
+}
+
+/// The bytes of a video on a computer, handed to the window as raw binary (not a JSON list).
+#[tauri::command]
+pub async fn files_video(
+    app: tauri::AppHandle,
+    host: Option<String>,
+    path: String,
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = run!(app, host, |d, s| video(&d, &s, &path))?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 #[tauri::command]

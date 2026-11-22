@@ -16,10 +16,10 @@ import { DeviceIdentity } from "../security/deviceIdentity";
 import { MemorySecureStore } from "../security/secureStore";
 import { HostStore, MemoryKeyValueStore } from "../storage/hostStore";
 import {
-  humanizeError,
   requestPairing,
   type PairingDeps,
 } from "../../features/pairing/pairingService";
+import { humanizeError } from "../humanizeError";
 
 const PIN = "ab".repeat(32);
 
@@ -145,5 +145,14 @@ describe("UNSUPPORTED_BY_AGENT mapping", () => {
       false,
     );
     expect(isMissingRoute(unsupportedByAgent("pairRequest"))).toBe(false);
+  });
+});
+
+describe("parseEntry snippet", () => {
+  it("keeps a well-formed snippet and drops a malformed one", () => {
+    const base = { name: "a.txt", path: "/a.txt", isDir: false, isSymlink: false };
+    expect(parseEntry({ ...base, snippet: { text: "ab needle", start: 3, length: 6 } } as never)?.snippet).toEqual({ text: "ab needle", start: 3, length: 6 });
+    expect(parseEntry({ ...base, snippet: { text: "ab", start: 1, length: 9 } } as never)?.snippet).toBeUndefined();
+    expect(parseEntry({ ...base } as never)?.snippet).toBeUndefined();
   });
 });

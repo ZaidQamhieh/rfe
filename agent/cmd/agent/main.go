@@ -19,12 +19,16 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/ZaidQamhieh/rfe/agent/internal/backup"
+	"github.com/ZaidQamhieh/rfe/agent/internal/events"
 	"github.com/ZaidQamhieh/rfe/agent/internal/fsops"
+	"github.com/ZaidQamhieh/rfe/agent/internal/launcher"
 	"github.com/ZaidQamhieh/rfe/agent/internal/mdns"
 	"github.com/ZaidQamhieh/rfe/agent/internal/netinfo"
 	"github.com/ZaidQamhieh/rfe/agent/internal/pairing"
@@ -33,9 +37,32 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 	"github.com/ZaidQamhieh/rfe/agent/internal/transfer"
+	"github.com/ZaidQamhieh/rfe/agent/internal/upgrade"
+	"github.com/ZaidQamhieh/rfe/agent/internal/upgrade/health"
 )
 
 var version = "1.0.0"
+
+// defaultListenAddr is the default -addr: port 8765 on all interfaces.
+const defaultListenAddr = ":8765"
+
+// serverReadHeaderTimeout bounds how long request headers may take to arrive, whatever the payload size.
+const serverReadHeaderTimeout = 10 * time.Second
+
+// serverReadTimeout and serverWriteTimeout must be generous enough to cover slow links transferring big files:
+// large uploads and downloads stream through this server (chunked transfers and /v1/content). 30 minutes covers a
+// multi-GB transfer over a slow connection without leaving truly stuck connections open indefinitely.
+const (
+	serverReadTimeout  = 30 * time.Minute
+	serverWriteTimeout = 30 * time.Minute
+)
+
+// serverIdleTimeout bounds how long a keep-alive connection may sit idle between requests, freeing resources from
+// abandoned connections.
+const serverIdleTimeout = 2 * time.Minute
+
+// shutdownTimeout bounds how long waitForShutdown waits for open requests to finish.
+const shutdownTimeout = 10 * time.Second
 
 func main() {
 	args := os.Args[1:]
@@ -67,9 +94,16 @@ type serveFlags struct {
 	dataDirExplicit bool // -data was given; the daemon then never moves a pre-1.0 folder
 }
 
-// adminCommandNames are the subcommand words runAdmin dispatches (admin.go); used to
-// explain a misplaced one on the serve command line.
-var adminCommandNames = []string{"pair", "devices", "revoke", "remove", "jail", "readonly", "allow", "backup-dir", "status", "audit", "adduser", "install", "setup", "uninstall", "start", "stop", "help"}
+// adminCommandNames are the subcommand words runAdmin dispatches (adminCommands in admin.go);
+// used to explain a misplaced one on the serve command line. Filled from the table in init,
+// so the table's handlers may reach parseServeArgs without an initialization cycle.
+var adminCommandNames []string
+
+func init() {
+	for _, c := range adminCommands {
+		adminCommandNames = append(adminCommandNames, c.name)
+	}
+}
 
 // parseServeFlags parses the daemon flags and exits like flag.ExitOnError did when they are
 // bad: status 2 with the problem and usage on stderr, status 0 for -h.
@@ -91,7 +125,7 @@ func parseServeFlags(args []string) serveFlags {
 func parseServeArgs(args []string) (serveFlags, error) {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	addr := fs.String("addr", ":8765", "listen address (host:port)")
+	addr := fs.String("addr", defaultListenAddr, "listen address (host:port)")
 	name := fs.String("name", hostName(), "agent display name shown to the phone")
 	dataDir := fs.String("data", defaultDataDir(), "directory for certs, db, and state (precedence: -data > $RFE_DATA_DIR > ~/.rfe)")
 	readOnly := fs.Bool("read-only", false, "reject all write operations")
@@ -192,19 +226,10 @@ func newHTTPServer(addr string, handler http.Handler, cert tls.Certificate) *htt
 			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS12,
 		},
-		// Headers should arrive quickly regardless of payload size.
-		ReadHeaderTimeout: 10 * time.Second,
-		// Large file uploads/downloads stream through this server (chunked
-		// transfers and /v1/content), so Read/Write timeouts must be generous
-		// enough to cover slow links transferring big files. 30 minutes
-		// comfortably covers a multi-GB transfer over a slow connection
-		// without leaving truly-stuck connections open indefinitely.
-		ReadTimeout:  30 * time.Minute,
-		WriteTimeout: 30 * time.Minute,
-		// IdleTimeout bounds how long a keep-alive connection can sit idle
-		// between requests; 2 minutes is plenty for normal browsing/polling
-		// while freeing resources from abandoned connections.
-		IdleTimeout: 2 * time.Minute,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 }
 
@@ -321,7 +346,7 @@ func waitForShutdown(srvs ...*http.Server) {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	for _, srv := range srvs {
 		if srv == nil {
@@ -336,7 +361,20 @@ func waitForShutdown(srvs ...*http.Server) {
 
 func runServe(args []string) {
 	startTime := time.Now()
+	// Soft heap ceiling so GC returns memory after thumbnail/listing spikes; GOMEMLIMIT overrides it.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(768 << 20)
+	}
 	flags := parseServeFlags(args)
+	// Under the launcher, tell it we are alive (and migrating) so a hung new version can be rolled back. Without
+	// RFE_HEALTH_URL this is a no-op.
+	hb, hbErr := health.FromEnv(os.Getenv, log.Printf)
+	if hbErr != nil {
+		log.Printf("health heartbeats disabled: %v", hbErr)
+	}
+	hb.SetAddr(flags.addr)
+	hb.Start(health.HeartbeatInterval)
+	defer hb.Stop()
 	if !flags.dataDirExplicit {
 		moveLegacyInstall(true)
 		flags.dataDir = defaultDataDir()
@@ -356,7 +394,9 @@ func runServe(args []string) {
 
 	// The data folder holds the TLS key and database; keep it out of every
 	// device's reach even when a shared root contains it.
-	fsops.ProtectDir(flags.dataDir)
+	if err := fsops.ProtectDir(flags.dataDir); err != nil {
+		log.Fatalf("protect data dir: %v", err)
+	}
 
 	cert, err := security.LoadOrCreateCert(flags.dataDir)
 	if err != nil {
@@ -368,11 +408,19 @@ func runServe(args []string) {
 	lanAddr, tsAddr, macAddr := reachableAddresses(flags.addr)
 	log.Printf("reachable at  lan=%s  tailscale=%s  mac=%s", orNone(lanAddr), orNone(tsAddr), orNone(macAddr))
 
+	hb.SetState(health.Migrating)
+	if backupsEnabled(os.Getenv) {
+		// Snapshot a copy of the closed database first when Open is about to migrate it; a failure is logged, not fatal.
+		if err := premigrationSnapshot(flags.dataDir, time.Now); err != nil {
+			log.Printf("backup: premigration snapshot: %s", backup.ScrubError(err, flags.dataDir))
+		}
+	}
 	db, err := store.Open(flags.dataDir)
 	if err != nil {
 		log.Fatalf("store: %v", err)
 	}
 	defer db.Close()
+	hb.SetState(health.Starting)
 
 	dirs := prepareServeDirs(flags.dataDir)
 
@@ -394,6 +442,9 @@ func runServe(args []string) {
 	// R1: periodically delete expired one-time share tokens (T6).
 	server.StartShareSweeper(db)
 
+	// Closed when the HTTP server starts shutting down, so open event streams end
+	// instead of holding the shutdown until its timeout.
+	eventHub := events.NewHub()
 	handler, err := server.New(server.Config{
 		Name:             st.AgentName(),
 		Version:          version,
@@ -407,13 +458,23 @@ func runServe(args []string) {
 		TrashDir:         dirs.trashDir,
 		StartTime:        startTime,
 		DataDir:          flags.dataDir,
+		BundleRoot:       os.Getenv(launcher.RootEnv),
 		OnPairRequest:    pairPromptHandler(db),
+		Events:           eventHub,
 	}, db, pm, tm)
 	if err != nil {
 		log.Fatalf("server: %v", err)
 	}
 
+	stopBackups := func() {}
+	if backupsEnabled(os.Getenv) {
+		stopBackups = startBackups(flags.dataDir, db, os.Getenv, log.Printf)
+	}
+	defer stopBackups()
+
 	srv := newHTTPServer(flags.addr, handler, cert)
+	srv.RegisterOnShutdown(eventHub.Close)
+	srv.RegisterOnShutdown(server.CloseStreams)
 
 	statsCtx, cancelStats := context.WithCancel(context.Background())
 	statsDone := make(chan struct{})
@@ -436,6 +497,27 @@ func runServe(args []string) {
 	}()
 
 	webSrv := startWebListener(flags.addr, handler, cert)
+	hb.SetState(health.Ready)
+
+	if autoApplyEnabled(os.Getenv) {
+		if root := os.Getenv(launcher.RootEnv); root == "" {
+			log.Printf("auto-apply: %s is set but %s is not; staying off", envAutoApply, launcher.RootEnv)
+		} else {
+			stopAutoApply := startAutoApply(autoApplyConfig{
+				Root: root, DataDir: flags.dataDir, Running: version, Logf: log.Printf,
+				Idle: upgrade.StoreIdle(db),
+				StopListening: func(ctx context.Context) error {
+					return errors.Join(srv.Shutdown(ctx), webSrv.Shutdown(ctx))
+				},
+				Exit: func(code int) {
+					stopBackups()
+					db.Close()
+					os.Exit(code)
+				},
+			})
+			defer stopAutoApply()
+		}
+	}
 
 	if stopMDNS := startMDNS(flags.addr, version); stopMDNS != nil {
 		defer stopMDNS()

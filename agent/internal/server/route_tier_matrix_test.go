@@ -31,8 +31,6 @@ const (
 	tierAdmin
 	// tierSelfOrAdmin lets a device act on itself and only an admin act on others.
 	tierSelfOrAdmin
-	// tierWeb is the bundled web companion's static catch-all.
-	tierWeb
 )
 
 // routeTiers declares who may call every route the server registers. A route
@@ -48,6 +46,12 @@ var routeTiers = map[string]routeTier{
 	"POST /v1/pair/request/{id}/reveal":   tierPublic,
 	"POST /v1/register":                   tierPublic,
 	"POST /v1/login":                      tierPublic,
+	"GET /v1/accounts/key":                tierPublic,
+	"GET /v1/events":                      tierDevice,
+	"POST /v1/accounts/assertion":         tierAdmin,
+	"GET /v1/settings/account-server":     tierAdmin,
+	"PUT /v1/settings/account-server":     tierAdmin,
+	"DELETE /v1/settings/account-server":  tierAdmin,
 	"GET /v1/share/{token}":               tierPublic,
 	"GET /v1/status":                      tierDevice,
 	"GET /v1/transfers/list":              tierDevice,
@@ -66,11 +70,14 @@ var routeTiers = map[string]routeTier{
 	"GET /v1/app/download":                tierDevice,
 	"GET /v1/fs":                          tierDevice,
 	"GET /v1/fs/meta":                     tierDevice,
+	"GET /v1/fs/media-info":               tierDevice,
 	"GET /v1/fs/archive":                  tierDevice,
 	"GET /v1/fs/checksum":                 tierDevice,
 	"POST /v1/fs/checksums":               tierDevice,
 	"GET /v1/fs/recent":                   tierDevice,
+	"GET /v1/fs/usage":                    tierDevice,
 	"GET /v1/content":                     tierDevice,
+	"GET /v1/stream":                      tierDevice,
 	"GET /v1/trash":                       tierDevice,
 	"POST /v1/share/mint":                 tierDevice,
 	"GET /v1/share":                       tierDevice, // scoped to the caller inside the handler
@@ -103,6 +110,7 @@ var routeTiers = map[string]routeTier{
 	"DELETE /v1/users/{username}":         tierAdmin,
 	"GET /v1/logs":                        tierAdmin,
 	"GET /v1/audit":                       tierAdmin,
+	"GET /v1/system/backups":              tierAdmin,
 	"POST /v1/agent/restart":              tierAdmin,
 }
 
@@ -110,12 +118,14 @@ var routeTiers = map[string]routeTier{
 // token in a test. The others (restart, user and device deletion) are only
 // ever called with a token that must be refused.
 var adminSafeToCall = map[string]bool{
-	"GET /v1/settings/bandwidth": true,
-	"GET /v1/pair/requests":      true,
-	"GET /v1/metrics":            true,
-	"GET /v1/users":              true,
-	"GET /v1/logs":               true,
-	"GET /v1/audit":              true,
+	"GET /v1/settings/bandwidth":      true,
+	"GET /v1/settings/account-server": true,
+	"GET /v1/pair/requests":           true,
+	"GET /v1/metrics":                 true,
+	"GET /v1/users":                   true,
+	"GET /v1/logs":                    true,
+	"GET /v1/audit":                   true,
+	"GET /v1/system/backups":          true,
 }
 
 func fillRoutePath(route string) string {

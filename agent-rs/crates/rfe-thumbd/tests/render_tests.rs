@@ -1,9 +1,8 @@
+mod common;
+
+use common::data;
 use rfe_thumbd::decode::{self, DecodeError};
 use rfe_thumbd::render::{self, RenderError};
-
-fn data(name: &str) -> Vec<u8> {
-    std::fs::read(format!("{}/tests/data/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
-}
 
 /// Decodes a thumbnail back to RGB for inspection.
 fn pixels(jpeg: &[u8]) -> (usize, usize, Vec<u8>) {
@@ -165,13 +164,20 @@ fn bad_input_is_refused_not_crashed_on() {
         render::render(b"", 128),
         Err(RenderError::Decode(DecodeError::Unsupported(_)))
     ));
-    // A truncated JPEG either decodes what is there or is refused; it never panics.
-    let _ = render::render(&data("truncated.jpg"), 128);
+    // Truncated input either decodes what is there or is refused as a decode error.
+    let accepts_or_refuses = |r: Result<_, RenderError>| {
+        assert!(
+            matches!(r, Ok(_) | Err(RenderError::Decode(_))),
+            "truncated input must decode or be refused as Decode, got {:?}",
+            r.err()
+        );
+    };
+    accepts_or_refuses(render::render(&data("truncated.jpg"), 128));
     for cut in [10usize, 100, 1000] {
         let b = data("lossy.webp");
-        let _ = render::render(&b[..cut.min(b.len())], 128);
+        accepts_or_refuses(render::render(&b[..cut.min(b.len())], 128));
         let p = data("palette.png");
-        let _ = render::render(&p[..cut.min(p.len())], 128);
+        accepts_or_refuses(render::render(&p[..cut.min(p.len())], 128));
     }
 }
 

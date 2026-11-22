@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Darkroom — pictures shown as pictures, kind chips with counts</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d04{--bg:#121212;--sf:#1a1a1a;--rz:#252525;--t1:#eeeae4;--t2:#aaa49b;--t3:#857f77;--line:rgba(238,234,228,.08);--line2:rgba(238,234,228,.14);--ac:#e2a03f;--on-ac:#121212;--ac-ink:#efb662;--ac-soft:rgba(226,160,63,.13);--pos:#5fbf86;--neg:#e5604d;--warn:#e2a03f;--font:"Sora",system-ui,sans-serif;--mono:"JetBrains Mono",monospace;--shadow:0 16px 40px rgba(0,0,0,.5)}
+.d04 .k-btn.pri{background:var(--ac);color:#121212;box-shadow:none}.d04 .k-qr{background:#eeeae4}
+.d04 .top{height:54px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}.d04 .top .cs{display:flex;gap:14px;margin-right:auto;font-size:12px;color:var(--t2)}.d04 .top .cs span{display:flex;gap:6px;align-items:center}
+.d04 .b-sr{background:rgba(0,0,0,.55)}
+.d04 .b-sr .m{left:calc(50% + 120px);top:64px;transform:translateX(-50%);width:820px;background:var(--sf);border-radius:14px;box-shadow:var(--shadow),0 0 0 1px var(--line2);overflow:hidden}
+.d04 .f{display:flex;align-items:center;gap:12px;padding:16px 20px;color:var(--t3)}.d04 .f input{flex:1;border:0;outline:0;background:none;font:400 19px var(--font);color:var(--t1)}
+.d04 .ch{display:flex;gap:6px;padding:0 20px 14px;border-bottom:1px solid var(--line)}
+.d04 .ch button{height:30px;padding:0 12px;border-radius:8px;font-size:13px;color:var(--t2);background:var(--rz);display:inline-flex;gap:8px;align-items:center}.d04 .ch button.on{background:var(--ac);color:#121212}.d04 .ch small{font:11px var(--mono);opacity:.75}
+.d04 .px{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px 4px}.d04 .px div{font-size:12px;color:var(--t2);cursor:pointer}.d04 .px svg{width:100%;height:auto;border-radius:8px;display:block;margin-bottom:6px}.d04 .px b{display:block;color:var(--t1);font-weight:500}
+.d04 h4{font:500 11px var(--font);color:var(--t3);margin:14px 20px 4px;letter-spacing:.02em}
+.d04 .rw{display:grid;grid-template-columns:22px 1fr 130px 70px;gap:12px;align-items:center;padding:8px 20px;font-size:13px;cursor:pointer}.d04 .rw:hover{background:var(--rz)}.d04 .rw small{color:var(--t3);font:12px var(--mono)}
+.d04 .ft{display:flex;gap:16px;padding:10px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--t3);margin-top:8px}.d04 .ft .sp{flex:1}
+.d04 .no{padding:32px 20px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;color:var(--t2);font-size:13px}.d04 .no b{display:block;color:var(--t1);font-weight:500;font-size:15px;margin-bottom:4px}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d04">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="A dark room for people who keep photos and video on their PCs. Search shows what it found by kind: pictures as a contact strip, everything else as rows. Each kind chip carries its count so you know before you click.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row", 1], ["Overview, Servers, Devices, Transfers, Tools, History, Settings", "Fixed pages; lists open their details in the inspector on the right", 1], ["Search", "Search icon in the top bar, Ctrl K, / or the sidebar", 1], ["By kind", "Chips with counts: all, images, documents, folders, text", 2], ["Preview", "Click a picture: preview; Enter: open in Files", 2]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty,S=B.S,hl=B.hl,sk=B.sk;
+
+document.getElementById('top').innerHTML=`<span class="cs">${EM?'<span>No computers yet</span>':D.servers.map(s=>`<span>${K.dot(s.dot)}${s.name}</span>`).join('')}</span>`+K.ib('search','Search (Ctrl K)','go:search')+K.C.actions();
+const pics=S.res.filter(r=>r.k==='img'),rest=S.res.filter(r=>r.k!=='img');
+const search=()=>`<div class="m" role="dialog" aria-label="Search"><label class="f">${I('search',20)}<input value="${S.q}" placeholder="Search names of photos, videos and files" aria-label="Search">${sk('Esc')}</label>
+<div class="ch">${(EM?[['All',0]]:[['All',6],['Images',2],['Documents',2],['Folders',1],['Text',1],['Video',0]]).map((c,i)=>`<button class="${i?'':'on'}" data-k="sr:pick">${c[0]}<small>${c[1]}</small></button>`).join('')}</div>
+${EM?`<div class="no">${E('framed_picture',40)}<div><b>Nothing here to look through</b>Add a computer and search finds its photos, video and documents by name, and shows pictures as pictures.</div>${K.btn('Add a computer',{i:'plus',k:'pri',a:'dlg:newconn'})}</div>`:`<h4>Images</h4><div class="px">${pics.map((r,i)=>`<div data-k="dlg:preview">${K.photo(i?1:2,200,130,8)}<b>${hl(r.n)}</b>${r.pc} · ${r.size}</div>`).join('')}<div data-k="dlg:preview">${K.photo(3,200,130,8)}<b>raised-beds/<mark>bed</mark>-01.jpg</b>studio-pc · in a folder</div></div><h4>Everything else</h4>${rest.map(r=>`<div class="rw" data-k="sr:go:files">${K.fic(r.k)}<span>${hl(r.n)} <small>${r.path}</small></span><small>${r.pc}</small><small>${r.size}</small></div>`).join('')}`}
+<div class="ft"><span>${EM?'Searches this computer’s Downloads until you add one':S.line}</span><span class="sp"></span><span>${sk('Space')} preview</span><span>${sk('Enter')} open in Files</span></div></div>`;
+B.mount({search});
+
+</script></body></html>

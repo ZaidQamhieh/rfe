@@ -3,7 +3,7 @@
 ## Toolchain
 
 - **Go (agent):** `agent/go.mod` requires Go 1.26.0 or newer. CI and host releases use Go 1.26.6
-  (`.github/workflows/ci.yml` and `.github/workflows/agent-release.yml`) so builds use the patched
+  (`.github/workflows/ci.yml` and `.github/workflows/host-release.yml`) so builds use the patched
   standard library and can install the current `govulncheck` release.
 - **Node (app):** Node 22 and npm; JDK 21 for Android builds (CI uses both). The app is `mobile/`.
 

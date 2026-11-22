@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,8 +40,63 @@ func TestMintShareHandler_RejectsDirectory(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/share/mint", strings.NewReader(body))
 	handler(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusUnprocessableEntity || errCode(t, rr) != "NOT_A_FILE" {
+		t.Fatalf("expected 422 NOT_A_FILE, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// A link minted without expiresInSeconds lives shareDefaultExpiry (15 minutes).
+func TestMintShareHandler_DefaultExpiryIsFifteenMinutes(t *testing.T) {
+	ops, root := newFsFixture(t)
+	db, st := newTestDeps(t)
+	if err := st.SetAllowSharing(true); err != nil {
+		t.Fatalf("enable sharing: %v", err)
+	}
+	handler := mintShareHandler(Config{Address: "127.0.0.1:8765", Settings: st}, db, ops)
+
+	before := time.Now()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/share/mint", strings.NewReader(`{"path":"`+filepath.Join(root, "a.txt")+`"}`))
+	handler(rr, req)
+	after := time.Now()
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp mintShareResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	const fifteenMinutes = 15 * time.Minute
+	if shareDefaultExpiry != fifteenMinutes {
+		t.Fatalf("shareDefaultExpiry = %v, want %v", shareDefaultExpiry, fifteenMinutes)
+	}
+	lo, hi := before.Add(fifteenMinutes).Unix(), after.Add(fifteenMinutes).Unix()
+	if resp.ExpiresAt < lo || resp.ExpiresAt > hi {
+		t.Fatalf("expiresAt = %d, want within [%d, %d] (now + 15 minutes)", resp.ExpiresAt, lo, hi)
+	}
+}
+
+// The contract must state the default the code uses, not a different one.
+func TestOpenAPIShareMintDocumentsDefaultExpiry(t *testing.T) {
+	b, err := os.ReadFile("../../../protocol/openapi.yaml")
+	if err != nil {
+		t.Fatalf("open spec: %v", err)
+	}
+	spec := string(b)
+	start := strings.Index(spec, "\n  /share/mint:\n")
+	if start < 0 {
+		t.Fatal("no /share/mint path in the spec")
+	}
+	section := spec[start+1:]
+	if end := strings.Index(section, "\n  /share/{token}:"); end > 0 {
+		section = section[:end]
+	}
+	want := fmt.Sprintf("Defaults to %d (15 minutes)", int64(shareDefaultExpiry/time.Second))
+	if !strings.Contains(section, want) {
+		t.Errorf("the /share/mint spec does not say %q", want)
+	}
+	if strings.Contains(section, "86400") || strings.Contains(section, "1 day") {
+		t.Errorf("the /share/mint spec still documents a one-day default")
 	}
 }
 
@@ -175,7 +232,7 @@ func TestRevokeShareHandler(t *testing.T) {
 	}
 }
 
-// PR-03: one paired device must not revoke or enumerate another's share links.
+// one paired device must not revoke or enumerate another's share links.
 func TestShareHandlers_ScopedToOwner(t *testing.T) {
 	db, _ := newTestDeps(t)
 	mine, theirs := hashShareToken("mine"), hashShareToken("theirs")
@@ -248,5 +305,28 @@ func TestServeShareHandler_RefusalKeepsTheLink(t *testing.T) {
 	on = true
 	if c := get(); c != http.StatusOK {
 		t.Fatalf("sharing back on: expected 200, got %d", c)
+	}
+}
+
+// A share link may last up to 7 days (604800 s); one second more is refused.
+func TestMintShareHandler_ExpiryLimitIsSevenDays(t *testing.T) {
+	ops, root := newFsFixture(t)
+	db, st := newTestDeps(t)
+	if err := st.SetAllowSharing(true); err != nil {
+		t.Fatalf("enable sharing: %v", err)
+	}
+	handler := mintShareHandler(Config{Address: "127.0.0.1:8765", Settings: st}, db, ops)
+	mint := func(seconds string) *httptest.ResponseRecorder {
+		body := `{"path":"` + filepath.Join(root, "a.txt") + `","expiresInSeconds":` + seconds + `}`
+		rr := httptest.NewRecorder()
+		handler(rr, httptest.NewRequest(http.MethodPost, "/v1/share/mint", strings.NewReader(body)))
+		return rr
+	}
+	if rr := mint("604800"); rr.Code != http.StatusOK {
+		t.Fatalf("604800 s: expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	rr := mint("604801")
+	if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), "exceeds the 7d maximum") {
+		t.Fatalf("604801 s: expected 400 with the 7d message, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -2,7 +2,7 @@ import { EyeOff, Plus, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 
-import { GroupedCard, Pressable, SectionLabel, Text } from '../../design/components';
+import { Chip, DuoIcon, Pressable, Text } from '../../design/components';
 import { LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
 import { FontFamily, Radii, Spacing } from '../../design/tokens';
@@ -10,6 +10,15 @@ import { t } from '../../i18n';
 import { visibilityPresets, type VisibilityPrefs } from '../../core/visibility';
 import { ToggleRow } from './parts';
 import { addExtension, addName, customExtensions, removeExtension, removeName, setHideDotfiles } from './visibilityEdit';
+
+/** A `.sec` style label for one group of chips, with the 16 side padding the flat lists use. */
+function GroupLabel({ title }: { title: string }) {
+  return (
+    <Text muted accessibilityRole="header" style={[LumenType.sectionLabel, { paddingHorizontal: Spacing.md, paddingTop: Spacing.md2, paddingBottom: 6 }]}>
+      {title}
+    </Text>
+  );
+}
 
 /**
  * Which files the explorer hides: dotfiles, and per file type (extension or exact name) grouped by category. It edits
@@ -28,14 +37,12 @@ export function VisibilityEditor({ prefs, onChange }: { prefs: VisibilityPrefs; 
   };
 
   return (
-    <View style={{ gap: 16 }}>
-      <GroupedCard padded={false} style={{ paddingHorizontal: 14, paddingVertical: 4 }}>
-        <ToggleRow icon={EyeOff} tint={c.primary} title={t('hideDotfiles')} subtitle={t('hideDotfilesSubtitle')} value={prefs.hideDotfiles} onChange={(v) => onChange(setHideDotfiles(prefs, v))} />
-      </GroupedCard>
+    <View>
+      <ToggleRow icon={EyeOff} title={t('hideDotfiles')} subtitle={t('hideDotfilesSubtitle')} value={prefs.hideDotfiles} onChange={(v) => onChange(setHideDotfiles(prefs, v))} />
       {visibilityPresets.map((preset) => (
-        <View key={preset.label}>
-          <SectionLabel title={preset.label} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <View key={preset.labelKey}>
+          <GroupLabel title={t(preset.labelKey)} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.md }}>
             {[...preset.extensions].sort().map((ext) => {
               const on = prefs.hiddenExtensions.has(ext);
               return <Chip key={ext} label={`.${ext}`} selected={on} onPress={() => onChange(on ? removeExtension(prefs, ext) : addExtension(prefs, ext))} />;
@@ -47,48 +54,38 @@ export function VisibilityEditor({ prefs, onChange }: { prefs: VisibilityPrefs; 
           </View>
         </View>
       ))}
-      <View>
-        <SectionLabel title={t('customLabel')} />
-        {custom.length === 0 ? (
-          <Text style={[LumenType.meta, { marginBottom: 8, paddingHorizontal: 4 }]} muted>{t('noCustomExtensions')}</Text>
-        ) : (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-            {custom.map((ext) => (
-              <Chip key={ext} label={`.${ext}`} selected onPress={() => onChange(removeExtension(prefs, ext))} trailing={<X size={14} color={c.onPrimary} />} />
-            ))}
-          </View>
-        )}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, borderRadius: Radii.chip, paddingLeft: 14, minHeight: 48, backgroundColor: c.surfaceContainer }}>
-          <Text muted style={LumenType.name}>.</Text>
-          <TextInput
-            accessibilityLabel={t('addExtensionHint')}
-            value={draft}
-            onChangeText={setDraft}
-            onSubmitEditing={submit}
-            placeholder={t('addExtensionHint')}
-            placeholderTextColor={c.onSurfaceVariant}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            style={{ flex: 1, paddingVertical: 10, color: c.onSurface, fontFamily: FontFamily.regular, fontSize: 16 }}
-          />
-          <Pressable onPress={submit} pressedScale={0.92} accessibilityLabel={t('addExtensionTooltip')} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
-            <Plus size={18} color={c.onSurface} />
-          </Pressable>
+      <GroupLabel title={t('customLabel')} />
+      {custom.length === 0 ? (
+        <Text style={[LumenType.meta, { marginBottom: Spacing.sm, paddingHorizontal: Spacing.md }]} muted>
+          {t('noCustomExtensions')}
+        </Text>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm, paddingHorizontal: Spacing.md }}>
+          {custom.map((ext) => (
+            <Chip key={ext} label={`.${ext}`} selected icon={<DuoIcon icon={X} size={14} color={c.onSurface} />} onPress={() => onChange(removeExtension(prefs, ext))} />
+          ))}
         </View>
+      )}
+      <View style={{ marginHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, borderRadius: Radii.control, borderWidth: 1, borderColor: c.rule2, paddingLeft: 14, minHeight: 48 }}>
+        <Text muted style={LumenType.name}>
+          .
+        </Text>
+        <TextInput
+          accessibilityLabel={t('addExtensionHint')}
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={submit}
+          placeholder={t('addExtensionHint')}
+          placeholderTextColor={c.onSurfaceVariant}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          style={{ flex: 1, paddingVertical: 10, color: c.onSurface, fontFamily: FontFamily.regular, fontSize: 16 }}
+        />
+        <Pressable onPress={submit} pressedScale={0.92} accessibilityLabel={t('addExtensionTooltip')} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+          <DuoIcon icon={Plus} size={20} />
+        </Pressable>
       </View>
     </View>
-  );
-}
-
-function Chip({ label, selected, onPress, trailing }: { label: string; selected: boolean; onPress: () => void; trailing?: React.ReactNode }) {
-  const c = useScheme();
-  return (
-    <Pressable onPress={onPress} accessibilityLabel={label} accessibilityState={{ selected }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, minHeight: 40, borderRadius: Radii.stadium, backgroundColor: selected ? c.primary : c.surfaceContainer }}>
-        <Text style={LumenType.pill} color={selected ? c.onPrimary : c.onSurfaceVariant}>{label}</Text>
-        {selected ? trailing : null}
-      </View>
-    </Pressable>
   );
 }

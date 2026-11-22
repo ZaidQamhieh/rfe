@@ -11,6 +11,8 @@ pub struct Applied {
 /// Address space cap for the whole process: enough for several 40-megapixel decodes at once, small enough that a
 /// hostile image cannot take the machine down.
 pub const MEMORY_LIMIT: u64 = 6 << 30;
+/// The limit as quoted in the notes `status` reports; keep in step with `MEMORY_LIMIT`.
+const MEMORY_LIMIT_TEXT: &str = "6 GiB";
 
 /// A line on stderr that cannot stop the process. Once the file-size limit is set, stderr may be a regular file whose
 /// write fails with EFBIG, and eprintln! would panic on that.
@@ -45,9 +47,9 @@ pub fn enter() -> Result<Applied, String> {
     // SAFETY: signal with a constant disposition.
     unsafe { libc::signal(libc::SIGXFSZ, libc::SIG_IGN) };
     set(libc::RLIMIT_FSIZE, 0)?;
-    applied
-        .notes
-        .push("rlimits (no core, no file writes, 6 GiB address space)".into());
+    applied.notes.push(format!(
+        "rlimits (no core, no file writes, {MEMORY_LIMIT_TEXT} address space)"
+    ));
 
     // SAFETY: prctl with constant arguments.
     if unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) } != 0 {
@@ -174,9 +176,9 @@ pub fn enter() -> Result<Applied, String> {
             return Err("AssignProcessToJobObject failed (already in a job?)".into());
         }
     }
-    applied
-        .notes
-        .push("job object (6 GiB, no child processes, kill on close)".into());
+    applied.notes.push(format!(
+        "job object ({MEMORY_LIMIT_TEXT}, no child processes, kill on close)"
+    ));
     Ok(applied)
 }
 

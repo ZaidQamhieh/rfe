@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,32 +109,34 @@ func TestCompress_SourceOutsideJail(t *testing.T) {
 func TestExtract_ZipSlipBlocked(t *testing.T) {
 	ops, root := setupJail(t)
 
-	archive := filepath.Join(root, "evil.zip")
-	f, err := os.Create(archive)
-	if err != nil {
-		t.Fatal(err)
-	}
-	zw := zip.NewWriter(f)
-	w, err := zw.Create("../escaped.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.Write([]byte("pwned")); err != nil {
-		t.Fatal(err)
-	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
+	for i, entry := range []string{"../escaped.txt", "sub/../../evil2.txt"} {
+		archive := filepath.Join(root, fmt.Sprintf("evil-%d.zip", i))
+		f, err := os.Create(archive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		zw := zip.NewWriter(f)
+		w, err := zw.Create(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("pwned")); err != nil {
+			t.Fatal(err)
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
 
-	dest := filepath.Join(root, "unpack")
-	_, err = ops.Extract(archive, dest)
-	if !errors.Is(err, ErrForbidden) {
-		t.Fatalf("expected ErrForbidden (zip-slip), got %v", err)
-	}
-	// The escaped file must not exist at the climbed-to location.
-	if _, statErr := os.Stat(filepath.Join(root, "escaped.txt")); !os.IsNotExist(statErr) {
-		t.Fatalf("zip-slip wrote a file outside destDir")
+		dest := filepath.Join(root, "unpack")
+		_, err = ops.Extract(archive, dest)
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("entry %q: expected ErrForbidden (zip-slip), got %v", entry, err)
+		}
+		// The escaped file must not exist at the climbed-to location.
+		if _, statErr := os.Stat(filepath.Join(root, filepath.Base(entry))); !os.IsNotExist(statErr) {
+			t.Fatalf("entry %q: zip-slip wrote a file outside destDir", entry)
+		}
 	}
 }
 
@@ -197,7 +200,7 @@ func TestExtract_MissingArchive(t *testing.T) {
 	}
 }
 
-// TestExtract_SymlinkParentBlocked is the PR-06 regression: entry names alone
+// TestExtract_SymlinkParentBlocked is a regression: entry names alone
 // are checked lexically, so an entirely innocent-looking "sub/f.txt" used to be
 // written straight through a symlink already sitting in the destination —
 // clobbering a file outside the jail without any "../" ever appearing.

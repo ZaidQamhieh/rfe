@@ -2,7 +2,7 @@
 import { getRandomBytes } from 'expo-crypto';
 import Rfe from '../../modules/rfe-transport/src/RfeTransportModule';
 import type { Transport } from './api/agentClient';
-import { normalizeDiscovered } from './discovery';
+import { normalizeDiscovered, parseDiscovered, type DiscoveredAgent } from './discovery';
 import type { SecureStore } from './security/secureStore';
 
 export const nativeTransport: Transport = {
@@ -20,7 +20,7 @@ export const nativeSecureStore: SecureStore = {
 
 export const readLegacyPrefs = () => Rfe.legacyPrefsReadAll();
 export const probeFingerprint = (url: string, timeoutMs?: number) => Rfe.probeFingerprint(url, timeoutMs);
-export type TransferState = 'QUEUED' | 'RUNNING' | 'PAUSED' | 'DONE' | 'FAILED' | 'CANCELLED';
+type TransferState = 'QUEUED' | 'RUNNING' | 'PAUSED' | 'DONE' | 'FAILED' | 'CANCELLED';
 export type TransferRecord = {
   id: string;
   hostId: string;
@@ -41,6 +41,10 @@ export type TransferRecord = {
   publicUri?: string | null;
   /** Epoch millis of the last journal write; for a finished transfer, when it finished. Absent or 0 in older journals. */
   updatedAt?: number;
+  /** Epoch millis when it was queued; absent or 0 in older journals. */
+  enqueuedAt?: number;
+  /** Downloads: the name the published copy was saved under (a duplicate gets "(1)"). */
+  savedName?: string | null;
 };
 
 const parseRecord = (s: string) => JSON.parse(s) as TransferRecord;
@@ -62,8 +66,6 @@ export const transfers = {
   },
 };
 
-export const downloadToFile = Rfe.downloadToFile.bind(Rfe);
-
 /** Cryptographically secure random bytes from the OS CSPRNG (expo-crypto); never Math.random. */
 export function secureRandomBytes(n: number): Uint8Array {
   return getRandomBytes(n);
@@ -81,26 +83,40 @@ export const offlineBodies = {
 export const openPublicUri = (uri: string, mime: string) => Rfe.openPublicUri(uri, mime);
 export const openFileExternal = (path: string, mime: string) => Rfe.openFileExternal(path, mime);
 export const shareFileExternal = (path: string, mime: string) => Rfe.shareFileExternal(path, mime);
-export const backupEncrypt = (payloadJson: string, passphrase: string) => Rfe.backupEncrypt(payloadJson, passphrase);
-export const backupDecrypt = (envelopeJson: string, passphrase: string) => Rfe.backupDecrypt(envelopeJson, passphrase);
-export const secureReadAll = () => Rfe.secureReadAll();
 export const appBuild = () => Rfe.appBuild();
 export const publicDownload = (id: string, url: string, destPath: string, offset: number) => Rfe.publicDownload(id, url, destPath, offset);
-export const publicDownloadCancel = (id: string) => Rfe.publicDownloadCancel(id);
 export const sha256File = (path: string) => Rfe.sha256File(path);
 export const canInstallPackages = () => Rfe.canInstallPackages();
 export const openInstallSettings = () => Rfe.openInstallSettings();
 export const installApk = (path: string) => Rfe.installApk(path);
+/** Gives the home-screen storage widget its latest numbers. */
+export const widgetSet = (title: string, detail: string, percent: number) => Rfe.widgetSet(title, detail, percent);
 export const networkTransports = () => Rfe.networkTransports();
 export const deviceIdNative = async () => (await Rfe.deviceId()) ?? null;
 
-export const scanLan = async () => normalizeDiscovered(await Rfe.discoveryScan());
+/** Searches the Wi-Fi for computers; [onFound] is called with each one as it is resolved, and the full list is returned when the search ends. */
+export const scanLan = async (onFound?: (agent: DiscoveredAgent) => void) => {
+  const sub = Rfe.addListener('onLanAgentFound', (e) => {
+    const a = parseDiscovered(e);
+    if (a) onFound?.(a);
+  });
+  try {
+    return normalizeDiscovered(await Rfe.discoveryScan());
+  } finally {
+    sub.remove();
+  }
+};
 export const stopLanScan = () => Rfe.discoveryStop();
 
 export const sendWakeOnLan = (mac: string) => Rfe.sendWakeOnLan(mac);
 
 export const fetchToFileNative = (id: string, url: string, headers: Record<string, string>, pin: string | null, destPath: string, timeoutMs?: number, maxBytes?: number) =>
   Rfe.fetchToFile(id, url, headers, pin, destPath, timeoutMs, maxBytes);
+export const eventStreamNative = {
+  run: (id: string, url: string, headers: Record<string, string>, pin: string | null) => Rfe.eventStreamRun(id, url, headers, pin),
+  stop: (id: string) => Rfe.eventStreamStop(id),
+  onEvent: (cb: (id: string, kind: string) => void) => Rfe.addListener('onAgentEvent', (e) => cb(e.id, e.kind)),
+};
 export const fetchCancelNative = (id: string) => Rfe.fetchCancel(id);
 export const mediaProxy = {
   start: (id: string, url: string, headers: Record<string, string>, pin: string | null) => Rfe.mediaProxyStart(id, url, headers, pin),

@@ -64,6 +64,9 @@ class PublicHttp(private val client: OkHttpClient = OkHttpClient.Builder().readT
   }
 }
 
+/** Lower-case hex SHA-256 of in-memory bytes. */
+fun sha256Hex(bytes: ByteArray): String = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
 /** Lower-case hex SHA-256 of a file, streamed. */
 fun sha256Hex(f: File): String = f.inputStream().use { sha256Hex(it) }
 

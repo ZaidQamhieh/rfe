@@ -41,3 +41,6 @@ export const log = {
   warn: (...args: unknown[]) => console.warn(redact(render(args))),
   error: (...args: unknown[]) => console.error(redact(render(args))),
 };
+
+/** Catch handler for a best-effort call: logs the failure under [label] and carries on, so the call's outcome is unchanged. */
+export const ignoreError = (label: string) => (e: unknown) => log.warn(label, e);

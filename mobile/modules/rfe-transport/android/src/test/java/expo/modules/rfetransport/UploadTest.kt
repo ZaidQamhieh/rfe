@@ -4,6 +4,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import org.junit.After
@@ -51,9 +52,25 @@ class UploadTest {
     var corruptOnce = -1
     var completed = false
     var lastOverwrite = false
+    /** POST /transfers calls seen: a finished upload must never open a second session. */
+    val openCount = java.util.concurrent.atomic.AtomicInteger(0)
+    /** The Idempotency-Key header of every POST /transfers, null where the client sent none. */
+    val openKeys = java.util.concurrent.CopyOnWriteArrayList<String?>()
+    /** How many open answers to lose: the session is created, then the connection drops before the 201. */
+    val dropOpenAcks = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Refuse the next keyed open as the agent does for a key whose session is finished or describes other bytes. */
+    @Volatile var refuseKeyOnce = false
+    private var sessionKey: String? = null
+    /** How many complete answers to lose: the complete is applied, then the connection drops before the 200. */
+    val dropCompleteAcks = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Report a completed session as still open on the next GET, as a read that raced the complete would. */
+    @Volatile var staleOpenOnce = false
     @Volatile var putDelayMs = 0L
     /** Chunk requests still to be refused as if an earlier, dead connection held the session. */
     val busyPuts = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Chunk requests still to be refused with 507 as a full disk would; [fullRetryAfter] is the Retry-After sent (null: none). */
+    val fullPuts = java.util.concurrent.atomic.AtomicInteger(0)
+    @Volatile var fullRetryAfter: String? = "0"
     val inFlight = java.util.concurrent.atomic.AtomicInteger(0)
     val maxInFlight = java.util.concurrent.atomic.AtomicInteger(0)
 
@@ -65,15 +82,26 @@ class UploadTest {
       val path = request.path!!
       return when {
         request.method == "POST" && path == "/v1/transfers" -> {
+          openCount.incrementAndGet()
+          val key = request.getHeader("Idempotency-Key")
+          openKeys.add(key)
           if (openStatus != 201) return err(openStatus, openCode)
           val j = org.json.JSONObject(request.body.readUtf8())
+          if (refuseKeyOnce && key != null) { refuseKeyOnce = false; return err(409, "IDEMPOTENCY_KEY_USED") }
+          // Like the real agent: the same key for a session that is still open is that session, not a new one.
+          if (key != null && key == sessionKey && sessionOpen) return json(200, session())
+          // Like the real agent: a destination the finished upload already published is a conflict without overwrite.
+          if (completed && !j.getBoolean("overwrite")) return err(409, "CONFLICT")
           size = j.getLong("size"); wholeSha = j.getString("sha256"); chunkSize = j.getInt("chunkSize"); lastOverwrite = j.getBoolean("overwrite")
           sessionOpen = true
+          sessionKey = key
+          if (dropOpenAcks.getAndUpdate { maxOf(it - 1, 0) } > 0) return MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)
           json(201, session())
         }
         request.method == "GET" && path == "/v1/transfers/s1" -> if (!sessionOpen) err(404, "NOT_FOUND") else json(200, session())
         request.method == "PUT" && path.startsWith("/v1/transfers/s1/chunks/") -> {
           if (busyPuts.getAndUpdate { maxOf(it - 1, 0) } > 0) return err(409, "TRANSFER_ACTIVE")
+          if (fullPuts.getAndUpdate { maxOf(it - 1, 0) } > 0) return err(507, "INSUFFICIENT_STORAGE").also { r -> fullRetryAfter?.let { r.setHeader("Retry-After", it) } }
           val n = path.substringAfterLast('/').toInt()
           putCount.merge(n, 1, Int::plus)
           val now = inFlight.incrementAndGet()
@@ -98,7 +126,10 @@ class UploadTest {
           val all = ByteArrayOutputStream()
           received.toSortedMap().values.forEach { all.write(it) }
           if (hex(all.toByteArray()) != wholeSha) return err(422, "HASH_MISMATCH")
+          // An agent that predates the idempotent complete: a repeat is refused once the session is completed.
+          if (completed) return err(409, "TRANSFER_NOT_OPEN")
           completed = true
+          if (dropCompleteAcks.getAndUpdate { maxOf(it - 1, 0) } > 0) return MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)
           json(200, """{"path":"/x","sha256":"$wholeSha","verified":true}""")
         }
         else -> MockResponse().setResponseCode(500)
@@ -109,7 +140,9 @@ class UploadTest {
 
     private fun session(): String {
       val total = if (size == 0L) 1 else ((size + chunkSize - 1) / chunkSize).toInt()
-      return """{"id":"s1","path":"/x","size":$size,"chunkSize":$chunkSize,"totalChunks":$total,"receivedChunks":[${received.keys.sorted().joinToString(",")}],"status":"open"}"""
+      val status = if (completed && !staleOpenOnce) "completed" else "open"
+      staleOpenOnce = false
+      return """{"id":"s1","path":"/x","size":$size,"chunkSize":$chunkSize,"totalChunks":$total,"receivedChunks":[${received.keys.sorted().joinToString(",")}],"status":"$status"}"""
     }
   }
 
@@ -176,6 +209,27 @@ class UploadTest {
     assertNotNull(await("u1", TransferState.FAILED).error)
   }
 
+  @Test fun waitsOutAFullDiskAnswerWithRetryAfterAndFinishes() {
+    agent.fullPuts.set(2)
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    await("u1", TransferState.DONE)
+    assertArrayEquals(payload, agent.assembled())
+    assertTrue(agent.completed)
+  }
+
+  @Test fun aFullDiskAnswerWithoutRetryAfterIsFinal() {
+    agent.fullPuts.set(1000)
+    agent.fullRetryAfter = null
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    assertEquals("INSUFFICIENT_STORAGE", await("u1", TransferState.FAILED).error)
+  }
+
+  @Test fun givesUpWhenTheDiskStaysFull() {
+    agent.fullPuts.set(1000)
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    assertEquals("INSUFFICIENT_STORAGE", await("u1", TransferState.FAILED).error)
+  }
+
   @Test fun sendsSeveralChunksAtOnce() {
     agent.putDelayMs = 150
     engine.enqueueUpload("u9", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
@@ -209,6 +263,77 @@ class UploadTest {
     agent.failChunk = -1
     engine.resume("u3")
     await("u3", TransferState.DONE)
+    assertArrayEquals(payload, agent.assembled())
+  }
+
+  /** The complete reached the agent but its 200 was lost; the retry must find the session completed and be done. */
+  private fun lostCompleteAckIsDone(overwrite: Boolean) {
+    agent.dropCompleteAcks.set(1)
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = overwrite, deleteSource = false)
+    val first = await("u1", TransferState.DONE, TransferState.FAILED)
+    if (first.state == TransferState.FAILED) {
+      engine.resume("u1")
+      await("u1", TransferState.DONE)
+    }
+    assertTrue(agent.completed)
+    assertEquals("a published upload must not open a second session", 1, agent.openCount.get())
+    assertArrayEquals(payload, agent.assembled())
+    assertEquals("no chunk may be sent again", true, agent.putCount.values.all { it == 1 })
+  }
+
+  @Test fun aLostCompleteAckIsReportedDoneWithoutOpeningASecondSession() = lostCompleteAckIsDone(overwrite = false)
+
+  @Test fun aLostCompleteAckIsNotReUploadedWhenOverwriting() = lostCompleteAckIsDone(overwrite = true)
+
+  @Test fun aCompleteRefusedAsNotOpenOnACompletedSessionIsDone() {
+    agent.dropCompleteAcks.set(1)
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    val first = await("u1", TransferState.DONE, TransferState.FAILED)
+    if (first.state == TransferState.FAILED) {
+      agent.staleOpenOnce = true
+      engine.resume("u1")
+      await("u1", TransferState.DONE)
+    }
+    assertEquals(1, agent.openCount.get())
+  }
+
+  /** The agent made the session but its 201 was lost: the retry must present the same key and so get the same session. */
+  @Test fun aLostOpenAckIsRetriedWithTheSameKeyAndFindsTheSameSession() {
+    agent.dropOpenAcks.set(1)
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    val first = await("u1", TransferState.DONE, TransferState.FAILED)
+    if (first.state == TransferState.FAILED) {
+      assertNotNull("the key must be journaled before the POST", first.idempotencyKey)
+      engine.resume("u1")
+      await("u1", TransferState.DONE)
+    }
+    val keys = agent.openKeys.toList()
+    assertEquals("the lost open and its retry", 2, keys.size)
+    assertTrue("a 128-bit hex key, not '${keys[0]}'", Regex("[0-9a-f]{32}").matches(keys[0] ?: ""))
+    assertEquals("a retry must reuse the key", keys[0], keys[1])
+    assertEquals(keys[0], engine.list().first { it.id == "u1" }.idempotencyKey)
+    assertArrayEquals(payload, agent.assembled())
+  }
+
+  @Test fun eachUploadGetsItsOwnKey() {
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = true, deleteSource = false)
+    await("u1", TransferState.DONE)
+    engine.enqueueUpload("u2", "h", address, source().path, "/dest/b.bin", overwrite = true, deleteSource = false)
+    await("u2", TransferState.DONE)
+    val keys = agent.openKeys.toList()
+    assertEquals(2, keys.size)
+    assertTrue(keys.all { it != null })
+    assertTrue("two uploads shared a key", keys[0] != keys[1])
+  }
+
+  /** The agent says the key is spent (its session finished or failed): this is a new attempt and takes a new key. */
+  @Test fun aKeyTheAgentRefusesAsUsedIsReplacedAndTheOpenRetried() {
+    agent.refuseKeyOnce = true
+    engine.enqueueUpload("u1", "h", address, source().path, "/dest/a.bin", overwrite = false, deleteSource = false)
+    await("u1", TransferState.DONE)
+    val keys = agent.openKeys.toList()
+    assertEquals(2, keys.size)
+    assertTrue("the retry must use a fresh key", keys[0] != keys[1])
     assertArrayEquals(payload, agent.assembled())
   }
 

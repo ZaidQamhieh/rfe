@@ -54,6 +54,7 @@ func TestFileCapabilityRouteGates(t *testing.T) {
 		{"search", http.MethodGet, "/v1/search?q=a", "", func(d *store.Device) { d.CanBrowse = false }},
 		{"browse", http.MethodGet, "/v1/fs?path=" + root, "", func(d *store.Device) { d.CanBrowse = false }},
 		{"metadata", http.MethodGet, "/v1/fs/meta?path=" + root + "/a.txt", "", func(d *store.Device) { d.CanBrowse = false }},
+		{"media info", http.MethodGet, "/v1/fs/media-info?path=" + root + "/a.txt", "", func(d *store.Device) { d.CanBrowse = false }},
 		{"archive listing", http.MethodGet, "/v1/fs/archive?path=" + root + "/a.txt", "", func(d *store.Device) { d.CanBrowse = false }},
 		{"recent", http.MethodGet, "/v1/fs/recent", "", func(d *store.Device) { d.CanBrowse = false }},
 		{"trash listing", http.MethodGet, "/v1/trash", "", func(d *store.Device) { d.CanBrowse = false }},

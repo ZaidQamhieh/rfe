@@ -6,9 +6,9 @@
 //! up in its own catalog and hands the entry to the host's native launcher. The id is checked
 //! against the agent's pattern here, before it can enter a URL.
 
-use crate::agent_client::{AgentClient, AgentError};
+use crate::agent_client::{AgentClient, AgentError, CODE_CAPABILITY_DENIED};
 use crate::applog;
-use crate::flows;
+use crate::files::{drop_dead_token, session};
 use crate::secrets::Offloaded;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -93,6 +93,10 @@ pub const APP_MESSAGES: &[(&str, &str)] = &[
         "This computer may see the PC's apps but not start them. On the PC's agent, turn on app launching for this computer.",
     ),
     (
+        CODE_CAPABILITY_DENIED,
+        "This computer is not allowed to use the PC's apps. On the PC's agent, turn on app viewing and launching for this computer.",
+    ),
+    (
         "APP_NOT_FOUND",
         "That app is no longer in the PC's catalog. It may have been uninstalled. Refresh the list.",
     ),
@@ -154,57 +158,12 @@ pub fn describe(e: &AgentError) -> String {
     e.to_string()
 }
 
-/// The saved login and the pinned client for it. A forgotten pin ends the session, as in
-/// `flows::list_devices`.
-async fn session(dir: &Path, store: &Offloaded) -> Result<(AgentClient, String), AgentError> {
-    let s = {
-        let dir = dir.to_path_buf();
-        store
-            .run(move |s| flows::load_saved(&dir, s))
-            .await
-            .map_err(AgentError::Local)?
-    };
-    if s.token.is_empty() || s.host.is_empty() {
-        return Err(AgentError::Local("not signed in".into()));
-    }
-    let key = flows::pin_key(&s.host);
-    let pinned = flows::list_pins(dir)
-        .map_err(AgentError::Local)?
-        .into_iter()
-        .find(|p| p.host == key)
-        .map(|p| p.fingerprint)
-        .ok_or_else(|| {
-            AgentError::Local(format!(
-                "{} is no longer a trusted agent; connect and compare its fingerprint again",
-                s.host
-            ))
-        })?;
-    Ok((AgentClient::pinned(&s.host, &pinned)?, s.token))
-}
-
-/// A 401 means the agent no longer accepts this token: drop it so the window goes back to sign-in
-/// the next time it checks, keeping the pin, the account name and the device key.
-async fn drop_dead_token<T>(
-    dir: &Path,
-    store: &Offloaded,
-    token: &str,
-    r: &Result<T, AgentError>,
-) -> Result<(), AgentError> {
-    if let Err(AgentError::Server { status: 401, .. }) = r {
-        let dir = dir.to_path_buf();
-        let token = token.to_string();
-        store
-            .run(move |st| flows::drop_refused_token(&dir, st, &token))
-            .await
-            .map_err(AgentError::Local)?;
-    }
-    Ok(())
-}
-
 pub async fn list(dir: &Path, store: &Offloaded) -> Result<HostAppCatalog, AgentError> {
     let (client, token) = session(dir, store).await?;
     let r = client.host_apps(&token).await;
-    drop_dead_token(dir, store, &token, &r).await?;
+    if let Err(e) = &r {
+        drop_dead_token(dir, store, &token, e).await?;
+    }
     match &r {
         Ok(c) => applog::debug(&format!("listed {} host apps", c.apps.len())),
         Err(e) => applog::error(&format!("listing host apps failed: {e}")),
@@ -217,7 +176,9 @@ pub async fn launch(dir: &Path, store: &Offloaded, id: &str) -> Result<(), Agent
     validate_app_id(id)?;
     let (client, token) = session(dir, store).await?;
     let r = client.launch_host_app(&token, id).await;
-    drop_dead_token(dir, store, &token, &r).await?;
+    if let Err(e) = &r {
+        drop_dead_token(dir, store, &token, e).await?;
+    }
     match &r {
         Ok(()) => applog::info(&format!("asked the host to start {id}")),
         Err(e) => applog::error(&format!("starting {id} failed: {e}")),

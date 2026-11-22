@@ -30,8 +30,10 @@ const (
 )
 
 type loginRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	// Assertion is an account server's signed login assertion (see accounts.go), sent instead of a password.
+	Assertion   string `json:"assertion"`
 	DeviceLabel string `json:"deviceLabel"`
 	DeviceID    string `json:"deviceId"`
 	// DevicePublicKey/Nonce/Signature — same device-identity proof as
@@ -41,9 +43,15 @@ type loginRequest struct {
 	Signature       string `json:"signature"`
 }
 
+// loginHandler is newLoginHandler with a failed-password budget of its own.
 func loginHandler(cfg Config, db *store.DB, nonces *nonceStore) http.HandlerFunc {
+	return newLoginHandler(cfg, db, nonces, newKeyedLimiter(loginAccountFailures, loginAccountFailureWindow))
+}
+
+// newLoginHandler serves POST /login. accountFails is the per-account failed-password budget; the router
+// passes the one it also gives the account-server pin check, so both draw on the same allowance.
+func newLoginHandler(cfg Config, db *store.DB, nonces *nonceStore, accountFails *keyedLimiter) http.HandlerFunc {
 	limiter := newKeyedLimiter(loginRateLimitAttempts, loginRateLimitWindow)
-	accountFails := newKeyedLimiter(loginAccountFailures, loginAccountFailureWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow(clientIP(r)) {
 			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many login attempts, try again later")
@@ -53,8 +61,16 @@ func loginHandler(cfg Config, db *store.DB, nonces *nonceStore) http.HandlerFunc
 		if !decodeJSONBody(w, r, &req) {
 			return
 		}
+		if req.Assertion != "" {
+			if req.Password != "" {
+				writeError(w, http.StatusBadRequest, codeBadRequest, "send a password or an assertion, not both")
+				return
+			}
+			federatedLogin(w, r, cfg, db, nonces, req)
+			return
+		}
 		if req.Username == "" || req.Password == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "username and password required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "username and password required")
 			return
 		}
 
@@ -82,20 +98,20 @@ func loginHandler(cfg Config, db *store.DB, nonces *nonceStore) http.HandlerFunc
 			writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid username or password")
 			return
 		}
-		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rejectOnKeyChange, acceptLegacyProof); err != nil {
+		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rejectOnKeyChange); err != nil {
 			return // verifyDeviceProof already wrote the error response
 		}
 
 		if req.DeviceLabel == "" {
-			req.DeviceLabel = "unnamed-device"
+			req.DeviceLabel = unnamedDeviceLabel
 		}
-		token, err := randomToken(32)
+		token, err := randomToken(tokenBytes)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to generate token")
+			writeError(w, http.StatusInternalServerError, "INTERNAL", tokenGenerateFailedMsg)
 			return
 		}
-		// Device row + the account that authenticated it, in one transaction
-		// (PR-45) — a failure between them used to leave a working token whose
+		// Device row + the account that authenticated it, in one transaction.
+		// A failure between them used to leave a working token whose
 		// device had no username recorded.
 		deviceID, err := db.LoginDevice(req.DeviceID, req.DeviceLabel, token, req.DevicePublicKey, req.Username, user.PasswordHash)
 		if err != nil {
@@ -110,13 +126,6 @@ func loginHandler(cfg Config, db *store.DB, nonces *nonceStore) http.HandlerFunc
 
 		auditAs(db, req.Username, store.AuditLogin, req.DeviceLabel, "from "+clientIP(r))
 
-		writePairResponse(w, r, pairResponse{
-			DeviceToken:      token,
-			DeviceID:         deviceID,
-			AgentName:        cfg.Name,
-			CertFingerprint:  cfg.CertFingerprint,
-			Address:          cfg.Address,
-			TailscaleAddress: cfg.TailscaleAddress,
-		})
+		writePairResponse(w, r, newPairResponse(cfg, token, deviceID))
 	}
 }

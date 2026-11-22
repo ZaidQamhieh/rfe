@@ -2,11 +2,10 @@ import { Monitor } from 'lucide-react-native';
 import { useRef, useState, type ReactNode } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 
-import { Text } from '../../design/components';
-import { mix } from '../../design/color';
+import { DuoIcon, Text } from '../../design/components';
 import { LumenSize, LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
-import { FontFamily } from '../../design/tokens';
+import { FontFamily, Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { CODE_LENGTH, sanitizeCode } from './codeInput';
 
@@ -20,7 +19,7 @@ export function LumenField({ label, error, helper, leading, trailing, mono, styl
   const c = useScheme();
   const [focused, setFocused] = useState(false);
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: Spacing.sm }}>
       <Text style={LumenType.meta} color={c.onSurfaceVariant}>
         {label}
       </Text>
@@ -28,11 +27,13 @@ export function LumenField({ label, error, helper, leading, trailing, mono, styl
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 12,
-          minHeight: 56,
-          paddingHorizontal: 16,
+          gap: Spacing.md2,
+          height: 48,
+          paddingHorizontal: Spacing.md2,
           borderRadius: LumenSize.tileRadius,
-          backgroundColor: focused ? mix(c.primary, c.surfaceContainerHigh, 0.12) : c.surfaceContainerHigh,
+          borderWidth: focused ? 2 : 1,
+          borderColor: focused ? c.primary : c.rule2,
+          backgroundColor: c.surface,
         }}
       >
         {leading}
@@ -49,7 +50,7 @@ export function LumenField({ label, error, helper, leading, trailing, mono, styl
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[{ flex: 1, color: c.onSurface, paddingVertical: 12, fontSize: 18, fontFamily: mono ? FontFamily.mono : FontFamily.regular }, style]}
+          style={[{ flex: 1, color: c.onSurface, paddingVertical: 0, fontSize: 16, fontFamily: mono ? FontFamily.mono : FontFamily.regular }, style]}
         />
         {trailing}
       </View>
@@ -71,7 +72,7 @@ export function AddressField({ value, onChange, error }: { value: string; onChan
   const c = useScheme();
   return (
     <LumenField
-      label={t('agentAddressLabel')}
+      label={t('giAddressLabel')}
       placeholder={t('agentAddressHint')}
       value={value}
       onChangeText={onChange}
@@ -79,15 +80,15 @@ export function AddressField({ value, onChange, error }: { value: string; onChan
       autoCorrect={false}
       keyboardType="url"
       error={error}
-      leading={<Monitor size={22} color={c.onSurfaceVariant} />}
+      leading={<DuoIcon icon={Monitor} size={22} color={c.onSurfaceVariant} />}
     />
   );
 }
 
 /**
  * 8 display boxes over ONE real text input (the standard OTP pattern): fast typing, paste and IME
- * composition are handled by the native input rather than 8 racing controlled fields. Boxes are flat; the box under the
- * cursor is tinted with the host colour instead of outlined.
+ * composition are handled by the native input rather than 8 racing controlled fields. Boxes are `.code i`: up to 44x56,
+ * 1px outline, mono 24; the box under the cursor gets a 2px ink outline.
  */
 export function CodeBoxRow({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const c = useScheme();
@@ -97,27 +98,32 @@ export function CodeBoxRow({ value, onChange }: { value: string; onChange: (v: s
   const cursor = Math.min(value.length, CODE_LENGTH - 1);
   return (
     <View style={{ height: 56 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {chars.map((ch, i) => (
-          <View
-            key={i}
-            style={{
-              flex: 1,
-              maxWidth: 40,
-              height: 56,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: focused && i === cursor ? mix(c.primary, c.surfaceContainerHigh, 0.3) : c.surfaceContainerHigh,
-              borderRadius: LumenSize.tileRadius,
-            }}
-          >
-            <Text style={{ fontFamily: FontFamily.monoMedium, fontSize: 20 }}>{ch.trim()}</Text>
-          </View>
-        ))}
+      <View style={{ flexDirection: 'row', gap: 6 }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {chars.map((ch, i) => {
+          const current = focused && i === cursor;
+          return (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                maxWidth: 44,
+                height: 56,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: c.surface,
+                borderWidth: current ? 2 : 1,
+                borderColor: current ? c.onSurface : c.rule2,
+                borderRadius: LumenSize.tileRadius,
+              }}
+            >
+              <Text style={LumenType.monoCode}>{ch.trim()}</Text>
+            </View>
+          );
+        })}
       </View>
       <TextInput
         ref={ref}
-        accessibilityLabel={`Pairing code, ${CODE_LENGTH} characters`}
+        accessibilityLabel={t('pairingCodeA11yLabel', { length: CODE_LENGTH })}
         value={value}
         onChangeText={(v) => onChange(sanitizeCode(v))}
         onFocus={() => setFocused(true)}

@@ -1,3 +1,5 @@
+import { ignoreError } from '../../core/log';
+
 /** The part of the native loopback proxy that a lease uses. */
 export interface MediaProxyApi {
   start(id: string, url: string, headers: Record<string, string>, pin: string | null): Promise<string>;
@@ -25,7 +27,7 @@ export function leaseMediaProxy(
   let startCalled = false;
   let startSettled = false;
   const stop = () => {
-    void proxy.stop(id).catch(() => {});
+    void proxy.stop(id).catch(ignoreError('media proxy stop'));
   };
   const uri = getSpec().then((spec) => {
     if (released) throw new Error('media proxy released');

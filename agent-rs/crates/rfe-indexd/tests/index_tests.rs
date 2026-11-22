@@ -1,24 +1,12 @@
+mod common;
+
+use common::{build, touch, TEST_LIMITS};
 use rfe_indexd::filter::{Compiled, Filters};
 use rfe_indexd::index::{Index, Limits};
 use rfe_indexd::recents;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
-
-fn big() -> Limits {
-    Limits {
-        max_entries: 1_000_000,
-        max_bytes: 1 << 30,
-    }
-}
-
-fn build(root: &Path) -> Index {
-    Index::build(
-        &[root.to_str().unwrap().to_string()],
-        big(),
-        &AtomicBool::new(false),
-    )
-}
 
 fn all(idx: &Index, root: &Path) -> Vec<String> {
     let r = root.to_str().unwrap().to_string();
@@ -37,11 +25,6 @@ fn all(idx: &Index, root: &Path) -> Vec<String> {
                 .to_string()
         })
         .collect()
-}
-
-fn touch(p: &Path) {
-    fs::create_dir_all(p.parent().unwrap()).unwrap();
-    fs::write(p, b"x").unwrap();
 }
 
 #[test]
@@ -71,6 +54,34 @@ fn hidden_and_dependency_directories_are_pruned_but_hidden_files_are_kept() {
     touch(&r.join("src/main.rs"));
     let idx = build(r);
     assert_eq!(all(&idx, r), vec![".hidden-file", "src", "src/main.rs"]);
+}
+
+#[test]
+fn in_flight_upload_temps_are_not_indexed_or_listed_as_recents() {
+    let t = tempfile::tempdir().unwrap();
+    let r = t.path();
+    touch(&r.join(".rfe-upload-abc123"));
+    touch(&r.join("sub/.rfe-upload-def456"));
+    touch(&r.join(".rfe-uploader-note"));
+    touch(&r.join("keep.txt"));
+    let idx = build(r);
+    assert_eq!(
+        all(&idx, r),
+        vec![".rfe-uploader-note", "keep.txt", "sub"],
+        "the strict prefix is hidden, a longer look-alike name is a user file"
+    );
+    let (e, _) = recents::scan(
+        &[r.to_str().unwrap().to_string()],
+        10,
+        None,
+        &AtomicBool::new(false),
+    );
+    let mut names: Vec<_> = e
+        .iter()
+        .map(|x| x.path.rsplit('/').next().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, vec![".rfe-uploader-note", "keep.txt"]);
 }
 
 #[cfg(unix)]
@@ -216,7 +227,7 @@ fn entries_cost_far_less_than_the_go_index() {
 fn unreadable_or_missing_roots_are_skipped() {
     let idx = Index::build(
         &["/definitely/not/here".to_string()],
-        big(),
+        TEST_LIMITS,
         &AtomicBool::new(false),
     );
     assert_eq!(idx.stats.entries, 0);
@@ -230,13 +241,7 @@ fn recents_returns_newest_files_only() {
     let mk = |name: &str, age_secs: u64| {
         let p = r.join(name);
         touch(&p);
-        let when = std::time::SystemTime::now() - std::time::Duration::from_secs(age_secs);
-        fs::File::options()
-            .write(true)
-            .open(&p)
-            .unwrap()
-            .set_modified(when)
-            .unwrap();
+        age(&p, age_secs);
     };
     mk("old.txt", 5000);
     mk("sub/mid.txt", 3000);

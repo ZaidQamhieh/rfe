@@ -2,7 +2,7 @@ module github.com/ZaidQamhieh/rfe/agent
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/disintegration/imaging v1.6.2

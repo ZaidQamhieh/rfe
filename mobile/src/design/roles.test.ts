@@ -1,23 +1,47 @@
 import { contrast, mix } from './color';
-import { roleTint } from './theme';
-import { amoledScheme, darkRoles, darkScheme, lightRoles, lightScheme, type Roles, type Scheme } from './tokens';
+import { darkRoles, darkScheme, lightRoles, lightScheme, type Roles, type Scheme } from './tokens';
+
+/** Tinted chip behind a role glyph: the role over the surface at 14% (light) or 17% (dark). */
+const roleTint = (role: string, scheme: Scheme): string => mix(role, scheme.surface, scheme.dark ? 0.17 : 0.14);
+
+/** Roles that carry state colour (`--go`, `--wait`); the rest are plain ink. */
+const STATE_ROLES = ['safe', 'warn'];
 
 const cases: [string, Scheme, Roles][] = [
   ['light', lightScheme, lightRoles],
   ['dark', darkScheme, darkRoles],
-  ['amoled', amoledScheme, darkRoles],
 ];
 
 describe.each(cases)('%s roles', (_name, scheme, roles) => {
-  it.each(Object.entries(roles))('%s clears 4.5:1 on its tint and on the surface', (_role, hex) => {
+  const ink = Object.entries(roles).filter(([role]) => !STATE_ROLES.includes(role));
+  const state = Object.entries(roles).filter(([role]) => STATE_ROLES.includes(role));
+
+  it.each(ink)('%s (ink) clears 4.5:1 on its tint and on the surface', (_role, hex) => {
     expect(contrast(hex, roleTint(hex, scheme))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(hex, scheme.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('keeps secondary text readable on every container', () => {
-    for (const bg of [scheme.surface, scheme.surfaceContainer, scheme.surfaceContainerHighest]) {
+  // The approved mockup fixes --go and --wait; they are status words next to a lamp, so 4:1 on the plain surface is the floor.
+  it.each(state)('%s (state colour) stays readable on the surface and its tint', (_role, hex) => {
+    expect(contrast(hex, scheme.surface)).toBeGreaterThanOrEqual(4);
+    expect(contrast(hex, roleTint(hex, scheme))).toBeGreaterThanOrEqual(3.5);
+  });
+
+  it('uses the scheme go and wait colours for safe and warn', () => {
+    expect(roles.safe).toBe(scheme.go);
+    expect(roles.warn).toBe(scheme.wait);
+  });
+
+  it('keeps ink readable on every container', () => {
+    for (const bg of [scheme.surface, scheme.surfaceContainerLowest, scheme.surfaceContainer, scheme.surfaceContainerHighest]) {
+      expect(contrast(scheme.onSurface, bg)).toBeGreaterThanOrEqual(7);
       expect(contrast(scheme.onSurfaceVariant, bg)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it('keeps the button label readable on the accent and the stop colour on the paper', () => {
+    expect(contrast(scheme.onPrimary, scheme.primary)).toBeGreaterThanOrEqual(7);
+    expect(contrast(scheme.stop, scheme.surface)).toBeGreaterThanOrEqual(4);
   });
 });
 

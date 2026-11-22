@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tasks — pick what you came to do</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d18{--ac:#1f6feb;--ac-ink:#1a63d6;--ac-soft:rgba(31,111,235,.08);--font:"DM Sans",system-ui,sans-serif;--mono:"DM Mono",ui-monospace,monospace;--display:"Bricolage Grotesque",var(--font);display:flex;flex-direction:column}
+.d18 .k-title{font-family:var(--display);font-weight:500;letter-spacing:-.01em}
+.d18 .top{height:72px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid var(--line)}
+.d18 .top .lg{display:flex;gap:8px;align-items:center;font:500 15px var(--display);width:180px}
+.d18 .tk{display:flex;gap:4px;margin:0 auto;padding:4px;background:var(--rz);border-radius:14px}
+.d18 .tk button{height:48px;padding:0 16px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--t2);min-width:84px;position:relative}
+.d18 .tk button .i{color:var(--t3)} .d18 .tk button.on{background:var(--sf);color:var(--t1);box-shadow:0 1px 2px rgba(0,0,0,.06),0 0 0 1px var(--line)} .d18 .tk button.on .i{color:var(--ac)}
+.d18 .tk em{position:absolute;top:4px;right:10px;font-style:normal;font:11px var(--mono);color:var(--neg)}
+.d18 .top .r{width:180px;display:flex;justify-content:flex-end;gap:4px}
+.d18 .stage{flex:1;overflow:auto;padding:28px 40px;min-height:0}
+.d18 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column;padding:16px 24px}.d18 .k-files{flex:1}
+.d18 .k-ftop{gap:12px}
+.d18 h2{font:500 18px var(--display);margin:0 0 4px;letter-spacing:-.01em} .d18 .lede{color:var(--t2);margin:0 0 20px;font-size:14px}
+.d18 .two{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.d18 .dz{border:1.5px dashed var(--line2);border-radius:16px;height:200px;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;color:var(--t2);font-size:14px;background:var(--sf)}
+.d18 .dz small{color:var(--t3)}
+.d18 .dest{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px}
+.d18 .dest button{display:grid;grid-template-columns:20px 1fr;gap:4px 10px;align-items:center;padding:12px;border-radius:10px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);text-align:left;font-size:13px}
+.d18 .dest button.on{box-shadow:inset 0 0 0 1.5px var(--ac)} .d18 .dest small{grid-column:2;color:var(--t3);font-family:var(--mono);font-size:11px}
+.d18 .su{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.d18 .su button{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:16px;border-radius:12px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);text-align:left;font-size:13px;color:var(--t2)}
+.d18 .su button b{font-weight:500;color:var(--t1);font-size:14px} .d18 .su button .i{color:var(--t3)}
+.d18 .su button:hover{box-shadow:inset 0 0 0 1px var(--line2)}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d18">
+ <header class="top" id="topEl"></header>
+ <main class="stage" id="st"></main>
+</div>
+<script>
+window.IDEA='Instead of pages named after parts of the program, six tasks named after what people came to do: browse, send, share, pair, look back, set up. Each task gathers everything it needs on one screen (Send has the drop zone, destinations and the queue), so a task rarely needs a second page.';
+window.MAP=[['Navigation','Six tasks across the top; numbers 1 to 6',1],['Switch computer','Browse task: switcher in the path; Send: pick a destination',1],['Connect and trust','Set up, Add a computer',2],['Servers and status','Set up, Computers',2],['Files and preview','Browse task; right-click for every action',0],['Upload and download','Send task: drop files and pick where; Browse: Ctrl U, Ctrl D',1],['Pair a phone','Pair task: code and QR are already showing',1],['Pairing requests','Pair task, with the count on its button',1],['Transfers','Send task shows the queue under the drop zone',1],['Search','/ from any task, or the search box in Browse',1],['Tools','Share task for links; Set up for storage, trash, sync, apps',2],['History and audit','Look back task',1],['Settings','Set up task',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,D=K.D;
+const T=[['files','folder','Browse'],['send','upload','Send'],['shr','link','Share'],['pair','qr','Pair','2'],['back','history','Look back'],['setup','sliders','Set up']];
+const map={tools:'setup',settings:'setup',servers:'setup',history:'back',devices:'pair',transfers:'send',search:'files'};
+function bar(v){const c=map[v]||v;document.getElementById('topEl').innerHTML=`<span class="lg">${I('key',16)}RFE</span><nav class="tk">${T.map(t=>`<button class="${c===t[0]?'on':''}" data-k="go:${t[0]}">${I(t[1],18)}${t[2]}${t[3]?`<em>${t[3]}</em>`:''}</button>`).join('')}</nav><span class="r">${K.ib('bell','Notifications','menu:notes','<i class="k-nb"></i>')}<button class="k-av" data-k="menu:account">S</button></span>`;}
+const send=()=>`<div class="two"><div><h2>Send files</h2><p class="lede">Drop files here, pick a computer, and they go</p><div class="dz">${I('upload',24)}Drop files or folders<small>or ${K.btn('Choose files…',{k:'sm',a:'dlg:upload'})}</small></div><div class="dest">${[['server','studio-pc','~/Projects/garden-plan',1],['laptop','work-laptop','~/Documents'],['server','studio-pc','~/Inbox'],['plus','Somewhere else…','']].map(d=>`<button class="${d[3]?'on':''}" ${d[0]==='plus'?'data-k="dlg:copyto"':''}>${d[0]==='plus'?I('plus',16):K.E(d[0],18)}<span>${d[1]}</span><small>${d[2]}</small></button>`).join('')}</div></div><div><h2>On the way</h2><p class="lede">52.4 MB/s · 2 moving · 3 need you</p>${K.V.xgroups(['attention','active','queued'])}</div></div>`;
+const shr=()=>`<h2>Share a file</h2><p class="lede">A link anyone on your network can open until it ends. Pick a file in Browse, or reuse a recent one</p><div class="two"><div>${K.sec('Recent files','',`<div class="k-list">${D.recent.map(r=>`<div class="k-lrow big" data-row="${r[0]}" data-k="dlg:share" data-tip="Make a share link">${K.fic(r[0].endsWith('.jpg')?'img':r[0].endsWith('.md')?'txt':'doc')}<span><b>${r[0]}</b><small>${r[1]} · ${r[3]}</small></span>${I('link')}</div>`).join('')}</div>`)}</div><div>${K.V.tools('share').replace(/<div class="k-tabs[\s\S]*?<\/div>/,'')}</div></div>`;
+const pair=()=>`<div class="two"><div><h2>Pair a phone with studio-pc</h2><p class="lede">Scan with the RFE app, or type the code</p>${K.V.pairPhone()}</div><div><h2>Asking now</h2><p class="lede">Accept only if the phone shows the same match code</p>${K.V.requests()}<h2 style="margin-top:28px">Allowed devices</h2>${K.V.deviceList()}</div></div>`;
+const setup=()=>`<h2>Set up</h2><p class="lede">Computers, storage and how RFE behaves</p><div class="su">${[['electric_plug','Add a computer','By address, on the network, or a pairing code','dlg:newconn'],['desktop_computer','Computers','4 saved · status, diagnostics, roots','go:servers'],['file_cabinet','Storage','Largest files and duplicates','tool:store'],['wastebasket','Trash','5 items on studio-pc','tool:trash'],['counterclockwise_arrows_button','Backup and sync','2 rules','tool:sync'],['toolbox','Apps','Start apps on studio-pc','tool:apps'],['star','Favorites and offline','3 favorites · 2 offline','tool:fav'],['gear','Settings','Appearance, transfers, security, about','set:Appearance'],['floppy_disk','Back up settings','Encrypted file with a passphrase','dlg:backup']].map(s=>`<button data-k="${s[3]}">${K.E(s[0],28)}<b>${s[1]}</b>${s[2]}</button>`).join('')}</div>`;
+K.mount({stage:document.getElementById('st'),views:{send,shr,pair,back:()=>K.V.history('All'),setup},onGo:bar});
+</script></body></html>

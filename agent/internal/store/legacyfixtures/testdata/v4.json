@@ -1,0 +1,424 @@
+{
+  "version": 4,
+  "migrated_user_version": 12,
+  "counts": {
+    "audit_log": 5,
+    "devices": 6,
+    "settings": 3,
+    "share_log": 2,
+    "share_tokens": 2,
+    "upload_chunks": 10,
+    "uploads": 7,
+    "users": 2
+  },
+  "users": [
+    {
+      "username": "alice",
+      "password_hash": "$2a$10$FAKEFIXTUREHASHALICEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created": 1700000000
+    },
+    {
+      "username": "bob",
+      "password_hash": "$2a$10$FAKEFIXTUREHASHBOBbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created": 1700000010
+    }
+  ],
+  "devices": [
+    {
+      "id": "dev-guest",
+      "label": "Guest tablet",
+      "token": "fixture-token-dev-guest",
+      "token_hash": "ed6883c36ff52b26c0df00a2a689d5a844e5c418e28c2f308685083b83464b71",
+      "authenticates": true,
+      "created": 1700000200,
+      "last_seen": 1700009100,
+      "revoked": false,
+      "client_id": "client-guest",
+      "last_address": "192.0.2.11",
+      "last_version": "1.0.0",
+      "jail_root": "/srv/share/guest",
+      "read_only": true,
+      "public_key": "fixture-pubkey-guest",
+      "via_login": false,
+      "username": "",
+      "view_apps": false,
+      "launch_apps": false,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": false,
+      "can_modify": false,
+      "can_delete": false,
+      "can_share": true
+    },
+    {
+      "id": "dev-orphan",
+      "label": "Orphaned admin",
+      "token": "fixture-token-dev-orphan",
+      "token_hash": "c39e9cf515620ce2a724cc5768e4d400b3f089ba8a9a7ee3dbc3d61b1126e118",
+      "authenticates": true,
+      "created": 1700000500,
+      "last_seen": 1700009400,
+      "revoked": true,
+      "client_id": "",
+      "last_address": "192.0.2.14",
+      "last_version": "0.9.0",
+      "jail_root": "",
+      "read_only": false,
+      "public_key": "",
+      "via_login": false,
+      "username": "ghost",
+      "view_apps": false,
+      "launch_apps": false,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": true,
+      "can_modify": true,
+      "can_delete": true,
+      "can_share": true
+    },
+    {
+      "id": "dev-owner",
+      "label": "Owner phone",
+      "token": "fixture-token-dev-owner",
+      "token_hash": "e030a4480c6054eabc50a458f3c55e7d21c1eeaba306ca85d48cbd286326481c",
+      "authenticates": true,
+      "created": 1700000300,
+      "last_seen": 1700009200,
+      "revoked": false,
+      "client_id": "client-owner",
+      "last_address": "192.0.2.12",
+      "last_version": "1.0.0",
+      "jail_root": "",
+      "read_only": false,
+      "public_key": "fixture-pubkey-owner",
+      "via_login": true,
+      "username": "alice",
+      "view_apps": true,
+      "launch_apps": true,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": true,
+      "can_modify": true,
+      "can_delete": true,
+      "can_share": true
+    },
+    {
+      "id": "dev-owner-b",
+      "label": "Owner laptop",
+      "token": "fixture-token-dev-owner-b",
+      "token_hash": "b8eaae7edb5605edbd4379f5f63d4cc8ef18c069abfec17993a0e9eb2cdef72f",
+      "authenticates": true,
+      "created": 1700000400,
+      "last_seen": 1700009300,
+      "revoked": false,
+      "client_id": "",
+      "last_address": "192.0.2.13",
+      "last_version": "1.0.0",
+      "jail_root": "",
+      "read_only": false,
+      "public_key": "",
+      "via_login": true,
+      "username": "alice",
+      "view_apps": false,
+      "launch_apps": false,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": true,
+      "can_modify": true,
+      "can_delete": true,
+      "can_share": true
+    },
+    {
+      "id": "dev-phone",
+      "label": "Phone",
+      "token": "fixture-token-dev-phone",
+      "token_hash": "3ec11ee660e3017acc6c61896235637259889d53ce576c3297529c1c72293a3d",
+      "authenticates": true,
+      "created": 1700000100,
+      "last_seen": 1700009000,
+      "revoked": false,
+      "client_id": "client-phone",
+      "last_address": "192.0.2.10",
+      "last_version": "1.0.0",
+      "jail_root": "/srv/share/phone",
+      "read_only": false,
+      "public_key": "fixture-pubkey-phone",
+      "via_login": false,
+      "username": "",
+      "view_apps": true,
+      "launch_apps": false,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": true,
+      "can_modify": true,
+      "can_delete": true,
+      "can_share": true
+    },
+    {
+      "id": "dev-revoked",
+      "label": "Lost phone",
+      "token": "fixture-token-dev-revoked",
+      "token_hash": "d334a61180bdeff5e51d5ab8da852709865351cdd1c6cbc179e121aa3f2fee2e",
+      "authenticates": true,
+      "created": 1700000050,
+      "last_seen": 1700008000,
+      "revoked": true,
+      "client_id": "client-revoked",
+      "last_address": "192.0.2.15",
+      "last_version": "0.8.0",
+      "jail_root": "",
+      "read_only": false,
+      "public_key": "fixture-pubkey-revoked",
+      "via_login": false,
+      "username": "",
+      "view_apps": false,
+      "launch_apps": false,
+      "can_browse": true,
+      "can_download": true,
+      "can_upload": true,
+      "can_modify": true,
+      "can_delete": true,
+      "can_share": true
+    }
+  ],
+  "shares": [
+    {
+      "token": "fixture-share-a",
+      "token_hash": "d79893480fdd65406a8c634d8856b87b16fb3f27ced7e2ac5b5b5a3f13fdc2a7",
+      "path": "/srv/share/b.txt",
+      "created": 1700006000,
+      "expires": 4102444800,
+      "device_id": ""
+    },
+    {
+      "token": "fixture-share-b",
+      "token_hash": "3621c41d4ecaba9c15c9dc8311bb3d35e9d17b6b39e17baeddf6f96b0cf74326",
+      "path": "/srv/share/phone/a.txt",
+      "created": 1700006001,
+      "expires": 4102444800,
+      "device_id": "dev-phone"
+    }
+  ],
+  "share_log": [
+    {
+      "id": 4,
+      "token_hash": "3621c41d4ecaba9c15c9dc8311bb3d35e9d17b6b39e17baeddf6f96b0cf74326",
+      "path": "/srv/share/phone/a.txt",
+      "minted_at": 1700006001,
+      "expires_at": 4102444800,
+      "served_at": 1700006900,
+      "requester_ip": "192.0.2.10"
+    },
+    {
+      "id": 9,
+      "token_hash": "d79893480fdd65406a8c634d8856b87b16fb3f27ced7e2ac5b5b5a3f13fdc2a7",
+      "path": "/srv/share/b.txt",
+      "minted_at": 1700006000,
+      "expires_at": 4102444800,
+      "served_at": null,
+      "requester_ip": null
+    }
+  ],
+  "uploads": [
+    {
+      "id": "up-done",
+      "target_path": "/srv/share/uploads/up-done.bin",
+      "total_size": 24,
+      "chunk_size": 8,
+      "total_chunks": 3,
+      "sha256": "66f89160a68f6a9599bb9ac09fd44b04cc38894ca29c702a9d435df7606fc15f",
+      "status": "completed",
+      "temp_path": "transfers/up-done.tmp",
+      "device_id": "dev-phone",
+      "updated_at": 1700008400,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": true,
+      "chunks": [
+        0,
+        1,
+        2
+      ],
+      "temp_file": null
+    },
+    {
+      "id": "up-failed",
+      "target_path": "/srv/share/uploads/up-failed.bin",
+      "total_size": 24,
+      "chunk_size": 8,
+      "total_chunks": 3,
+      "sha256": "ce9b118e545b83931e67e061c16bf3dec714ed9870082c3f8b2b5143b8cea0ef",
+      "status": "failed",
+      "temp_path": "transfers/up-failed.tmp",
+      "device_id": "dev-owner",
+      "updated_at": 1700008500,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": true,
+      "chunks": [
+        0
+      ],
+      "temp_file": null
+    },
+    {
+      "id": "up-legacy-nodevice",
+      "target_path": "/srv/share/uploads/up-legacy-nodevice.bin",
+      "total_size": 16,
+      "chunk_size": 8,
+      "total_chunks": 2,
+      "sha256": "a1e8bbfa0367eeda3697692ed26d85f8940179bd06c0f509d70069967f0a4e13",
+      "status": "open",
+      "temp_path": "transfers/up-legacy-nodevice.tmp",
+      "device_id": "",
+      "updated_at": 0,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": false,
+      "chunks": [
+        0
+      ],
+      "temp_file": {
+        "name": "transfers/up-legacy-nodevice.tmp",
+        "size": 8
+      }
+    },
+    {
+      "id": "up-odd-status",
+      "target_path": "/srv/share/uploads/up-odd-status.bin",
+      "total_size": 16,
+      "chunk_size": 8,
+      "total_chunks": 2,
+      "sha256": "30717bb93ce08aa1983e855a09569bf533e7f8460a4314a23ae694b7c5a8cbb9",
+      "status": "paused",
+      "temp_path": "transfers/up-odd-status.tmp",
+      "device_id": "dev-phone",
+      "updated_at": 1700008200,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": false,
+      "chunks": null,
+      "temp_file": {
+        "name": "transfers/up-odd-status.tmp",
+        "size": 0
+      }
+    },
+    {
+      "id": "up-open-beyond",
+      "target_path": "/srv/share/uploads/up-open-beyond.bin",
+      "total_size": 24,
+      "chunk_size": 8,
+      "total_chunks": 3,
+      "sha256": "b19776bd40f109e391907618a2c3c944324301811d7b44d2e9c32ffa9c3041bd",
+      "status": "open",
+      "temp_path": "transfers/up-open-beyond.tmp",
+      "device_id": "dev-owner",
+      "updated_at": 1700008100,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": false,
+      "chunks": [
+        0,
+        1,
+        2
+      ],
+      "temp_file": {
+        "name": "transfers/up-open-beyond.tmp",
+        "size": 16
+      }
+    },
+    {
+      "id": "up-open-resume",
+      "target_path": "/srv/share/uploads/up-open-resume.bin",
+      "total_size": 24,
+      "chunk_size": 8,
+      "total_chunks": 3,
+      "sha256": "f24c3362faf9117763dc984126611ddbb541b0594283011c274f2f7323a82104",
+      "status": "open",
+      "temp_path": "transfers/up-open-resume.tmp",
+      "device_id": "dev-phone",
+      "updated_at": 1700008000,
+      "overwrite": true,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": false,
+      "chunks": [
+        0,
+        1
+      ],
+      "temp_file": {
+        "name": "transfers/up-open-resume.tmp",
+        "size": 16
+      }
+    },
+    {
+      "id": "up-open-zero-updated",
+      "target_path": "/srv/share/uploads/up-open-zero-updated.bin",
+      "total_size": 16,
+      "chunk_size": 8,
+      "total_chunks": 2,
+      "sha256": "74ec123965805d47c9943a3ab0340fbd07d51a76a5a494d50ece910a175dc870",
+      "status": "open",
+      "temp_path": "transfers/up-open-zero-updated.tmp",
+      "device_id": "dev-phone",
+      "updated_at": 0,
+      "overwrite": false,
+      "terminal_at": 0,
+      "terminal_at_set_at_migration": false,
+      "chunks": null,
+      "temp_file": {
+        "name": "transfers/up-open-zero-updated.tmp",
+        "size": 0
+      }
+    }
+  ],
+  "audit_log": [
+    {
+      "id": 10,
+      "at": 1700001000,
+      "action": "pair",
+      "actor": "dev-phone",
+      "target": "dev-phone",
+      "detail": "paired"
+    },
+    {
+      "id": 11,
+      "at": 1700001100,
+      "action": "login",
+      "actor": "alice",
+      "target": "dev-owner",
+      "detail": ""
+    },
+    {
+      "id": 12,
+      "at": 1700001200,
+      "action": "login_failed",
+      "actor": "alice",
+      "target": "",
+      "detail": "bad password"
+    },
+    {
+      "id": 15,
+      "at": 1700001500,
+      "action": "device_revoked",
+      "actor": "alice",
+      "target": "dev-revoked",
+      "detail": ""
+    },
+    {
+      "id": 16,
+      "at": 1700001600,
+      "action": "share_created",
+      "actor": "dev-phone",
+      "target": "/srv/share/phone/a.txt",
+      "detail": ""
+    }
+  ],
+  "settings": {
+    "agentName": "fixture-pc",
+    "photoBackupRoot": "",
+    "roots": "/srv/share"
+  },
+  "not_imported": {
+    "pairing_codes": 1,
+    "pair_requests": 0
+  }
+}

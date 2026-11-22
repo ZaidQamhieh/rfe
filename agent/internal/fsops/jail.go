@@ -78,6 +78,8 @@ func (o *Ops) IsDenyAll() bool { return o.denyAll }
 //
 //   - If extraRoot is empty, o is returned unchanged — no per-device
 //     restriction (today's behavior).
+//   - If o already denies all paths, o is returned unchanged: narrowing a
+//     deny-all Ops must never turn it back into an allowing one.
 //   - If o has no configured roots (no global jail), the effective roots
 //     become exactly []string{extraRoot}.
 //   - If o has configured roots and extraRoot is within (or equal to) one of
@@ -93,6 +95,9 @@ func (o *Ops) IsDenyAll() bool { return o.denyAll }
 // request.
 func (o *Ops) Jailed(extraRoot string) *Ops {
 	if extraRoot == "" {
+		return o
+	}
+	if o.denyAll {
 		return o
 	}
 	clean := filepath.Clean(extraRoot)
@@ -153,11 +158,26 @@ func (o *Ops) Resolve(p string) (string, error) {
 	}
 
 	for _, root := range roots {
-		if isUnder(real, root) {
+		if matchRoot(real, root) != "" {
 			return real, nil
 		}
 	}
 	return "", fmt.Errorf("%w: %s", ErrForbidden, p)
+}
+
+// matchRoot reports which form of root contains the symlink-resolved path
+// real: root as configured, or root with its own symlinks resolved (the roots
+// are the owner's configuration, so resolving them is safe). It returns "" when
+// real is under neither. real must already be fully resolved, so a symlink
+// inside the root that leads outside it is not under either form.
+func matchRoot(real, root string) string {
+	if isUnder(real, root) {
+		return root
+	}
+	if realRoot, err := filepath.EvalSymlinks(root); err == nil && isUnder(real, realRoot) {
+		return realRoot
+	}
+	return ""
 }
 
 var (
@@ -168,18 +188,21 @@ var (
 // ProtectDir makes every path at or under dir unreachable through any Ops,
 // whatever the roots are. The agent registers its own data folder (TLS key,
 // database, in-progress uploads) so a home-wide or unrestricted root cannot
-// expose it.
-func ProtectDir(dir string) {
+// expose it. It fails when dir cannot be resolved, because an unregistered
+// data folder would be reachable.
+func ProtectDir(dir string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return
+		return err
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = real
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return err
 	}
 	protectedMu.Lock()
-	protectedDirs = append(protectedDirs, abs)
+	protectedDirs = append(protectedDirs, real)
 	protectedMu.Unlock()
+	return nil
 }
 
 func isProtected(real string) bool {
@@ -551,8 +574,8 @@ func (o *Ops) accessWith(resolve func(string) (string, error), path string) (*se
 
 func (o *Ops) allowedRootFor(resolved string) string {
 	for _, root := range o.settings.Roots() {
-		if isUnder(resolved, root) {
-			return root
+		if m := matchRoot(resolved, root); m != "" {
+			return m
 		}
 	}
 	return ""

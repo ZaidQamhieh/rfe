@@ -2,7 +2,7 @@
 
 use crate::agent_client::{
     capture_fingerprint, match_code, new_client_nonce, normalize_fingerprint, AgentClient,
-    AgentError, Device, LoginOk, PairPoll,
+    AgentError, Device, LoginOk, PairPoll, STATUS_UNAUTHORIZED,
 };
 use crate::applog::{self, Level};
 use crate::fsutil::write_private;
@@ -204,7 +204,7 @@ pub fn diagnostics(dir: &Path) -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    line(&mut out, "RFE Desktop diagnostics".into());
+    line(&mut out, format!("{} diagnostics", crate::APP_NAME));
     line(&mut out, format!("generated (unix time): {secs}"));
     line(
         &mut out,
@@ -352,10 +352,12 @@ pub fn save(dir: &Path, store: &dyn SecretStore, s: &Saved) -> Result<(), String
     }
     if let Err(e) = write_state(dir, &f) {
         // The token and the address must stay a pair: put the old token back beside the old address.
-        let _ = match previous {
+        if let Err(re) = match previous {
             Some(t) => store.set(&acct, &t),
             None => store.delete(&acct),
-        };
+        } {
+            applog::error(&format!("the old token could not be put back: {re}"));
+        }
         return Err(e);
     }
     Ok(())
@@ -655,7 +657,11 @@ async fn list_devices_inner(dir: &Path, store: &Offloaded) -> Result<Vec<Device>
     let listed = AgentClient::pinned(&s.host, &pinned)?
         .devices(&s.token)
         .await;
-    if let Err(AgentError::Server { status: 401, .. }) = &listed {
+    if let Err(AgentError::Server {
+        status: STATUS_UNAUTHORIZED,
+        ..
+    }) = &listed
+    {
         // The agent refuses this token: it was revoked or removed there. Drop the dead token so
         // the window goes back to sign-in, and keep the pin, the account name and the device key.
         let dir = dir.to_path_buf();
@@ -761,7 +767,10 @@ pub async fn sign_out_and_revoke(dir: &Path, store: &Offloaded) -> Result<SignOu
         match revoked {
             Ok(()) => out.revoked = true,
             // The agent already refuses this token, which is what sign-out is for.
-            Err(AgentError::Server { status: 401, .. }) => out.revoked = true,
+            Err(AgentError::Server {
+                status: STATUS_UNAUTHORIZED,
+                ..
+            }) => out.revoked = true,
             Err(e) => {
                 out.note = format!(
                     "Signed out on this computer only. The agent could not be told ({e}), so this \
@@ -777,8 +786,9 @@ pub async fn sign_out_and_revoke(dir: &Path, store: &Offloaded) -> Result<SignOu
     store
         .run(move |s| {
             let _held = crate::hosts::lock();
-            let still_active =
-                token.is_empty() || load_saved(&dir, s).map_or(true, |l| l.token == token);
+            // A keystore that cannot be read now cannot say which login is active: leave the login
+            // alone and report the read error; signing out again retries.
+            let still_active = token.is_empty() || load_saved(&dir, s)?.token == token;
             if still_active {
                 sign_out(&dir, s)
             } else {
@@ -859,10 +869,11 @@ pub fn forget_pin(dir: &Path, store: &dyn SecretStore, host: &str) -> Result<For
         f.username.clear();
         f.device_id.clear();
         f.token.clear();
-        // The login first: if the keystore refuses, nothing changed and the user can try again,
-        // instead of an empty address beside a token that still counts as signed in.
-        store.delete(&account("token", dir))?;
+        // The state first: once it is written this computer is signed out whatever the keystore
+        // does. If the keystore then refuses, the error is reported and a stale token stays in
+        // the keystore, where it is no longer used.
         write_state(dir, &f)?;
+        store.delete(&account("token", dir))?;
     } else if out.was_pinned {
         write_state(dir, &f)?;
     }

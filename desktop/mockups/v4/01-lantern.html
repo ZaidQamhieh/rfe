@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lantern — a search window with a preview of the highlighted file</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d01{--bg:#f8f5ef;--sf:#fdfbf7;--rz:#efe9df;--t1:#1f1b16;--t2:#5e554a;--t3:#7b7266;--line:rgba(31,27,22,.08);--line2:rgba(31,27,22,.15);--ac:#a8471f;--ac-ink:#9a3f1a;--ac-soft:rgba(168,71,31,.09);--font:"Instrument Sans",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.d01 .top{height:56px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}
+.d01 .b-sr{background:rgba(31,27,22,.24)}
+.d01 .b-sr .m{left:50%;top:56px;transform:translateX(-50%);width:900px;height:580px;background:var(--sf);border-radius:16px;box-shadow:0 24px 64px rgba(31,27,22,.25),0 0 0 1px var(--line2);display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:hidden}
+.d01 .f{display:flex;align-items:center;gap:12px;padding:18px 22px 10px;font-size:20px;color:var(--t3)}.d01 .f input{flex:1;border:0;background:none;font:400 20px var(--font);color:var(--t1);outline:0}
+.d01 .sc{display:flex;gap:6px;padding:0 22px 14px;border-bottom:1px solid var(--line)}
+.d01 .sc button{height:28px;padding:0 10px;border-radius:14px;font-size:13px;color:var(--t2);box-shadow:inset 0 0 0 1px var(--line2);display:inline-flex;gap:6px;align-items:center}.d01 .sc button.on{background:var(--t1);color:var(--sf);box-shadow:none}.d01 .sc small{font:11px var(--mono);opacity:.7}
+.d01 .bd{display:grid;grid-template-columns:1fr 320px;min-height:0}
+.d01 .rs{overflow:auto;padding:8px 10px}.d01 .rs h4{font:500 12px var(--font);color:var(--t3);margin:12px 12px 4px;display:flex;gap:8px;align-items:center}
+.d01 .qr{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:8px 12px;border-radius:8px;cursor:pointer}.d01 .qr:hover{background:var(--rz)}.d01 .qr.on{background:var(--ac-soft)}
+.d01 .qr small{display:block;color:var(--t3);font:12px var(--mono)}.d01 .qr .z{font:12px var(--mono);color:var(--t3)}
+.d01 .pv{border-left:1px solid var(--line);padding:18px;overflow:auto;display:grid;align-content:start;gap:10px}.d01 .pv>svg{border-radius:10px;width:100%;height:auto;display:block}.d01 .pv h3{font:500 15px var(--font);margin:4px 0 0}.d01 .pv .k-kv{margin:0}
+.d01 .ft{display:flex;gap:16px;align-items:center;padding:10px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--t3)}.d01 .ft .sp{flex:1}
+.d01 .no{grid-column:1/-1;display:grid;justify-items:center;align-content:center;text-align:center;gap:8px;color:var(--t2);padding:24px}.d01 .no b{color:var(--t1);font-weight:500;font-size:16px}.d01 .no p{max-width:420px;margin:0 0 8px}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d01">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Search is a window over the page. Results are grouped by computer, and the highlighted one shows on the right with its preview and the three things you do with a found file: open it where it lives, download it, share it.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row", 1], ["Overview, Servers, Devices, Transfers, Tools, History, Settings", "Fixed pages; lists open their details in the inspector on the right", 1], ["Search", "Search button in the top bar, Ctrl K, / or Search in the sidebar", 1], ["Scope", "Chips under the field: everywhere, one computer, this computer", 2], ["Act on a result", "Preview pane: Open in Files, Download, Share link", 2]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty,S=B.S,hl=B.hl,sk=B.sk;
+
+document.getElementById('top').innerHTML=`<button class="b-st" data-k="go:search">${I('search',16)}Search${sk('Ctrl K')}</button>`+K.C.actions();
+const grp=pc=>S.res.filter(r=>r.pc===pc);
+const search=()=>`<div class="m" role="dialog" aria-label="Search"><label class="f">${I('search',20)}<input value="${S.q}" placeholder="Search file names on your computers" aria-label="Search">${sk('Esc')}</label>
+<div class="sc">${EM?`<button class="on">This computer<small>Downloads</small></button>`:[['Everywhere',6],['studio-pc',4],['work-laptop',2],['This computer',0]].map((c,i)=>`<button class="${i?'':'on'}" data-k="sr:pick">${c[0]}<small>${c[1]}</small></button>`).join('')}</div>
+<div class="bd">${EM?`<div class="no">${E('magnifying_glass_tilted_left',40)}<b>Nothing to search yet</b><p>Search looks through every computer you add, and this computer’s Downloads folder. Type a name to look there now.</p>${K.btn('Add a computer',{i:'plus',k:'pri',a:'dlg:newconn'})}</div>`:`<div class="rs">${['studio-pc','work-laptop'].map(pc=>`<h4>${E(pc==='studio-pc'?'desktop_computer':'laptop',16)}${pc}<small>${grp(pc).length}</small></h4>${grp(pc).map(r=>`<div class="qr${r.n==='north-bed-after.jpg'?' on':''}" data-k="sr:go:files">${K.fic(r.k)}<span>${hl(r.n)}<small>${r.path}</small></span><span class="z">${r.size}</span></div>`).join('')}`).join('')}</div>
+<div class="pv">${K.photo(2,280,180,10)}<h3>north-bed-after.jpg</h3><dl class="k-kv"><dt>On</dt><dd>studio-pc</dd><dt>Folder</dt><dd class="mono">…/Projects/garden-plan</dd><dt>Changed</dt><dd>1 Nov, 09:12</dd><dt>Size</dt><dd>3.8 MB · 4032 × 3024</dd></dl><div class="k-dact">${K.btn('Open in Files',{i:'folder',k:'pri',a:'sr:go:files'})}<div class="k-row">${K.btn('Download',{i:'download'})}${K.btn('Share link…',{i:'link',a:'dlg:share'})}</div></div></div>`}</div>
+<div class="ft">${EM?'<span>Nothing indexed yet</span>':`<span>${S.line}</span>`}<span class="sp"></span><span>${sk('↑')} ${sk('↓')} move</span><span>${sk('Enter')} open</span><span>${sk('Ctrl D')} download</span></div></div>`;
+B.mount({search});
+
+</script></body></html>

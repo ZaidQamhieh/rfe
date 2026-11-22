@@ -6,8 +6,41 @@ import (
 	"bufio"
 	"os"
 	"strings"
-	"syscall"
 )
+
+// unescapeMountField decodes the octal escapes /proc/mounts uses for the
+// characters that would break its space-separated fields: space (\040), tab
+// (\011), newline (\012) and backslash (\134). Anything else is left as is.
+func unescapeMountField(s string) string {
+	if !strings.Contains(s, "\\") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+4 <= len(s) {
+			switch s[i+1 : i+4] {
+			case "040":
+				b.WriteByte(' ')
+				i += 3
+				continue
+			case "011":
+				b.WriteByte('\t')
+				i += 3
+				continue
+			case "012":
+				b.WriteByte('\n')
+				i += 3
+				continue
+			case "134":
+				b.WriteByte('\\')
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
 
 func platformDrives() ([]Drive, error) {
 	drives := []Drive{}
@@ -32,7 +65,7 @@ func platformDrives() ([]Drive, error) {
 		if len(fields) < 3 {
 			continue
 		}
-		mountPoint := fields[1]
+		mountPoint := unescapeMountField(fields[1])
 		fsType := fields[2]
 		// Skip virtual / proc / sys filesystems and duplicates.
 		if seen[mountPoint] {
@@ -49,14 +82,4 @@ func platformDrives() ([]Drive, error) {
 		drives = append(drives, statDrive(mountPoint, mountPoint))
 	}
 	return drives, nil
-}
-
-func statDrive(path, label string) Drive {
-	d := Drive{Path: path, Label: label}
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(path, &st); err == nil {
-		d.TotalBytes = int64(st.Blocks) * int64(st.Bsize)
-		d.FreeBytes = int64(st.Bfree) * int64(st.Bsize)
-	}
-	return d
 }

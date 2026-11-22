@@ -5,7 +5,10 @@ use crate::filter::{Compiled, Filters};
 use crate::index::{Index, Limits};
 use crate::live::{Events, Watch, MAX_DIRTY_DIRS};
 use crate::recents;
-use rfe_proto::{code, error_response, read_frame, write_frame, Envelope, Hello, KIND_JSON};
+use rfe_proto::{
+    cancel_request, code, error_response, hello_value, read_frame, send_frames, Cancels, Envelope,
+    Out, KIND_JSON, MALFORMED_REQUEST,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -21,7 +24,7 @@ struct State {
     building: AtomicBool,
     /// Events were lost and the rebuild that repairs the index has not finished: the index may miss changes.
     resync: AtomicBool,
-    cancels: Mutex<HashMap<u64, Arc<AtomicBool>>>,
+    cancels: Cancels,
     /// Held while a build starts and while a batch of changes is applied, so the two never interleave.
     mutate: Mutex<()>,
     events: Arc<Events>,
@@ -59,26 +62,14 @@ struct RecentsReq {
     budget_ms: u64,
 }
 
-type Out<W> = Arc<Mutex<W>>;
-
 fn send<W: Write>(out: &Out<W>, v: &Value) {
-    let bytes = serde_json::to_vec(v).unwrap_or_default();
-    let mut w = out.lock().unwrap_or_else(|e| e.into_inner());
-    // A write failure means the Go agent is gone; the read loop will see EOF and exit.
-    let _ = write_frame(&mut *w, KIND_JSON, &bytes).and_then(|_| w.flush());
+    send_frames(out, v, None);
 }
 
 /// Serves requests until the input closes. Generic over the streams so tests can drive it in memory.
 pub fn serve<R: Read, W: Write + Send + 'static>(mut input: R, output: W) -> std::io::Result<()> {
     let out: Out<W> = Arc::new(Mutex::new(output));
-    send(
-        &out,
-        &serde_json::to_value(Hello::new(
-            NAME,
-            rfe_proto::release_version(env!("CARGO_PKG_VERSION")),
-        ))
-        .unwrap(),
-    );
+    send(&out, &hello_value(NAME, env!("CARGO_PKG_VERSION")));
     let state = Arc::new(State {
         index: RwLock::new(None),
         building: AtomicBool::new(false),
@@ -101,19 +92,12 @@ pub fn serve<R: Read, W: Write + Send + 'static>(mut input: R, output: W) -> std
         let Ok(env) = serde_json::from_slice::<Envelope>(&frame.payload) else {
             send(
                 &out,
-                &error_response(0, code::BAD_REQUEST, "malformed request"),
+                &error_response(0, code::BAD_REQUEST, MALFORMED_REQUEST),
             );
             continue;
         };
         if env.op == "cancel" {
-            if let Some(flag) = state
-                .cancels
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .get(&env.target)
-            {
-                flag.store(true, Ordering::Relaxed);
-            }
+            cancel_request(&state.cancels, env.target);
             send(&out, &json!({"id": env.id, "ok": true}));
             continue;
         }
@@ -141,7 +125,6 @@ pub fn serve<R: Read, W: Write + Send + 'static>(mut input: R, output: W) -> std
             cancels.insert(env.id, Arc::clone(&cancel));
         }
         let (state, out2, payload) = (Arc::clone(&state), Arc::clone(&out), frame.payload);
-        workers.retain(|h| !h.is_finished());
         workers.push(std::thread::spawn(move || {
             let id = env.id;
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -252,6 +235,21 @@ fn handle(state: &Arc<State>, op: &str, payload: &[u8], cancel: &AtomicBool) -> 
     }
 }
 
+/// The watcher's (watches, complete, error) right now, or None when no watcher is running.
+fn watch_health(state: &State) -> Option<(usize, bool, String)> {
+    let guard = state.watch.lock().unwrap_or_else(|e| e.into_inner());
+    let w = guard.as_ref()?;
+    let watches = w.health.watches.load(Ordering::Relaxed);
+    let complete = w.health.complete.load(Ordering::Relaxed);
+    let error = w
+        .health
+        .error
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    Some((watches, complete, error))
+}
+
 /// True while the file watcher covers every indexed directory and has not failed, and no lost events or rebuild
 /// are outstanding, so the index can be trusted to be current.
 fn live_ok(state: &State) -> bool {
@@ -261,42 +259,15 @@ fn live_ok(state: &State) -> bool {
     {
         return false;
     }
-    match state
-        .watch
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-    {
-        Some(w) => {
-            w.health.complete.load(Ordering::Relaxed)
-                && w.health
-                    .error
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .is_empty()
-        }
+    match watch_health(state) {
+        Some((_, complete, error)) => complete && error.is_empty(),
         None => false,
     }
 }
 
 fn live_stats(state: &State) -> Value {
-    let (watches, complete, error) = match state
-        .watch
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-    {
-        Some(w) => (
-            w.health.watches.load(Ordering::Relaxed),
-            w.health.complete.load(Ordering::Relaxed),
-            w.health
-                .error
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone(),
-        ),
-        None => (0, false, "no watcher".to_string()),
-    };
+    let (watches, complete, error) =
+        watch_health(state).unwrap_or((0, false, "no watcher".to_string()));
     json!({
         "watching": complete && error.is_empty(),
         "watches": watches,
@@ -323,13 +294,18 @@ impl Drop for BuildingGuard<'_> {
     }
 }
 
-/// A full walk. Pending change events are dropped when it starts (the walk reads the disk afresh) and events that
-/// arrive during it are applied to its result afterwards.
+/// A full walk. The previous watch is retired and pending change events are dropped when it starts (the walk reads the
+/// disk afresh); a change made during the walk is picked up by the next periodic rebuild.
 fn build(state: &Arc<State>, req: &BuildReq, cancel: &AtomicBool) -> HandlerResult {
     {
         let _g = state.mutate.lock().unwrap_or_else(|e| e.into_inner());
         if state.building.swap(true, Ordering::AcqRel) {
             return Err((code::BUSY, "an index build is already running".into()));
+        }
+        // The previous watch is retired before the walk: its inotify queue would otherwise overflow on the walk's own
+        // opens, and that rescan would trigger another full rebuild, over and over.
+        if let Some(old) = state.watch.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            old.stop();
         }
         state.events.clear();
     }
@@ -343,17 +319,23 @@ fn build(state: &Arc<State>, req: &BuildReq, cancel: &AtomicBool) -> HandlerResu
         cancel,
     );
     if cancel.load(Ordering::Relaxed) {
+        // The old watch was retired and the old index is stale until the next build: report it as such.
+        state.resync.store(true, Ordering::Release);
         guard.release();
         return Err((code::CANCELED, "build canceled".into()));
     }
     let s = idx.stats;
     let idx = Arc::new(idx);
     // Watches go in right after the walk; a change made in that window waits for the next reconcile.
-    if let Ok(w) = Watch::new(Arc::clone(&state.events)) {
-        let w = Arc::new(w);
-        *state.watch.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::clone(&w));
-        let (roots, for_watch) = (req.roots.clone(), Arc::clone(&idx));
-        std::thread::spawn(move || w.register(&roots, for_watch.dirs()));
+    match Watch::new(Arc::clone(&state.events)) {
+        Ok(w) => {
+            let w = Arc::new(w);
+            *state.watch.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::clone(&w));
+            let (roots, for_watch) = (req.roots.clone(), Arc::clone(&idx));
+            std::thread::spawn(move || w.register(&roots, for_watch.dirs()));
+        }
+        // No watcher for this index: drop the previous one, so its health is not reported for it.
+        Err(_) => *state.watch.lock().unwrap_or_else(|e| e.into_inner()) = None,
     }
     *state.last_build.lock().unwrap_or_else(|e| e.into_inner()) = Some(req.clone());
     *state.index.write().unwrap_or_else(|e| e.into_inner()) = Some(idx);
@@ -368,14 +350,21 @@ fn build(state: &Arc<State>, req: &BuildReq, cancel: &AtomicBool) -> HandlerResu
     )
 }
 
+/// How long the applier waits before retrying a batch that arrived while a rebuild was running.
+const REBUILD_RETRY: Duration = Duration::from_millis(300);
+
+/// The least time between two rebuilds the applier starts itself, so a truncated index or constant churn costs one walk per interval, not one per batch.
+const MIN_AUTO_REBUILD_GAP: Duration = Duration::from_secs(30);
+
 /// Applies batches of changed directories to the live index until the server stops.
 fn applier(state: Arc<State>) {
+    let mut last_auto: Option<std::time::Instant> = None;
     while let Some(batch) = state.events.next_batch(&state.stop) {
         let guard = state.mutate.lock().unwrap_or_else(|e| e.into_inner());
         if state.building.load(Ordering::Acquire) {
             state.events.restore(batch);
             drop(guard);
-            std::thread::sleep(Duration::from_millis(300));
+            std::thread::sleep(REBUILD_RETRY);
             continue;
         }
         let Some(current) = state
@@ -413,8 +402,15 @@ fn applier(state: Arc<State>) {
                     .unwrap_or_else(|e| e.into_inner())
                     .clone();
                 if let Some(req) = req {
+                    if let Some(t) = last_auto {
+                        std::thread::sleep(MIN_AUTO_REBUILD_GAP.saturating_sub(t.elapsed()));
+                    }
+                    last_auto = Some(std::time::Instant::now());
                     state.rebuilds.fetch_add(1, Ordering::Relaxed);
-                    let _ = build(&state, &req, &AtomicBool::new(false));
+                    // On failure `resync` stays set, so the index is not reported live until a build succeeds.
+                    if let Err((kind, msg)) = build(&state, &req, &AtomicBool::new(false)) {
+                        eprintln!("rfe-indexd: background rebuild failed ({kind}): {msg}");
+                    }
                 }
             }
         }

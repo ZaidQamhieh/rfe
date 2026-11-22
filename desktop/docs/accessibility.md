@@ -25,7 +25,7 @@ and speech output was not heard), and a check at a true 200% display scale (see 
   draws with a heading and no script error, and the language switch flips the layout for Arabic.
 - `ui-tests/contrast.test.mjs`: text, secondary text, accent, error, warning and success colours reach 4.5:1
   (WCAG AA) on their backgrounds in both themes, and outlines 3:1; the tokens are read from `app.css`.
-- `e2e/keyboard.test.mjs` (real window): the tab order of the rail and top bar, the New connection
+- `e2e/keyboard.test.mjs` (real window): the tab order of the rail and top bar, the Add a computer
   dialog, the sign-in dialog and Settings is recorded and printed, every stop must show a focus outline
   (the search box shows it as the border of its bar), and the sign-in routes, switches, menus and the
   confirmation of Revoke are used with Tab, Enter, Space, the arrows and Escape.

@@ -60,7 +60,7 @@ test("the screens expose headings, labelled fields, buttons and tables to assist
   const named = (list, role, re) => list.some((n) => n.role === role && re.test(n.name));
   writeFileSync(join(process.env.E2E_APP_DATA, "..", "atspi-start.txt"), dumpOf(nodes));
   // The window's frame: the rail's destinations are buttons with names, and the page has headings.
-  for (const want of [/New connection/, /^Files$/, /^Servers$/, /^Devices$/, /^Transfers$/, /^Settings$/]) {
+  for (const want of [/Add a computer/, /^Files$/, /^Servers$/, /^Devices$/, /^Transfers$/, /^Settings$/]) {
     assert.ok(named(shown, BUTTON, want), `a button named ${want}\n` + dumpOf(shown));
   }
   assert.ok(named(shown, "heading", /Servers/), "the Servers page's heading is a heading\n" + dumpOf(shown));
@@ -72,8 +72,8 @@ test("the screens expose headings, labelled fields, buttons and tables to assist
   await new Promise((r) => setTimeout(r, 400));
   const dlg = tree().filter((n) => n.showing);
   assert.ok(dlg.some((n) => n.role === "dialog" || n.role === "alert"), "the dialog has a dialog role\n" + dumpOf(dlg));
-  assert.ok(named(dlg, "heading", /New connection/), "the dialog's title is a heading\n" + dumpOf(dlg));
-  for (const label of [/Name/, /Host or address/, /Port/]) {
+  assert.ok(named(dlg, "heading", /Add a computer/), "the dialog's title is a heading\n" + dumpOf(dlg));
+  for (const label of [/Name/, /Address/, /Port/]) {
     assert.ok(dlg.some((n) => (n.role === "label" || n.role === "entry") && label.test(n.name)), `a field labelled ${label}\n` + dumpOf(dlg));
   }
   assert.ok(named(dlg, BUTTON, /Connect/), "the Connect button has a name");

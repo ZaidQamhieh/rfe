@@ -11,6 +11,13 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/fsops"
 )
 
+// Modes are octal, parsed into 32 bits; only the nine permission bits (chmodMaxMode) are accepted.
+const (
+	chmodOctalBase = 8
+	chmodBitSize   = 32
+	chmodMaxMode   = 0o777
+)
+
 func chmodHandler(ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
@@ -30,7 +37,7 @@ func chmodHandler(ops *fsops.Ops) http.HandlerFunc {
 			return
 		}
 
-		parsed, err := strconv.ParseUint(req.Mode, 8, 32)
+		parsed, err := strconv.ParseUint(req.Mode, chmodOctalBase, chmodBitSize)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid octal mode: "+req.Mode)
 			return
@@ -39,8 +46,8 @@ func chmodHandler(ops *fsops.Ops) http.HandlerFunc {
 		// Only the nine permission bits are accepted. Larger values would reach
 		// Go's own FileMode type bits (setuid is 1<<23, not the digits' 04000),
 		// and setuid/setgid/sticky are not something a remote client may set.
-		if parsed > 0o777 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "mode must be at most 777 (octal); setuid, setgid and sticky are not supported")
+		if parsed > chmodMaxMode {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "mode must be at most "+strconv.FormatUint(chmodMaxMode, 8)+" (octal); setuid, setgid and sticky are not supported")
 			return
 		}
 		mode := fs.FileMode(parsed)

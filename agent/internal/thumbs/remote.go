@@ -13,7 +13,7 @@ import (
 
 // Remote renders a thumbnail somewhere else (the rfe-thumbd sidecar). The returned errors tell the renderer what
 // to do next: errRemoteUnsupported means "this process cannot decode it, try the built-in decoder", ErrNotSupported
-// means "nobody can", and a sidecar that is merely not running also falls back to the built-in decoder. A render failure (INTERNAL) or an
+// means "nobody can", ErrBusy means "the sidecar is full, retry later" (never decoded in-process), and a sidecar that is merely not running also falls back to the built-in decoder. A render failure (INTERNAL) or an
 // open breaker is a final error: it never falls back.
 type Remote interface {
 	Render(ctx context.Context, source []byte, maxSize int) ([]byte, error)
@@ -25,6 +25,10 @@ var errRemoteFailed = errors.New("thumbnail sidecar failed to render this file")
 
 var errRemoteUnsupported = errors.New("remote renderer cannot decode this source")
 
+// ErrBusy means the sandboxed thumbnail renderer is at capacity right now. The render is not attempted in-process
+// (that would decode untrusted bytes unsandboxed); the caller should answer "retry shortly".
+var ErrBusy = errors.New("thumbnail renderer is busy")
+
 // UseRemote makes the renderer try r before its own decoder. It must be called before the renderer is shared.
 func (rn *Renderer) UseRemote(r Remote) { rn.remote = r }
 
@@ -35,6 +39,12 @@ type renderResp struct {
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
 	Format string `json:"format"`
+}
+
+// Available reports whether the sidecar is up right now, so a render can skip reading the source when it is not.
+func (r SidecarRemote) Available() error {
+	_, err := r.Sup.Client()
+	return err
 }
 
 func (r SidecarRemote) Render(ctx context.Context, source []byte, maxSize int) ([]byte, error) {
@@ -55,6 +65,9 @@ func mapRemoteError(err error) error {
 		switch re.Code {
 		case "NOT_SUPPORTED":
 			return errRemoteUnsupported
+		case "BUSY":
+			// Not "unsupported": the in-process decoder would run the untrusted bytes without the sandbox.
+			return fmt.Errorf("%w: %s", ErrBusy, re.Message)
 		case "TOO_LARGE":
 			return fmt.Errorf("%w: %s", ErrNotSupported, re.Message)
 		case "INTERNAL":
@@ -70,19 +83,36 @@ func (rn *Renderer) renderWithRemote(ctx context.Context, f *os.File, size int64
 	if rn.remote == nil || size <= 0 || size > maxThumbSourceBytes {
 		return nil, false, nil
 	}
+	var downErr error
+	if a, ok := rn.remote.(interface{ Available() error }); ok {
+		downErr = a.Available()
+	}
+	if downErr != nil {
+		// Sidecar not running: skip the decode slot and the source read; the same policy below picks the outcome.
+		key, haveKey := crashKeyOf(f)
+		return rn.remoteOutcome(downErr, key, haveKey)
+	}
 	release, err := acquireDecodeSlot(ctx, fullDecodeSem)
 	if err != nil {
 		return nil, true, err
 	}
 	defer release()
+	// Charge the source bytes to the shared decode budget so remote renders cannot exceed it.
+	if err := fullDecodeBudget.acquire(ctx, size); err != nil {
+		return nil, true, err
+	}
+	defer fullDecodeBudget.release(size)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, true, err
 	}
-	src, err := io.ReadAll(io.LimitReader(f, maxThumbSourceBytes+1))
-	if err != nil {
+	// Pre-size from the known size (+1 to detect growth) instead of letting ReadAll double its buffer.
+	buf := make([]byte, size+1)
+	n, err := io.ReadFull(io.LimitReader(f, maxThumbSourceBytes+1), buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		return nil, true, err
 	}
-	if int64(len(src)) > maxThumbSourceBytes {
+	src := buf[:n]
+	if int64(len(src)) > size {
 		return nil, false, nil // grew while reading; the built-in path applies its own cap
 	}
 	key, haveKey := crashKeyOf(f)
@@ -90,11 +120,18 @@ func (rn *Renderer) renderWithRemote(ctx context.Context, f *os.File, size int64
 		return nil, true, fmt.Errorf("%w: the thumbnail sidecar crashed on this file before", ErrNotSupported)
 	}
 	data, err = rn.remote.Render(ctx, src, maxSize)
-	switch {
-	case err == nil:
+	if err == nil {
 		return data, true, nil
-	case ctx.Err() != nil:
+	}
+	if ctx.Err() != nil {
 		return nil, true, ctx.Err()
+	}
+	return rn.remoteOutcome(err, key, haveKey)
+}
+
+// remoteOutcome maps a failed remote render to what the caller does next (see renderWithRemote).
+func (rn *Renderer) remoteOutcome(err error, key crashKey, haveKey bool) (data []byte, final bool, rerr error) {
+	switch {
 	case errors.Is(err, ErrNotSupported):
 		return nil, true, err
 	case errors.Is(err, errRemoteUnsupported):
@@ -113,6 +150,9 @@ func (rn *Renderer) renderWithRemote(ctx context.Context, f *os.File, size int64
 		return nil, true, fmt.Errorf("thumbnail sidecar was interrupted: %w", err)
 	case errors.Is(err, errRemoteFailed):
 		sidecar.Note("thumbd.render-failed")
+		return nil, true, err
+	case errors.Is(err, ErrBusy):
+		sidecar.Note("thumbd.busy")
 		return nil, true, err
 	case errors.Is(err, sidecar.ErrBreakerOpen):
 		// Repeated start failures: the sidecar is untrustworthy right now, not merely absent.

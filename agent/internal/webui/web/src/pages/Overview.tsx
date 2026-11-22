@@ -11,21 +11,21 @@ import {
   Monitor,
   ScrollText,
 } from 'lucide-react';
-import { api, type Metrics } from '@/lib/api';
+import { api, ApiError, type Metrics } from '@/lib/api';
+import { canWake } from '@/lib/requests';
+import { formatAgo, formatLogTime, rateParts, usedBytesOf, wholeGB } from '@/lib/format';
+import { pagePath } from '@/lib/routes';
+import { DEVICES_REFRESH_MS, LOGS_REFRESH_MS, METRICS_REFRESH_MS, REFRESH_INTERVAL_MS, isOnline, statusQuery } from '@/lib/queries';
 import { useToast } from '@/lib/toast-context';
+import { Dialog } from '@/components/Dialog';
+import { ListError } from '@/components/ListError';
 
-function formatAgo(unixSeconds: number): string {
-  const s = Date.now() / 1000 - unixSeconds;
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
+const isMac = (s: string) => /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(s.trim());
 
+// Decimal units (1 MB = 1e6 bytes), unlike Settings' binary rate.
 function formatRate(bytesPerSec: number | null): { value: string; unit: string } {
   if (bytesPerSec == null) return { value: '--', unit: 'MB/s' };
-  if (bytesPerSec >= 1e6) return { value: (bytesPerSec / 1e6).toFixed(1), unit: 'MB/s' };
-  return { value: (bytesPerSec / 1e3).toFixed(0), unit: 'KB/s' };
+  return rateParts(bytesPerSec, 1000);
 }
 
 // Purely decorative — no data behind the curve, just the mockup's spark motif.
@@ -41,10 +41,10 @@ export function Overview() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const metrics = useQuery({ queryKey: ['metrics'], queryFn: api.metrics, refetchInterval: 5000 });
-  const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 10000 });
-  const devices = useQuery({ queryKey: ['devices'], queryFn: api.listDevices, refetchInterval: 15000 });
-  const logs = useQuery({ queryKey: ['logs'], queryFn: api.listLogs, refetchInterval: 8000 });
+  const metrics = useQuery({ queryKey: ['metrics'], queryFn: api.metrics, refetchInterval: METRICS_REFRESH_MS });
+  const status = useQuery(statusQuery(REFRESH_INTERVAL_MS));
+  const devices = useQuery({ queryKey: ['devices'], queryFn: api.listDevices, refetchInterval: DEVICES_REFRESH_MS });
+  const logs = useQuery({ queryKey: ['logs'], queryFn: api.listLogs, refetchInterval: LOGS_REFRESH_MS });
 
   const prevMetrics = useRef<Metrics | null>(null);
   const [netRate, setNetRate] = useState<number | null>(null);
@@ -59,6 +59,20 @@ export function Overview() {
     prevMetrics.current = metrics.data;
   }, [metrics.data]);
 
+  const [wakeOpen, setWakeOpen] = useState(false);
+  const [wakeMac, setWakeMac] = useState('');
+  const wake = useMutation({
+    mutationFn: api.wake,
+    onSuccess: () => {
+      toast('Wake packet sent');
+      setWakeOpen(false);
+    },
+    onError: (err) =>
+      toast(err instanceof ApiError && err.code === 'CAPABILITY_DENIED'
+        ? 'This device is not allowed to wake computers. Allow it under Devices on the PC.'
+        : 'Could not send the wake packet'),
+  });
+
   const restart = useMutation({
     mutationFn: api.restartAgent,
     onSuccess: () => toast('Agent restart requested'),
@@ -66,22 +80,21 @@ export function Overview() {
   });
 
   const rate = formatRate(netRate);
-  const usedBytes = status.data ? status.data.totalBytes - status.data.freeBytes : undefined;
+  const usedBytes = status.data ? usedBytesOf(status.data) : undefined;
 
   const quickActions = [
-    { label: 'Pair device', sub: 'POST /v1/pairing/generate', icon: KeyRound, primary: true, onClick: () => navigate('/app/devices') },
-    { label: 'New folder', sub: 'POST /v1/fs/folder', icon: FolderPlus, onClick: () => navigate('/app/files') },
-    { label: 'Upload file', sub: 'POST /v1/transfers', icon: Upload, onClick: () => navigate('/app/files') },
-    { label: 'Share link', sub: 'POST /v1/share/mint', icon: Share2, onClick: () => navigate('/app/files') },
-    {
-      label: 'Wake device',
-      sub: 'POST /v1/wol',
-      icon: Power,
-      onClick: () => {
-        toast('Pick a device on the Devices page to wake it');
-        navigate('/app/devices');
-      },
-    },
+    { label: 'Pair device', sub: 'POST /v1/pairing/generate', icon: KeyRound, primary: true, onClick: () => navigate(pagePath('devices')) },
+    { label: 'New folder', sub: 'POST /v1/fs/folder', icon: FolderPlus, onClick: () => navigate(pagePath('files')) },
+    { label: 'Upload file', sub: 'POST /v1/transfers', icon: Upload, onClick: () => navigate(pagePath('files')) },
+    { label: 'Share link', sub: 'POST /v1/share/mint', icon: Share2, onClick: () => navigate(pagePath('files')) },
+    ...(canWake(status.data)
+      ? [{
+          label: 'Wake device',
+          sub: 'POST /v1/wol',
+          icon: Power,
+          onClick: () => setWakeOpen(true),
+        }]
+      : []),
     {
       label: 'Restart agent',
       sub: 'POST /v1/agent/restart',
@@ -92,9 +105,15 @@ export function Overview() {
 
   const topDevices = (devices.data ?? []).slice(0, 3);
   const recentLogs = (logs.data ?? []).slice(-5).reverse();
+  // A failed query with nothing cached is an error to show, not an empty list.
+  const statsFailed = (metrics.isError && !metrics.data) || (status.isError && !status.data);
+  const statsError = metrics.isError && !metrics.data ? metrics.error : status.error;
+  const devicesFailed = devices.isError && !devices.data;
+  const logsFailed = logs.isError && !logs.data;
 
   return (
     <div>
+      {statsFailed && <ListError title="Could not load system stats" error={statsError} />}
       <div className="grid grid-4">
         <div className="card stat-card">
           <div className="label">CPU</div>
@@ -123,8 +142,8 @@ export function Overview() {
         <div className="card stat-card">
           <div className="label">Disk</div>
           <div className="value">
-            {usedBytes != null ? (usedBytes / 1e9).toFixed(0) : '--'}
-            <span className="unit">{status.data ? `/ ${(status.data.totalBytes / 1e9).toFixed(0)} GB` : 'GB'}</span>
+            {usedBytes != null ? wholeGB(usedBytes) : '--'}
+            <span className="unit">{status.data ? `/ ${wholeGB(status.data.totalBytes)} GB` : 'GB'}</span>
           </div>
           <Spark color="var(--amber)" />
         </div>
@@ -151,14 +170,16 @@ export function Overview() {
             </div>
             <h3>Connected Devices</h3>
             <div className="panel-head-actions">
-              <Link to="/app/devices">View all →</Link>
+              <Link to={pagePath('devices')}>View all →</Link>
             </div>
           </div>
-          {topDevices.length === 0 ? (
+          {devicesFailed ? (
+            <ListError title="Could not load devices" error={devices.error} />
+          ) : topDevices.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No devices paired yet.</div>
           ) : (
             topDevices.map((d) => {
-              const online = Date.now() / 1000 - d.lastSeen < 300;
+              const online = isOnline(d);
               return (
                 <div className="dev-row" key={d.id}>
                   <div className="avatar">
@@ -183,15 +204,16 @@ export function Overview() {
             </div>
             <h3>Recent Activity</h3>
             <div className="panel-head-actions">
-              <Link to="/app/logs">Open logs →</Link>
+              <Link to={pagePath('logs')}>Open logs →</Link>
             </div>
           </div>
-          {recentLogs.length === 0 ? (
+          {logsFailed ? (
+            <ListError title="Could not load logs" error={logs.error} />
+          ) : recentLogs.length === 0 ? (
             <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>No recent log lines.</div>
           ) : (
             recentLogs.map((line, i) => {
-              const t = new Date(line.ts);
-              const time = Number.isNaN(t.getTime()) ? line.ts : t.toLocaleTimeString();
+              const time = formatLogTime(line.ts);
               return (
                 <div className="actlog-row" key={i}>
                   <span className="t">{time}</span>
@@ -202,6 +224,21 @@ export function Overview() {
           )}
         </div>
       </div>
+
+      <Dialog open={wakeOpen} onOpenChange={setWakeOpen} title="Wake a computer">
+        <form
+          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isMac(wakeMac)) wake.mutate(wakeMac.trim());
+          }}
+        >
+          <input type="text" autoFocus placeholder="MAC address, aa:bb:cc:dd:ee:ff" value={wakeMac} onChange={(e) => setWakeMac(e.target.value)} style={{ width: '100%' }} />
+          <button className="btn btn-primary" type="submit" disabled={wake.isPending || !isMac(wakeMac)}>
+            Send wake packet
+          </button>
+        </form>
+      </Dialog>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { ChoiceDialog, PromptDialog, ReportDialog, type ChoiceOption } from './P
 
 type Prompt = { title: string; description?: string; placeholder?: string; initialValue?: string; confirmLabel: string; allowEmpty?: boolean; mono?: boolean; helper?: string; validate?: (value: string) => string | null; keyboardType?: 'default' | 'url' | 'number-pad' };
 type Choose<T extends string> = { title: string; subtitle?: string; options: ChoiceOption<T>[]; icon?: ReactNode; tint?: string };
-type Confirm = { title: string; description: string; confirmLabel: string; cancelLabel: string; destructive?: boolean };
+type Confirm = { title: string; description: string; details?: string; detailsLabel?: string; confirmLabel: string; cancelLabel: string; destructive?: boolean };
 type Report = { title: string; items: { primary: string; secondary?: string }[] };
 
 type Api = {

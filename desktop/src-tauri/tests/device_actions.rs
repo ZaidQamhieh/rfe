@@ -114,6 +114,9 @@ fn status(e: &AgentError) -> u16 {
 
 #[tokio::test]
 async fn an_admin_session_changes_the_access_of_another_device_and_the_agent_agrees() {
+    if !common::modern("the wake grant") {
+        return;
+    }
     let f = fixture().await;
     let (_d, other) = f.pair_other().await;
     let id = other.device_id.as_str();
@@ -123,7 +126,7 @@ async fn an_admin_session_changes_the_access_of_another_device_and_the_agent_agr
         .await
         .unwrap();
     assert!(
-        before.browse && !before.download && !before.upload,
+        before.browse && !before.download && !before.upload && !before.wake,
         "{before:?}"
     );
     assert!(!before.read_only && before.jail_root.is_empty());
@@ -137,6 +140,7 @@ async fn an_admin_session_changes_the_access_of_another_device_and_the_agent_agr
         &AccessPatch {
             download: Some(true),
             upload: Some(true),
+            wake: Some(true),
             read_only: Some(true),
             ..Default::default()
         },
@@ -145,7 +149,7 @@ async fn an_admin_session_changes_the_access_of_another_device_and_the_agent_agr
     .await
     .unwrap();
     assert!(
-        after.download && after.upload && after.read_only && after.browse,
+        after.download && after.upload && after.read_only && after.browse && after.wake,
         "{after:?}"
     );
     assert!(!after.modify && !after.delete && !after.share);

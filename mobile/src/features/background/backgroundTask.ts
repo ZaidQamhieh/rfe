@@ -2,21 +2,26 @@ import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 
 import { transfers } from '../../core/native';
+import { sleep } from '../../core/sleep';
 import { assetIdFromTransferId } from '../photoBackup/photoBackupLogic';
 import { photoBackupStore, runPhotoBackup, watchPhotoBackup } from '../photoBackup/photoBackupService';
 import { sessionUpdateCheck } from '../update/useUpdate';
 import { runBackgroundWork } from './backgroundWork';
 
-export const BACKGROUND_TASK = 'rfe-background';
+const BACKGROUND_TASK = 'rfe-background';
 
 /** Roughly how often the system may run the job (WorkManager treats it as a minimum; six hours is the Flutter update-check cadence). */
 const INTERVAL_MINUTES = 6 * 60;
+/** How often the upload wait re-checks whether photo uploads are still running, in ms. */
+const UPLOAD_POLL_MS = 2_000;
+/** Pause after the job's work so the last completion event reaches the watcher before it is removed, in ms. */
+const WATCHER_SETTLE_MS = 500;
 
 const photoUploadsActive = async () => (await transfers.list()).some((r) => r.direction === 'UPLOAD' && assetIdFromTransferId(r.id) !== null && (r.state === 'RUNNING' || r.state === 'QUEUED'));
 
 async function waitForPhotoUploads(budgetMs: number): Promise<void> {
   const end = Date.now() + budgetMs;
-  while (Date.now() < end && (await photoUploadsActive())) await new Promise((r) => setTimeout(r, 2000));
+  while (Date.now() < end && (await photoUploadsActive())) await sleep(UPLOAD_POLL_MS);
 }
 
 // Defined at module load, which the app's entry file (index.js) imports before the router: the headless run that
@@ -37,7 +42,7 @@ TaskManager.defineTask(BACKGROUND_TASK, async () => {
     // eslint-disable-next-line no-console -- the only trace of a run with no screen
     console.log('[rfe-background]', JSON.stringify(report));
     // Let the last completion event reach the watcher before it is removed.
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(WATCHER_SETTLE_MS);
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch (e) {
     // eslint-disable-next-line no-console -- see above

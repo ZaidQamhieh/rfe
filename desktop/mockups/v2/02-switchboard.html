@@ -1,0 +1,48 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Switchboard — one line per computer across the top</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d02{--bg:#141415;--sf:#19191b;--rz:#232325;--t1:#ededed;--t2:#a1a1a6;--t3:#85858b;--line:rgba(237,237,237,.08);--line2:rgba(237,237,237,.14);--ac:#4cc38a;--on-ac:#0f0f10;--ac-ink:#4cc38a;--ac-soft:rgba(76,195,138,.12);--pos:#4cc38a;--neg:#e5484d;--warn:#e0a43b;--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;--shadow:0 12px 32px rgba(0,0,0,.4);
+  display:grid;grid-template-columns:56px 1fr;grid-template-rows:48px 1fr 40px}
+.d02 .k-btn.pri{background:#ededed;color:#141415;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.d02 .k-chip.on{background:#ededed;color:#141415}
+.d02 .k-qr{background:#ededed}
+.d02 .rail{grid-row:1/4;background:#0f0f10;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px}
+.d02 .rail .logo{width:32px;height:32px;display:grid;place-items:center;color:var(--t1);margin-bottom:8px}
+.d02 .rail .k-navi{width:40px;height:40px;justify-content:center;border-radius:8px}
+.d02 .rail .k-navi:hover{background:var(--rz)} .d02 .rail .k-navi.on{background:var(--rz);color:var(--t1);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.d02 .rail .k-badge{position:absolute;top:2px;right:0;margin:0}
+.d02 .rail .gap{flex:1}
+.d02 .lines{display:flex;align-items:stretch;border-bottom:1px solid var(--line);background:#0f0f10;min-width:0}
+.d02 .line{display:flex;align-items:center;gap:8px;padding:0 16px;border-right:1px solid var(--line);color:var(--t2);font-size:13px;white-space:nowrap}
+.d02 .line:hover{background:var(--sf)} .d02 .line.on{background:var(--bg);color:var(--t1);box-shadow:inset 0 2px 0 var(--ac)}
+.d02 .line small{font:12px var(--mono);color:var(--t3)}
+.d02 .line .k-tag{display:none} .d02 .line.on .k-tag{display:inline-flex}
+.d02 .lines .add{color:var(--t3);padding:0 12px} .d02 .lines .r{margin-left:auto;display:flex;align-items:center;gap:4px;padding:0 8px}
+.d02 .lines .k-sbox{width:240px;height:32px}
+.d02 .stage{overflow:auto;padding:20px 24px;min-height:0}
+.d02 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d02 .k-files{flex:1}
+.d02 .k-files{grid-template-columns:1fr 360px}
+.d02 .bottom{border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 16px;font-size:13px;color:var(--t2);background:#0f0f10;cursor:pointer}
+.d02 .bottom b{color:var(--t1);font-weight:500} .d02 .bottom .mono{color:var(--t3)}
+.d02 .k-dockwrap{position:absolute;left:72px;right:16px;bottom:48px;display:none;z-index:40}.d02 .k-dockwrap.open{display:block}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d02">
+ <nav class="rail"><span class="logo"></span><div id="nav" style="display:contents"></div></nav>
+ <div class="lines" id="lines"></div>
+ <main class="stage" id="st"></main>
+ <div class="bottom" data-k="dock" id="bot"></div>
+ <div class="k-dockwrap" id="dock"></div>
+</div>
+<script>
+window.IDEA='A switchboard: every computer is a line across the top, live, with its response time. The line you pick is where Files, Devices and Tools act. This computer’s files are open beside the server by default, so a transfer is a drag. Pages are icons in a narrow rail.';
+window.MAP=[['Navigation','Icon rail: Files, Servers, Devices, Transfers, Search, Tools, History, Settings',1],['Switch computer','Click its line at the top',1],['Connect and trust','+ at the end of the lines',1],['Servers and status','Servers in the rail; Status, diagnostics, wake, roots, forget in a card menu',2],['Files and preview','Default; Local files open beside the list; right-click for every action',0],['Upload and download','Drag between the two lists, or Upload, Ctrl U, Ctrl D',1],['Pair a phone','QR icon at the top right',1],['Pairing requests','Red count on Devices in the rail',2],['Transfers','Bottom bar always shows speed and what needs you; click for the dock',1],['Search','Search box in the top line, or /',1],['Tools','Tools in the rail',2],['History and audit','History in the rail',1],['Settings','Settings at the foot of the rail',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I;
+document.querySelector('.rail .logo').innerHTML=I('key',20);
+function nav(v){document.getElementById('nav').innerHTML=K.C.nav(v,{icons:1,skip:['settings']})+'<span class="gap"></span>'+`<button class="k-navi${v==='settings'?' on':''}" data-k="go:settings" aria-label="Settings">${I('sliders',18)}</button>`;}
+document.getElementById('lines').innerHTML=K.D.servers.map((s,i)=>`<button class="line${i===0?' on':''}" data-k="${s.state==='Connected'?'go:files':s.state==='Key changed'?'dlg:keychanged':'go:servers'}">${K.dot(s.dot)}${K.mach(s,16)}${s.name}<small>${s.ms?s.ms+' ms '+s.route:s.state.toLowerCase()}</small>${i===0?K.tag(s.id):''}</button>`).join('')+`<button class="add" data-k="dlg:newconn" aria-label="New connection" data-tip="New connection">${I('plus')}</button><div class="r">${K.C.searchBox('Search')}${K.C.actions({no:['refresh']})}</div>`;
+document.getElementById('bot').innerHTML=`${K.C.ring(71)}<b>2 moving</b><span class="mono">52.4 MB/s</span><span>1 waiting for a slot</span><span class="warn">3 need you</span><span class="sp"></span><span class="mono">1.9 GB this session</span>${I('chevd',14)}`;
+document.getElementById('dock').innerHTML=K.C.dock();
+K.mount({stage:document.getElementById('st'),state:{panel:'local'},onGo:nav});
+</script></body></html>

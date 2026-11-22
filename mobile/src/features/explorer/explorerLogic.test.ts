@@ -1,7 +1,7 @@
 import type { Entry } from '../../core/api/models';
 import { categoryOf, iconKindFor } from '../../core/entryCategory';
 import { defaultVisibility, extensionOf, isEntryHidden, isEntryHiddenInPicker } from '../../core/visibility';
-import { basenameOf, buildPathStack, buildPathStackWithinRoot, crumbLabel, dedupedName, folderLabel, joinRemotePath, renameDestination } from './paths';
+import { basenameOf, buildPathStack, buildPathStackWithinRoot, crumbLabel, dedupedName, folderLabel, isSameName, joinRemotePath, parentDirOf, renameDestination } from './paths';
 import { sortEntries } from './sort';
 
 const e = (name: string, o: Partial<Entry> = {}): Entry => ({ name, path: `/${name}`, isDir: false, isSymlink: false, ...o });
@@ -19,6 +19,19 @@ describe('paths (POSIX and Windows)', () => {
     expect(renameDestination('C:\\dir\\f', 'g')).toBe('C:\\dir\\g');
     expect(renameDestination('/f', 'g')).toBe('/g');
     expect(renameDestination('/a/f', 'g')).toBe('/a/g');
+  });
+  it('POSIX names may hold a backslash: it is not a separator', () => {
+    expect(basenameOf('/d/a\\b.txt')).toBe('a\\b.txt');
+    expect(renameDestination('/d/a\\b.txt', 'c.txt')).toBe('/d/c.txt');
+    expect(renameDestination('/a\\b', 'x')).toBe('/x');
+    expect(joinRemotePath('/d\\x', 'n')).toBe('/d\\x/n');
+    expect(parentDirOf('/d/a\\b')).toBe('/d');
+    expect(renameDestination('C:/d/f', 'g')).toBe('C:/d/g');
+  });
+  it('an unchanged name is one that matches the current name trimmed', () => {
+    expect(isSameName(' foo', 'foo')).toBe(true);
+    expect(isSameName('foo', 'foo')).toBe(true);
+    expect(isSameName('foo', 'bar')).toBe(false);
   });
   it('buildPathStack and within-root stacks', () => {
     expect(buildPathStack('/home/x/Storage')).toEqual(['/', '/home', '/home/x', '/home/x/Storage']);
@@ -38,6 +51,9 @@ describe('paths (POSIX and Windows)', () => {
 
 describe('sorting', () => {
   const list = [e('b.txt', { size: 5 }), e('A', { isDir: true }), e('a.txt', { size: 9 }), e('z', { isDir: true })];
+  it('folders mix with files when folders-first is off', () => {
+    expect(sortEntries(list, { field: 'name', ascending: true }, false).map((x) => x.name)).toEqual(['A', 'a.txt', 'b.txt', 'z']);
+  });
   it('folders first, name is case-insensitive, direction flips within groups', () => {
     expect(sortEntries(list, { field: 'name', ascending: true }).map((x) => x.name)).toEqual(['A', 'z', 'a.txt', 'b.txt']);
     expect(sortEntries(list, { field: 'name', ascending: false }).map((x) => x.name)).toEqual(['z', 'A', 'b.txt', 'a.txt']);

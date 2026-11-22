@@ -14,12 +14,14 @@ import { previewExtension } from './previewKind';
 // Size caps from preview_common.dart.
 export const MAX_IN_MEMORY_PREVIEW_BYTES = 50 * 1024 * 1024;
 export const MAX_AUDIO_PREVIEW_BYTES = 100 * 1024 * 1024;
+/** Office files are unzipped and parsed in memory on the JS thread, so their cap is lower than for plain text. */
+export const MAX_OFFICE_PREVIEW_BYTES = 30 * 1024 * 1024;
 export const MAX_EDITABLE_BYTES = 5 * 1024 * 1024;
-const MAX_CACHE_BYTES = 256 * 1024 * 1024;
+const PREVIEW_CACHE_MAX_BYTES = 256 * 1024 * 1024;
 /** Bottom padding for scrolling viewers so the pager's "n of m" chip never hides the last line. */
 export const PAGER_CHIP_CLEARANCE = 56;
 
-export class TooLargeError extends Error {
+class TooLargeError extends Error {
   constructor(readonly size: number) {
     super(`File too large to preview (${size} bytes)`);
     this.name = 'TooLargeError';
@@ -27,7 +29,7 @@ export class TooLargeError extends Error {
 }
 
 /** Cache file name: host, path and version (mtime + size) so an edited file is never served stale. */
-export function previewCacheName(hostId: string, e: Pick<Entry, 'path' | 'name' | 'modified' | 'size'>): string {
+function previewCacheName(hostId: string, e: Pick<Entry, 'path' | 'name' | 'modified' | 'size'>): string {
   const ext = previewExtension(e.name);
   return `${hashKey(`${hostId}@${e.path}@${e.modified ?? ''}@${e.size ?? ''}`)}${ext ? `.${ext}` : ''}`;
 }
@@ -45,10 +47,10 @@ function evictIfNeeded(keep: string) {
   try {
     const files = cacheDir().list().filter((f): f is File => f instanceof File && f.uri !== keep && !f.uri.endsWith('.part'));
     let total = files.reduce((n, f) => n + (f.size ?? 0), 0);
-    if (total <= MAX_CACHE_BYTES) return;
+    if (total <= PREVIEW_CACHE_MAX_BYTES) return;
     files.sort((a, b) => (a.modificationTime ?? 0) - (b.modificationTime ?? 0));
     for (const f of files) {
-      if (total <= MAX_CACHE_BYTES * 0.8) break;
+      if (total <= PREVIEW_CACHE_MAX_BYTES * 0.8) break;
       total -= f.size ?? 0;
       f.delete();
     }
@@ -59,6 +61,9 @@ function evictIfNeeded(keep: string) {
 
 const codeOf = (e: unknown) => (typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: unknown }).code) : '');
 
+/** Plain path of a file:// URI, percent-decoded, as the native module takes it. */
+export const localPath = (uri: string) => decodeURIComponent(uri.replace('file://', ''));
+
 /**
  * Fetches a file's bytes to the preview cache through the pinned native client and returns its
  * file:// URI. Refuses up front when the listed size exceeds [maxBytes], and the native side aborts
@@ -67,7 +72,7 @@ const codeOf = (e: unknown) => (typeof e === 'object' && e !== null && 'code' in
 export async function fetchPreviewFile(host: Host, entry: Entry, maxBytes: number, onCancel?: (cancel: () => void) => void): Promise<string> {
   if (entry.size != null && entry.size > maxBytes) throw new TooLargeError(entry.size);
   const file = new File(cacheDir(), previewCacheName(host.id, entry));
-  const nativePath = decodeURIComponent(file.uri.replace('file://', ''));
+  const nativePath = localPath(file.uri);
   if (file.exists) {
     // Already fetched: make sure a pinned folder's file also has its offline copy.
     void keepOfflineCopy(offlineDeps, host, entry, nativePath, false);

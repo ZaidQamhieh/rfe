@@ -9,15 +9,17 @@
 //! agent which chunks it already has and sends only the rest.
 //!
 //! The window never sees a token or a URL: it starts a transfer by remote or local path and polls
-//! `transfer_list`. At most [`PARALLEL`] transfers run at once, the rest wait. The list lives in
+//! `transfer_list`. The person sets how many run at once (`PARALLEL` by default, at most
+//! [`MAX_PARALLEL`]); the rest wait. The list lives in
 //! memory; after a restart the window starts with an empty list (a part file left behind by a crash
 //! stays in the downloads folder under a name starting `.rfe-`).
 
 use crate::agent_client::{
-    network_error, read_json, response_error, AgentClient, AgentError, CLIENT_VERSION,
-    MAX_JSON_BODY,
+    error_of, read_json, AgentClient, AgentError, CLIENT_VERSION, CLIENT_VERSION_HEADER,
+    CODE_CAPABILITY_DENIED, CODE_FORBIDDEN, MAX_JSON_BODY, REQUEST_TIMEOUT,
 };
 use crate::applog;
+use crate::files::{MAX_PAGE, MAX_PATH_BYTES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -37,24 +39,69 @@ pub const PARALLEL: usize = 2;
 pub const MAX_PARALLEL: usize = 8;
 
 const DEFAULT_CHUNK: usize = 8 << 20;
-/// A part file can only be continued when the version it came from is known.
-fn resume_is_unsafe(offset: u64, version: &Option<String>) -> bool {
-    offset > 0 && version.is_none()
-}
-
 /// The most files one folder download may queue.
 const MAX_FOLDER_FILES: usize = 50_000;
+/// The most folders one folder download may walk.
+const MAX_FOLDER_COUNT: usize = 20_000;
 // The most an agent may ask for per chunk: a larger answer would make this side allocate it whole.
 const MAX_SESSION_CHUNK: usize = 32 << 20;
 const DEFAULT_SEGMENT: u64 = 4 << 20;
 /// Upper bounds for one request, so a stalled connection ends; a healthy one never gets near them.
 const SEGMENT_TIMEOUT: Duration = Duration::from_secs(300);
+/// Upper bound for creating an upload session request.
+const SESSION_CREATE_TIMEOUT: Duration = Duration::from_secs(60);
 const CHUNK_TIMEOUT: Duration = Duration::from_secs(600);
 /// The agent hashes the whole file before it answers.
 const HASH_TIMEOUT: Duration = Duration::from_secs(3600);
-const MAX_REMOTE_PATH: usize = 4096;
+/// The most an idle line may save up for a later burst.
+const THROTTLE_WINDOW: Duration = Duration::from_millis(250);
+/// The most numbered copies ("name (2)", "name (3)" ...) a conflicting download may try.
+pub const MAX_NUMBERED_COPIES: u32 = 1000;
 /// The folder under the user's download folder that holds every download.
-pub const FOLDER_NAME: &str = "RFE Desktop";
+pub const FOLDER_NAME: &str = crate::APP_NAME;
+
+/// Bytes per step when hashing a file on disk.
+const HASH_BUF_BYTES: usize = 1 << 20;
+/// The most bytes an agent's checksum answer may take.
+const MAX_CHECKSUM_BODY: usize = 1 << 20;
+/// Longest file name, in bytes, before it is shortened.
+const MAX_NAME_BYTES: usize = 200;
+/// Longest extension, in bytes, that is kept whole when a name is shortened.
+const MAX_EXT_BYTES: usize = 16;
+/// The most names tried when publishing a finished download.
+const MAX_PUBLISH_ATTEMPTS: u32 = 10_000;
+/// With a speed limit, a chunk is this fraction of the limit: a quarter second of data.
+const LIMITED_CHUNK_DIVISOR: u64 = 4;
+/// The smallest chunk a speed-limited upload uses.
+const MIN_LIMITED_CHUNK: usize = 256 << 10;
+/// Times a chunk the agent reports as damaged is sent again before the upload fails.
+const MAX_CHUNK_RESENDS: usize = 2;
+/// Pages walked when checking whether a folder exists on the computer.
+const MAX_FOLDER_PAGES: usize = 500;
+/// Upper bound for the speed limit, in megabits per second.
+const MAX_LIMIT_MBPS: u64 = 10_000;
+/// Bits per second in one megabit per second.
+const BPS_PER_MBPS: u64 = 1_000_000;
+
+const STATUS_OK: u16 = 200;
+const STATUS_CREATED: u16 = 201;
+const STATUS_NO_CONTENT: u16 = 204;
+const STATUS_PARTIAL_CONTENT: u16 = 206;
+const STATUS_NOT_FOUND: u16 = 404;
+const STATUS_METHOD_NOT_ALLOWED: u16 = 405;
+const STATUS_CONFLICT: u16 = 409;
+const STATUS_RANGE_NOT_SATISFIABLE: u16 = 416;
+const STATUS_NOT_IMPLEMENTED: u16 = 501;
+
+const CODE_PATH_NOT_FOUND: &str = "PATH_NOT_FOUND";
+const CODE_READ_ONLY: &str = "READ_ONLY";
+const CODE_CONFLICT: &str = "CONFLICT";
+const CODE_HASH_MISMATCH: &str = "HASH_MISMATCH";
+const CODE_CHUNK_HASH_MISMATCH: &str = "CHUNK_HASH_MISMATCH";
+const CODE_PAYLOAD_TOO_LARGE: &str = "PAYLOAD_TOO_LARGE";
+const CODE_RESOURCE_LIMIT: &str = "RESOURCE_LIMIT";
+const CODE_TRANSFER_ACTIVE: &str = "TRANSFER_ACTIVE";
+const CODE_TRANSFER_NOT_OPEN: &str = "TRANSFER_NOT_OPEN";
 
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
@@ -360,7 +407,7 @@ impl Limiter {
         let wait_until = {
             let mut next = lock(&self.next_free);
             let now = Instant::now();
-            let start = (*next).max(now.checked_sub(Duration::from_millis(250)).unwrap_or(now));
+            let start = (*next).max(now.checked_sub(THROTTLE_WINDOW).unwrap_or(now));
             *next = start + Duration::from_secs_f64(bytes as f64 / bps as f64);
             start
         };
@@ -737,12 +784,7 @@ async fn run(inner: Arc<Inner>, item: Arc<Item>, mut cancel: watch::Receiver<boo
         }
         Some(Err(msg)) if msg == SKIPPED => {
             discard_local(&item);
-            let session = lock(&item.resume).session.take();
-            if let Some(session) = session {
-                if let Ok(conn) = conn_for(&item).await {
-                    delete_session(&conn, &session.id).await;
-                }
-            }
+            delete_taken_session(&item).await;
             item.update(|v| {
                 v.state = State::Cancelled;
                 v.error = SKIPPED.to_string();
@@ -861,20 +903,36 @@ fn discard_local(item: &Item) {
     }
 }
 
-async fn cleanup_cancelled(item: &Item) {
-    discard_local(item);
+/// Takes the item's upload session (if it has one) and asks the agent to delete it.
+async fn delete_taken_session(item: &Item) {
     let session = lock(&item.resume).session.take();
     if let Some(session) = session {
         if let Ok(conn) = conn_for(item).await {
             delete_session(&conn, &session.id).await;
         }
     }
+}
+
+async fn cleanup_cancelled(item: &Item) {
+    discard_local(item);
+    delete_taken_session(item).await;
     item.update(|v| {
         v.state = State::Cancelled;
         v.error.clear();
     });
     applog::info("transfer cancelled");
 }
+
+/// Whole-request limit for the DELETE that ends a transfer session.
+const SESSION_DELETE_TIMEOUT: Duration = Duration::from_secs(10);
+/// How many times a session delete is tried while the agent still answers 409 (a chunk is being read).
+const SESSION_DELETE_ATTEMPTS: usize = 8;
+
+/// The agent's "session busy" status.
+const STATUS_SESSION_BUSY: u16 = 409;
+
+/// Pause before retrying a session delete that the agent answered with 409.
+const SESSION_DELETE_RETRY: Duration = Duration::from_millis(250);
 
 /// Best effort: the agent forgets an upload session that nobody touches for a week anyway.
 async fn delete_session(conn: &Conn, id: &str) {
@@ -883,17 +941,17 @@ async fn delete_session(conn: &Conn, id: &str) {
     };
     let (http, base) = client.transport();
     // A chunk the agent is still reading holds the session for a moment; wait it out.
-    for _ in 0..8 {
+    for _ in 0..SESSION_DELETE_ATTEMPTS {
         let sent = http
             .delete(format!("{base}/transfers/{id}"))
             .bearer_auth(&conn.token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION)
-            .timeout(Duration::from_secs(10))
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
+            .timeout(SESSION_DELETE_TIMEOUT)
             .send()
             .await;
         match sent {
-            Ok(r) if r.status().as_u16() == 409 => {
-                tokio::time::sleep(Duration::from_millis(250)).await
+            Ok(r) if r.status().as_u16() == STATUS_SESSION_BUSY => {
+                tokio::time::sleep(SESSION_DELETE_RETRY).await
             }
             _ => return,
         }
@@ -905,53 +963,68 @@ async fn delete_session(conn: &Conn, id: &str) {
 /// Agent error codes this module words for transfers. A code listed here is shown with this text
 /// instead of the generic one (a refusal to upload is not about managing devices).
 pub const TRANSFER_CODES: &[&str] = &[
-    "PATH_NOT_FOUND",
-    "FORBIDDEN",
-    "READ_ONLY",
-    "CAPABILITY_DENIED",
-    "CONFLICT",
-    "HASH_MISMATCH",
-    "CHUNK_HASH_MISMATCH",
-    "PAYLOAD_TOO_LARGE",
-    "RESOURCE_LIMIT",
-    "TRANSFER_ACTIVE",
-    "TRANSFER_NOT_OPEN",
+    CODE_PATH_NOT_FOUND,
+    CODE_FORBIDDEN,
+    CODE_READ_ONLY,
+    CODE_CAPABILITY_DENIED,
+    CODE_CONFLICT,
+    CODE_HASH_MISMATCH,
+    CODE_CHUNK_HASH_MISMATCH,
+    CODE_PAYLOAD_TOO_LARGE,
+    CODE_RESOURCE_LIMIT,
+    CODE_TRANSFER_ACTIVE,
+    CODE_TRANSFER_NOT_OPEN,
 ];
 
 pub fn transfer_message(code: &str) -> Option<&'static str> {
     Some(match code {
-        "PATH_NOT_FOUND" => {
+        CODE_PATH_NOT_FOUND => {
             "The computer has no file at that path. It may have been moved or deleted."
         }
-        "FORBIDDEN" => {
+        CODE_FORBIDDEN => {
             "This login may not use that path on the computer. It is outside the folders it can reach."
         }
-        "READ_ONLY" => "The agent or this device is read-only, so it cannot accept uploads.",
-        "CAPABILITY_DENIED" => {
+        CODE_READ_ONLY => "The agent or this device is read-only, so it cannot accept uploads.",
+        CODE_CAPABILITY_DENIED => {
             "This device has not been allowed to do that. Allow it on the computer, in the device's access settings."
         }
-        "CONFLICT" => "A file with this name already exists on the computer.",
-        "HASH_MISMATCH" => {
+        CODE_CONFLICT => "A file with this name already exists on the computer.",
+        CODE_HASH_MISMATCH => {
             "The file changed or was damaged while it was uploading. The upload was discarded; try again."
         }
-        "CHUNK_HASH_MISMATCH" => {
+        CODE_CHUNK_HASH_MISMATCH => {
             "A piece of the file was damaged in transit three times in a row. Try again."
         }
-        "PAYLOAD_TOO_LARGE" => "The file is too large for the computer to accept.",
-        "RESOURCE_LIMIT" => {
+        CODE_PAYLOAD_TOO_LARGE => "The file is too large for the computer to accept.",
+        CODE_RESOURCE_LIMIT => {
             "The computer has too many uploads open. Wait for one to finish, then retry."
         }
-        "TRANSFER_ACTIVE" => {
+        CODE_TRANSFER_ACTIVE => {
             "The computer is still finishing the previous attempt. Retry in a moment."
         }
-        "TRANSFER_NOT_OPEN" => {
+        CODE_TRANSFER_NOT_OPEN => {
             "The computer closed this upload. Retry starts it again from the beginning."
         }
         _ => return None,
     })
 }
 
-fn describe(e: &AgentError) -> String {
+#[cfg(test)]
+mod transfer_message_tests {
+    use super::*;
+
+    #[test]
+    fn every_transfer_code_has_a_message() {
+        for code in TRANSFER_CODES {
+            assert!(
+                transfer_message(code).is_some(),
+                "TRANSFER_CODES entry {code} has no transfer_message text"
+            );
+        }
+    }
+}
+
+fn transfer_error_text(e: &AgentError) -> String {
     if let AgentError::Server { code, .. } = e {
         if let Some(text) = transfer_message(code) {
             return text.to_string();
@@ -960,12 +1033,17 @@ fn describe(e: &AgentError) -> String {
     e.to_string()
 }
 
+/// Whether the agent answered with the error `code`.
+fn is_server_code(e: &AgentError, code: &str) -> bool {
+    matches!(e, AgentError::Server { code: c, .. } if c == code)
+}
+
 fn net(e: reqwest::Error) -> String {
-    describe(&network_error(e))
+    transfer_error_text(&crate::agent_client::net(e))
 }
 
 async fn refused(resp: reqwest::Response) -> String {
-    describe(&response_error(resp).await)
+    transfer_error_text(&error_of(resp).await)
 }
 
 // ---- names and paths ----
@@ -975,7 +1053,7 @@ fn validate_remote(path: &str, empty: &str) -> Result<(), String> {
     if path.trim().is_empty() {
         return Err(empty.to_string());
     }
-    if path.contains('\0') || path.len() > MAX_REMOTE_PATH {
+    if path.contains('\0') || path.len() > MAX_PATH_BYTES {
         return Err("that path on the computer is not usable".into());
     }
     Ok(())
@@ -1012,11 +1090,11 @@ pub fn safe_name(remote_path: &str) -> String {
     } else {
         trimmed.to_string()
     };
-    if trimmed.len() <= 200 {
+    if trimmed.len() <= MAX_NAME_BYTES {
         return trimmed.to_string();
     }
     let (stem, ext) = split_ext(trimmed);
-    let keep = 200usize.saturating_sub(ext.len()).max(1);
+    let keep = MAX_NAME_BYTES.saturating_sub(ext.len()).max(1);
     let mut end = keep.min(stem.len());
     while !stem.is_char_boundary(end) {
         end -= 1;
@@ -1037,7 +1115,7 @@ fn is_windows_device(name: &str) -> bool {
 
 fn split_ext(name: &str) -> (&str, &str) {
     match name.rfind('.') {
-        Some(i) if i > 0 && name.len() - i <= 16 => (&name[..i], &name[i..]),
+        Some(i) if i > 0 && name.len() - i <= MAX_EXT_BYTES => (&name[..i], &name[i..]),
         _ => (name, ""),
     }
 }
@@ -1056,22 +1134,20 @@ pub fn numbered_name(name: &str, n: u32) -> String {
 /// has no links), both of which fail instead of replacing what is there, so a file that appears
 /// while the download runs is never overwritten. The part file is removed afterwards.
 pub fn publish_no_clobber(part: &Path, dir: &Path, name: &str) -> std::io::Result<PathBuf> {
-    for n in 0..10_000u32 {
+    for n in 0..MAX_PUBLISH_ATTEMPTS {
         let target = dir.join(numbered_name(name, n));
-        match std::fs::hard_link(part, &target) {
+        let published = match std::fs::hard_link(part, &target) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => copy_exclusive(part, &target),
+        };
+        match published {
             Ok(()) => {
                 let _ = std::fs::remove_file(part);
                 return Ok(target);
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(_) => match copy_exclusive(part, &target) {
-                Ok(()) => {
-                    let _ = std::fs::remove_file(part);
-                    return Ok(target);
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e),
-            },
+            Err(e) => return Err(e),
         }
     }
     Err(std::io::Error::new(
@@ -1173,11 +1249,23 @@ fn ident_of(m: &std::fs::Metadata) -> Ident {
 /// component must not be a symbolic link: a link is refused, never followed, so what is read is
 /// what the user typed. The opened file is compared with what was checked, so a swap in between is
 /// caught.
+fn file_read_error(e: std::io::Error) -> String {
+    format!("cannot read that file: {e}")
+}
+
+fn part_write_error(part: &Path, e: std::io::Error) -> String {
+    format!("cannot write {}: {e}", part.display())
+}
+
+fn part_read_error(part: &Path, e: std::io::Error) -> String {
+    format!("cannot read {}: {e}", part.display())
+}
+
 fn open_source(path: &Path) -> Result<(File, Ident), String> {
     if !path.is_absolute() {
         return Err("give the full path of the file, starting with /".into());
     }
-    let read_error = |e: std::io::Error| format!("cannot read that file: {e}");
+    let read_error = file_read_error;
     let checked = std::fs::symlink_metadata(path).map_err(read_error)?;
     if checked.file_type().is_symlink() {
         return Err("that path is a symbolic link; type the real path of the file".into());
@@ -1214,11 +1302,12 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()
     }
 }
 
-fn hash_reader(mut r: impl Read) -> std::io::Result<String> {
+/// SHA-256 of the bytes `fill` provides: it fills the buffer and returns how many it wrote, 0 at the end.
+fn hash_with(mut fill: impl FnMut(&mut [u8]) -> std::io::Result<usize>) -> std::io::Result<String> {
     let mut h = Sha256::new();
-    let mut buf = vec![0u8; 1 << 20];
+    let mut buf = vec![0u8; HASH_BUF_BYTES];
     loop {
-        let n = r.read(&mut buf)?;
+        let n = fill(&mut buf)?;
         if n == 0 {
             return Ok(hex::encode(h.finalize()));
         }
@@ -1226,17 +1315,18 @@ fn hash_reader(mut r: impl Read) -> std::io::Result<String> {
     }
 }
 
+fn hash_reader(mut r: impl Read) -> std::io::Result<String> {
+    hash_with(|buf| r.read(buf))
+}
+
 fn hash_file_at(file: &File, size: u64) -> std::io::Result<String> {
-    let mut h = Sha256::new();
-    let mut buf = vec![0u8; 1 << 20];
     let mut at = 0u64;
-    while at < size {
+    hash_with(|buf| {
         let n = ((size - at) as usize).min(buf.len());
         read_exact_at(file, &mut buf[..n], at)?;
-        h.update(&buf[..n]);
         at += n as u64;
-    }
-    Ok(hex::encode(h.finalize()))
+        Ok(n)
+    })
 }
 
 async fn blocking<T: Send + 'static>(
@@ -1248,7 +1338,7 @@ async fn blocking<T: Send + 'static>(
 }
 
 fn client_for(conn: &Conn) -> Result<AgentClient, String> {
-    AgentClient::pinned(&conn.host, &conn.fingerprint).map_err(|e| describe(&e))
+    AgentClient::pinned(&conn.host, &conn.fingerprint).map_err(|e| transfer_error_text(&e))
 }
 
 // ---- download ----
@@ -1302,15 +1392,14 @@ fn open_part(part: &Path, truncate: bool) -> Result<File, String> {
         use std::os::unix::fs::OpenOptionsExt;
         o.mode(0o600);
     }
-    o.open(part)
-        .map_err(|e| format!("cannot write {}: {e}", part.display()))
+    o.open(part).map_err(|e| part_write_error(part, e))
 }
 
 fn part_len(part: &Path) -> Result<u64, String> {
     match std::fs::metadata(part) {
         Ok(m) => Ok(m.len()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(e) => Err(format!("cannot read {}: {e}", part.display())),
+        Err(e) => Err(part_read_error(part, e)),
     }
 }
 
@@ -1337,12 +1426,11 @@ async fn append_body(
             return Err("unexpected response: the agent sent more than was asked for".into());
         }
         file.write_all(&chunk)
-            .map_err(|e| format!("cannot write {}: {e}", part.display()))?;
+            .map_err(|e| part_write_error(part, e))?;
         written += chunk.len() as u64;
         item.set_progress(from + written, total);
     }
-    file.flush()
-        .map_err(|e| format!("cannot write {}: {e}", part.display()))?;
+    file.flush().map_err(|e| part_write_error(part, e))?;
     if written != expect {
         return Err("the agent ended the download early".into());
     }
@@ -1366,17 +1454,20 @@ async fn remote_checksum(
         .get(format!("{base}/fs/checksum"))
         .query(&[("path", path), ("algo", "sha256")])
         .bearer_auth(&conn.token)
-        .header("X-RFE-Client-Version", CLIENT_VERSION)
+        .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
         .timeout(HASH_TIMEOUT)
         .send()
         .await
         .map_err(|e| format!("the computer did not answer the check: {e}"))?;
     let status = resp.status();
-    if matches!(status.as_u16(), 404 | 405 | 501) {
+    if matches!(
+        status.as_u16(),
+        STATUS_NOT_FOUND | STATUS_METHOD_NOT_ALLOWED | STATUS_NOT_IMPLEMENTED
+    ) {
         // A 404 can also mean the file itself is gone (PATH_NOT_FOUND); that is a failure, not an agent
         // that predates the check.
         let body = resp.text().await.unwrap_or_default();
-        if body.contains("PATH_NOT_FOUND") {
+        if body.contains(CODE_PATH_NOT_FOUND) {
             return Err("the file is no longer on the computer, so it could not be checked".into());
         }
         return Ok(None);
@@ -1384,20 +1475,26 @@ async fn remote_checksum(
     if !status.is_success() {
         return Err(format!("the computer refused the check ({status})"));
     }
-    read_json::<Sum>(resp, 1 << 20)
+    read_json::<Sum>(resp, MAX_CHECKSUM_BODY)
         .await
         .map(|s| Some(s.checksum))
         .map_err(|_| "the computer's answer to the check was not understood".to_string())
 }
 
-async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
-    let opts = &inner.opts;
-    let Kind::Download { part, name } = &item.kind else {
-        return Err("internal: not a download".into());
-    };
-    // A name that is taken in the downloads folder is settled before any data moves.
+/// A part file can only be continued when the version it came from is known.
+fn resume_is_unsafe(offset: u64, version: &Option<String>) -> bool {
+    offset > 0 && version.is_none()
+}
+
+/// A name that is taken in the downloads folder is settled before any data moves. `None` when the name is free
+/// and no choice was made for it.
+async fn settle_download_name(
+    inner: &Arc<Inner>,
+    item: &Item,
+    name: &str,
+) -> Result<Option<Resolution>, String> {
     let taken = item.ctx.download_dir.join(name);
-    let how = match std::fs::symlink_metadata(&taken) {
+    match std::fs::symlink_metadata(&taken) {
         Ok(m) => {
             let modified_ms = m
                 .modified()
@@ -1411,12 +1508,105 @@ async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
                 modified_text: String::new(),
             };
             match settle_conflict(inner, item, existing).await? {
-                Resolution::Skip => return Err(SKIPPED.into()),
-                how => Some(how),
+                Resolution::Skip => Err(SKIPPED.into()),
+                how => Ok(Some(how)),
             }
         }
-        Err(_) => *lock(&item.resolution),
+        Err(_) => {
+            let how = *lock(&item.resolution);
+            Ok(how)
+        }
+    }
+}
+
+/// The ranged request for the bytes from `offset` on, asking for at most `segment` of them.
+fn segment_request(
+    http: &reqwest::Client,
+    base: &str,
+    conn: &Conn,
+    remote: &str,
+    offset: u64,
+    segment: u64,
+    version: &Option<String>,
+) -> reqwest::RequestBuilder {
+    let mut req = http
+        .get(format!("{base}/content"))
+        .query(&[("path", remote)])
+        .bearer_auth(&conn.token)
+        .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
+        .header("Range", format!("bytes={offset}-{}", offset + segment - 1))
+        // A gzip body would not line up with byte offsets; a ranged request is never gzipped,
+        // and this keeps the first one honest too.
+        .header("Accept-Encoding", "identity")
+        .timeout(SEGMENT_TIMEOUT);
+    // Continuing is only right if the file is the one the first bytes came from; if not, the
+    // agent answers with the whole new file (200) and the part is started over below.
+    if let (true, Some(v)) = (offset > 0, version) {
+        req = req.header("If-Range", v);
+    }
+    req
+}
+
+/// Compares the whole part file with the agent's SHA-256 when `verify` is on. `Ok(false)` when verification is
+/// off, or the agent does not offer a hash to compare with.
+async fn verify_download(
+    part: &Path,
+    verify: bool,
+    http: &reqwest::Client,
+    base: &str,
+    conn: &Conn,
+    remote: &str,
+) -> Result<bool, String> {
+    if !verify {
+        return Ok(false);
+    }
+    let local = {
+        let part = part.to_path_buf();
+        blocking(move || {
+            File::open(&part)
+                .and_then(hash_reader)
+                .map_err(|e| part_read_error(&part, e))
+        })
+        .await?
     };
+    match remote_checksum(http, base, conn, remote).await {
+        Ok(Some(sum)) if sum.eq_ignore_ascii_case(&local) => Ok(true),
+        Ok(Some(_)) => {
+            let _ = std::fs::remove_file(part);
+            Err("The downloaded copy does not match the file on the computer. It was discarded; start it again.".into())
+        }
+        Ok(None) => Ok(false),
+        Err(why) => Err(format!(
+            "The download could not be checked against the computer: {why}. Retry it, or turn off verification."
+        )),
+    }
+}
+
+/// Puts the finished part file under `name` in the downloads folder: replacing the old file, or keeping it and
+/// taking a new name. Returns the final path.
+async fn place_download(
+    part: &Path,
+    dir: &Path,
+    name: &str,
+    how: Option<Resolution>,
+) -> Result<PathBuf, String> {
+    let (part, dir, name) = (part.to_path_buf(), dir.to_path_buf(), name.to_string());
+    blocking(move || {
+        let placed = match how {
+            Some(Resolution::Replace) => replace_file(&part, &dir, &name),
+            _ => publish_no_clobber(&part, &dir, &name),
+        };
+        placed.map_err(|e| format!("the downloaded file could not be put in place: {e}"))
+    })
+    .await
+}
+
+async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
+    let opts = &inner.opts;
+    let Kind::Download { part, name } = &item.kind else {
+        return Err("internal: not a download".into());
+    };
+    let how = settle_download_name(inner, item, name).await?;
     let verify = inner.prefs.verify.load(Ordering::SeqCst);
     let conn = conn_for(item).await?;
     let client = client_for(&conn)?;
@@ -1431,38 +1621,25 @@ async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
     // be continued safely: start over rather than append a changed file onto them (audit F-142). Checked once,
     // before the first request, so a server that never sends a validator is not restarted after every segment.
     if resume_is_unsafe(part_len(part)?, &version) {
-        std::fs::File::create(part)
-            .map_err(|e| format!("cannot restart {}: {e}", part.display()))?;
+        open_part(part, true)?;
     }
     loop {
         let offset = part_len(part)?;
         if total.is_some_and(|t| offset >= t) {
             break;
         }
-        let mut req = http
-            .get(format!("{base}/content"))
-            .query(&[("path", remote.as_str())])
-            .bearer_auth(&conn.token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION)
-            .header("Range", format!("bytes={offset}-{}", offset + segment - 1))
-            // A gzip body would not line up with byte offsets; a ranged request is never gzipped,
-            // and this keeps the first one honest too.
-            .header("Accept-Encoding", "identity")
-            .timeout(SEGMENT_TIMEOUT);
-        // Continuing is only right if the file is the one the first bytes came from; if not, the
-        // agent answers with the whole new file (200) and the part is started over below.
-        if let (true, Some(v)) = (offset > 0, &version) {
-            req = req.header("If-Range", v);
-        }
-        let resp = req.send().await.map_err(net)?;
+        let resp = segment_request(http, base, &conn, &remote, offset, segment, &version)
+            .send()
+            .await
+            .map_err(net)?;
         // A response that starts at byte 0 says which version the part file will hold.
-        let first_bytes = offset == 0 || resp.status().as_u16() == 200;
+        let first_bytes = offset == 0 || resp.status().as_u16() == STATUS_OK;
         if first_bytes {
             version = validator(resp.headers());
             lock(&item.resume).remote_version = version.clone();
         }
         match resp.status().as_u16() {
-            206 => {
+            STATUS_PARTIAL_CONTENT => {
                 let (first, last, size) = parse_content_range(resp.headers())
                     .ok_or("unexpected response: the agent sent a range this app cannot read")?;
                 if first != offset {
@@ -1482,7 +1659,7 @@ async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
                 )
                 .await?;
             }
-            200 => {
+            STATUS_OK => {
                 // The agent ignored the range: it sent the whole file (an empty one, always).
                 let size = resp
                     .content_length()
@@ -1494,7 +1671,7 @@ async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
                     break;
                 }
             }
-            416 => match parse_unsatisfied(resp.headers()) {
+            STATUS_RANGE_NOT_SATISFIABLE => match parse_unsatisfied(resp.headers()) {
                 Some(size) if size == offset => {
                     total = Some(size);
                 }
@@ -1512,41 +1689,8 @@ async fn download(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
     // Whole. Compare with what the agent has before the file gets a real name.
     let size = total.unwrap_or(0);
     item.set_progress(size, size);
-    let verified = if verify {
-        let local = {
-            let part = part.clone();
-            blocking(move || {
-                File::open(&part)
-                    .and_then(hash_reader)
-                    .map_err(|e| format!("cannot read {}: {e}", part.display()))
-            })
-            .await?
-        };
-        match remote_checksum(http, base, &conn, &remote).await {
-            Ok(Some(sum)) if sum.eq_ignore_ascii_case(&local) => true,
-            Ok(Some(_)) => {
-                let _ = std::fs::remove_file(part);
-                return Err("The downloaded copy does not match the file on the computer. It was discarded; start it again.".into());
-            }
-            Ok(None) => false,
-            Err(why) => {
-                return Err(format!(
-                    "The download could not be checked against the computer: {why}. Retry it, or turn off verification."
-                ));
-            }
-        }
-    } else {
-        false
-    };
-    let (part, dir, name) = (part.clone(), item.ctx.download_dir.clone(), name.clone());
-    let final_path = blocking(move || {
-        let placed = match how {
-            Some(Resolution::Replace) => replace_file(&part, &dir, &name),
-            _ => publish_no_clobber(&part, &dir, &name),
-        };
-        placed.map_err(|e| format!("the downloaded file could not be put in place: {e}"))
-    })
-    .await?;
+    let verified = verify_download(part, verify, http, base, &conn, &remote).await?;
+    let final_path = place_download(part, &item.ctx.download_dir, name, how).await?;
     item.update(|v| {
         v.name = final_path
             .file_name()
@@ -1586,7 +1730,7 @@ fn bad_session(b: &SessionBody, size: u64) -> bool {
 
 fn authed(rb: reqwest::RequestBuilder, conn: &Conn) -> reqwest::RequestBuilder {
     rb.bearer_auth(&conn.token)
-        .header("X-RFE-Client-Version", CLIENT_VERSION)
+        .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
 }
 
 /// `name (1)`-style numbering for a path on the computer, in the style of the path's own separators.
@@ -1619,7 +1763,7 @@ async fn remote_existing(
     };
     let Ok(resp) = authed(http.get(format!("{base}/fs/meta")), conn)
         .query(&[("path", path)])
-        .timeout(Duration::from_secs(30))
+        .timeout(REQUEST_TIMEOUT)
         .send()
         .await
     else {
@@ -1639,8 +1783,276 @@ async fn remote_existing(
     }
 }
 
-async fn upload(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
+/// What an earlier attempt's saved session still offers.
+enum SavedSession {
+    /// Nothing usable: a new session is opened.
+    Fresh,
+    /// The agent still has the session open; these chunks are already there.
+    Open(Session, HashSet<usize>),
+    /// The agent has the whole file already.
+    Completed,
+}
+
+/// Checks the saved session from an earlier attempt, for the same file, and closes a stale one on the agent.
+async fn reuse_saved(
+    item: &Item,
+    conn: &Conn,
+    http: &reqwest::Client,
+    base: &str,
+    ident: &Ident,
+) -> Result<SavedSession, String> {
+    // Is the session from an earlier attempt still good, and for the same file? One for a file
+    // that has changed since is of no use and would sit on the agent (with its temporary file), so
+    // it is closed there before a new one is opened.
+    let (saved, stale) = {
+        let mut r = lock(&item.resume);
+        match (r.session.clone(), &r.ident) {
+            (Some(s), Some(i)) if i == ident => (Some(s), None),
+            (Some(s), _) => {
+                r.session = None;
+                (None, Some(s))
+            }
+            _ => (None, None),
+        }
+    };
+    if let Some(s) = stale {
+        delete_session(conn, &s.id).await;
+    }
+    let Some(s) = saved else {
+        return Ok(SavedSession::Fresh);
+    };
+    let resp = authed(http.get(format!("{base}/transfers/{}", s.id)), conn)
+        .timeout(REQUEST_TIMEOUT)
+        .send()
+        .await
+        .map_err(net)?;
+    match resp.status().as_u16() {
+        STATUS_OK => {
+            let body: SessionBody = read_json(resp, MAX_JSON_BODY)
+                .await
+                .map_err(|e| e.to_string())?;
+            match body.status.as_str() {
+                "open" => {
+                    if body.received_chunks.iter().any(|&n| n >= s.total_chunks) {
+                        // The saved session is not trustworthy; forget it so a retry starts a fresh
+                        // one instead of failing the same way every time (audit F-88).
+                        lock(&item.resume).session = None;
+                        return Err(
+                            "unexpected response: the agent listed a chunk this upload does not have"
+                                .into(),
+                        );
+                    }
+                    let have = body.received_chunks.into_iter().collect();
+                    Ok(SavedSession::Open(s, have))
+                }
+                "completed" => {
+                    lock(&item.resume).session = None;
+                    Ok(SavedSession::Completed)
+                }
+                _ => Ok(SavedSession::Fresh),
+            }
+        }
+        STATUS_NOT_FOUND => Ok(SavedSession::Fresh),
+        _ => Err(refused(resp).await),
+    }
+}
+
+/// Opens a new upload session on the computer: hashes the file, settles a taken name, and records the session
+/// in the item's resume state. The chunk size shrinks under a speed limit, so the data moves evenly.
+#[allow(clippy::too_many_arguments)]
+async fn open_session(
+    inner: &Arc<Inner>,
+    item: &Item,
+    conn: &mut Conn,
+    remote_path: &mut String,
+    http: &reqwest::Client,
+    base: &str,
+    file: &Arc<File>,
+    size: u64,
+    ident: &Ident,
+) -> Result<Session, String> {
     let opts = &inner.opts;
+    lock(&item.resume).session = None;
+    item.set_progress(0, size);
+    let sha256 = {
+        let file = file.clone();
+        blocking(move || hash_file_at(&file, size).map_err(file_read_error)).await?
+    };
+    // With a small limit the chunks are small too, so the data moves evenly and not in
+    // bursts of seconds. The chunk size is fixed when the session opens.
+    let limit = inner.prefs.limit_bps.load(Ordering::SeqCst);
+    let chunk_size = if limit == 0 {
+        opts.chunk_size
+    } else {
+        ((limit / LIMITED_CHUNK_DIVISOR) as usize)
+            .max(MIN_LIMITED_CHUNK)
+            .min(opts.chunk_size)
+    };
+    let mut how = *lock(&item.resolution);
+    let mut copy = 0u32;
+    let body = loop {
+        let resp = authed(http.post(format!("{base}/transfers")), conn)
+            .json(&serde_json::json!({
+                "path": remote_path,
+                "size": size,
+                "sha256": sha256,
+                "chunkSize": chunk_size,
+                "overwrite": how == Some(Resolution::Replace),
+            }))
+            .timeout(SESSION_CREATE_TIMEOUT)
+            .send()
+            .await
+            .map_err(net)?;
+        if resp.status().as_u16() == STATUS_CREATED {
+            break read_json::<SessionBody>(resp, MAX_JSON_BODY)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        let e = error_of(resp).await;
+        if !is_server_code(&e, CODE_CONFLICT) {
+            return Err(transfer_error_text(&e));
+        }
+        // The name is taken on the computer.
+        let existing = remote_existing(http, base, conn, remote_path).await;
+        match settle_conflict(inner, item, existing).await? {
+            Resolution::Skip => return Err(SKIPPED.into()),
+            Resolution::Replace => how = Some(Resolution::Replace),
+            Resolution::Both => {
+                how = Some(Resolution::Both);
+                copy += 1;
+                if copy > MAX_NUMBERED_COPIES {
+                    return Err("every numbered name on the computer is taken".into());
+                }
+                let base_path = item.snapshot().remote_path;
+                *remote_path = numbered_remote(&base_path, copy);
+                let shown = remote_path.clone();
+                item.update(|v| {
+                    v.name = shown
+                        .rsplit(['/', '\\'])
+                        .next()
+                        .unwrap_or_default()
+                        .to_string();
+                });
+            }
+        }
+        // The answer may have taken a while: use the login as it is now.
+        *conn = conn_for(item).await?;
+    };
+    if bad_session(&body, size) {
+        return Err("unexpected response: the agent sent a session this app cannot use".into());
+    }
+    let s = Session {
+        id: body.id,
+        chunk_size: body.chunk_size,
+        total_chunks: body.total_chunks,
+    };
+    let mut r = lock(&item.resume);
+    r.session = Some(s.clone());
+    r.ident = Some(ident.clone());
+    Ok(s)
+}
+
+/// Reads `len` bytes of the source file at `at` and returns them with their SHA-256 in hex.
+async fn read_chunk(file: &Arc<File>, at: u64, len: usize) -> Result<(Vec<u8>, String), String> {
+    let file = file.clone();
+    blocking(move || {
+        let mut buf = vec![0u8; len];
+        read_exact_at(&file, &mut buf, at).map_err(file_read_error)?;
+        let sum = hex::encode(Sha256::digest(&buf));
+        Ok((buf, sum))
+    })
+    .await
+}
+
+/// Sends one chunk, resending it while the agent reports it damaged in transit, and holds it to the speed limit.
+async fn send_chunk(
+    inner: &Inner,
+    http: &reqwest::Client,
+    conn: &Conn,
+    url: &str,
+    sum: &str,
+    data: &[u8],
+) -> Result<(), String> {
+    let mut damaged = 0;
+    loop {
+        // The speed limit: this piece reserves its time on the shared line first.
+        let limit = inner.prefs.limit_bps.load(Ordering::Relaxed);
+        inner.limiter.take(limit, data.len()).await;
+        let resp = authed(http.put(url), conn)
+            .header("X-Chunk-Sha256", sum)
+            .header("Content-Type", "application/octet-stream")
+            .body(data.to_vec())
+            .timeout(CHUNK_TIMEOUT)
+            .send()
+            .await
+            .map_err(net)?;
+        match resp.status().as_u16() {
+            STATUS_NO_CONTENT => return Ok(()),
+            STATUS_CONFLICT if damaged < MAX_CHUNK_RESENDS => {
+                let e = error_of(resp).await;
+                if is_server_code(&e, CODE_CHUNK_HASH_MISMATCH) {
+                    damaged += 1;
+                    continue;
+                }
+                return Err(transfer_error_text(&e));
+            }
+            _ => return Err(refused(resp).await),
+        }
+    }
+}
+
+/// Every chunk is there: the agent hashes the whole file and renames it into place. Then the session is let go.
+async fn complete_upload(
+    item: &Item,
+    http: &reqwest::Client,
+    base: &str,
+    conn: &Conn,
+    session_id: &str,
+    size: u64,
+) -> Result<(), String> {
+    item.set_progress(size, size);
+    let resp = authed(
+        http.post(format!("{base}/transfers/{session_id}/complete")),
+        conn,
+    )
+    .timeout(HASH_TIMEOUT)
+    .send()
+    .await
+    .map_err(net)?;
+    if !resp.status().is_success() {
+        let e = error_of(resp).await;
+        if is_server_code(&e, CODE_HASH_MISMATCH) || is_server_code(&e, CODE_TRANSFER_NOT_OPEN) {
+            // The agent closed this session; the next attempt must open a new one.
+            lock(&item.resume).session = None;
+        }
+        if is_server_code(&e, CODE_CONFLICT) {
+            // Something took the name while the file was on its way. Retire the session, so the
+            // next attempt opens a new one and settles the name by the conflict choice again.
+            lock(&item.resume).session = None;
+            delete_session(conn, session_id).await;
+        }
+        return Err(transfer_error_text(&e));
+    }
+    #[derive(Deserialize, Default)]
+    #[serde(default)]
+    struct Done {
+        verified: bool,
+    }
+    // Read through the same size cap as every other agent answer: a pinned agent that never ends a 200 body
+    // must not grow memory without limit (audit F-150).
+    // A completed upload whose answer cannot be read is kept, but shown as not verified.
+    let done: Done = read_json(resp, MAX_JSON_BODY).await.unwrap_or_else(|e| {
+        applog::info(&format!(
+            "upload finished; the verification answer was unreadable ({e})"
+        ));
+        Done::default()
+    });
+    lock(&item.resume).session = None;
+    item.update(|v| v.verified = done.verified);
+    Ok(())
+}
+
+async fn upload(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
     let Kind::Upload { src, .. } = &item.kind else {
         return Err("internal: not an upload".into());
     };
@@ -1654,148 +2066,27 @@ async fn upload(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
     let size = ident.size;
     item.set_progress(0, size);
 
-    // Is the session from an earlier attempt still good, and for the same file? One for a file
-    // that has changed since is of no use and would sit on the agent (with its temporary file), so
-    // it is closed there before a new one is opened.
-    let (saved, stale) = {
-        let mut r = lock(&item.resume);
-        match (r.session.clone(), &r.ident) {
-            (Some(s), Some(i)) if *i == ident => (Some(s), None),
-            (Some(s), _) => {
-                r.session = None;
-                (None, Some(s))
-            }
-            _ => (None, None),
+    let (session, have) = match reuse_saved(item, &conn, http, base, &ident).await? {
+        SavedSession::Completed => {
+            item.set_progress(size, size);
+            item.update(|v| v.verified = true);
+            return Ok(());
         }
-    };
-    if let Some(s) = stale {
-        delete_session(&conn, &s.id).await;
-    }
-    let mut have: HashSet<usize> = HashSet::new();
-    let mut session = None;
-    if let Some(s) = saved {
-        let resp = authed(http.get(format!("{base}/transfers/{}", s.id)), &conn)
-            .timeout(Duration::from_secs(30))
-            .send()
-            .await
-            .map_err(net)?;
-        match resp.status().as_u16() {
-            200 => {
-                let body: SessionBody = read_json(resp, MAX_JSON_BODY)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                match body.status.as_str() {
-                    "open" => {
-                        if body.received_chunks.iter().any(|&n| n >= s.total_chunks) {
-                            // The saved session is not trustworthy; forget it so a retry starts a fresh
-                            // one instead of failing the same way every time (audit F-88).
-                            lock(&item.resume).session = None;
-                            return Err(
-                                "unexpected response: the agent listed a chunk this upload does not have"
-                                    .into(),
-                            );
-                        }
-                        have = body.received_chunks.into_iter().collect();
-                        session = Some(s);
-                    }
-                    "completed" => {
-                        lock(&item.resume).session = None;
-                        item.set_progress(size, size);
-                        item.update(|v| v.verified = true);
-                        return Ok(());
-                    }
-                    _ => {}
-                }
-            }
-            404 => {}
-            _ => return Err(refused(resp).await),
-        }
-    }
-
-    let session = match session {
-        Some(s) => s,
-        None => {
-            lock(&item.resume).session = None;
-            item.set_progress(0, size);
-            let sha256 = {
-                let file = file.clone();
-                blocking(move || {
-                    hash_file_at(&file, size).map_err(|e| format!("cannot read that file: {e}"))
-                })
-                .await?
-            };
-            // With a small limit the chunks are small too, so the data moves evenly and not in
-            // bursts of seconds. The chunk size is fixed when the session opens.
-            let limit = inner.prefs.limit_bps.load(Ordering::SeqCst);
-            let chunk_size = if limit == 0 {
-                opts.chunk_size
-            } else {
-                ((limit / 4) as usize).clamp(256 << 10, opts.chunk_size)
-            };
-            let mut how = *lock(&item.resolution);
-            let mut copy = 0u32;
-            let body = loop {
-                let resp = authed(http.post(format!("{base}/transfers")), &conn)
-                    .json(&serde_json::json!({
-                        "path": remote_path,
-                        "size": size,
-                        "sha256": sha256,
-                        "chunkSize": chunk_size,
-                        "overwrite": how == Some(Resolution::Replace),
-                    }))
-                    .timeout(Duration::from_secs(60))
-                    .send()
-                    .await
-                    .map_err(net)?;
-                if resp.status().as_u16() == 201 {
-                    break read_json::<SessionBody>(resp, MAX_JSON_BODY)
-                        .await
-                        .map_err(|e| e.to_string())?;
-                }
-                let e = response_error(resp).await;
-                if !matches!(&e, AgentError::Server { code, .. } if code == "CONFLICT") {
-                    return Err(describe(&e));
-                }
-                // The name is taken on the computer.
-                let existing = remote_existing(http, base, &conn, &remote_path).await;
-                match settle_conflict(inner, item, existing).await? {
-                    Resolution::Skip => return Err(SKIPPED.into()),
-                    Resolution::Replace => how = Some(Resolution::Replace),
-                    Resolution::Both => {
-                        how = Some(Resolution::Both);
-                        copy += 1;
-                        if copy > 1000 {
-                            return Err("every numbered name on the computer is taken".into());
-                        }
-                        let base_path = item.snapshot().remote_path;
-                        remote_path = numbered_remote(&base_path, copy);
-                        let shown = remote_path.clone();
-                        item.update(|v| {
-                            v.name = shown
-                                .rsplit(['/', '\\'])
-                                .next()
-                                .unwrap_or_default()
-                                .to_string();
-                        });
-                    }
-                }
-                // The answer may have taken a while: use the login as it is now.
-                conn = conn_for(item).await?;
-            };
-            if bad_session(&body, size) {
-                return Err(
-                    "unexpected response: the agent sent a session this app cannot use".into(),
-                );
-            }
-            let s = Session {
-                id: body.id,
-                chunk_size: body.chunk_size,
-                total_chunks: body.total_chunks,
-            };
-            let mut r = lock(&item.resume);
-            r.session = Some(s.clone());
-            r.ident = Some(ident.clone());
-            s
+        SavedSession::Open(s, have) => (s, have),
+        SavedSession::Fresh => {
+            let s = open_session(
+                inner,
+                item,
+                &mut conn,
+                &mut remote_path,
+                http,
+                base,
+                &file,
+                size,
+                &ident,
+            )
+            .await?;
+            (s, HashSet::new())
         }
     };
 
@@ -1811,48 +2102,10 @@ async fn upload(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
             continue;
         }
         let len = chunk_len(n) as usize;
-        let (data, sum) = {
-            let file = file.clone();
-            let at = n as u64 * session.chunk_size as u64;
-            blocking(move || {
-                let mut buf = vec![0u8; len];
-                read_exact_at(&file, &mut buf, at)
-                    .map_err(|e| format!("cannot read that file: {e}"))?;
-                let sum = hex::encode(Sha256::digest(&buf));
-                Ok((buf, sum))
-            })
-            .await?
-        };
-        let mut damaged = 0;
-        loop {
-            // The speed limit: this piece reserves its time on the shared line first.
-            let limit = inner.prefs.limit_bps.load(Ordering::Relaxed);
-            inner.limiter.take(limit, len).await;
-            let resp = authed(
-                http.put(format!("{base}/transfers/{}/chunks/{n}", session.id)),
-                &conn,
-            )
-            .header("X-Chunk-Sha256", &sum)
-            .header("Content-Type", "application/octet-stream")
-            .body(data.clone())
-            .timeout(CHUNK_TIMEOUT)
-            .send()
-            .await
-            .map_err(net)?;
-            match resp.status().as_u16() {
-                204 => break,
-                409 if damaged < 2 => {
-                    let e = response_error(resp).await;
-                    if matches!(&e, AgentError::Server { code, .. } if code == "CHUNK_HASH_MISMATCH")
-                    {
-                        damaged += 1;
-                        continue;
-                    }
-                    return Err(describe(&e));
-                }
-                _ => return Err(refused(resp).await),
-            }
-        }
+        let at = n as u64 * session.chunk_size as u64;
+        let (data, sum) = read_chunk(&file, at, len).await?;
+        let url = format!("{base}/transfers/{}/chunks/{n}", session.id);
+        send_chunk(inner, http, &conn, &url, &sum, &data).await?;
         sent += len as u64;
         item.set_progress(sent, size);
     }
@@ -1862,42 +2115,7 @@ async fn upload(inner: &Arc<Inner>, item: &Item) -> Result<(), String> {
         Ok(m) if ident_of(&m) == ident => {}
         _ => return Err("That file changed while it was being sent. Send it again.".into()),
     }
-    // Every chunk is there: the agent hashes the whole file and renames it into place.
-    item.set_progress(size, size);
-    let resp = authed(
-        http.post(format!("{base}/transfers/{}/complete", session.id)),
-        &conn,
-    )
-    .timeout(HASH_TIMEOUT)
-    .send()
-    .await
-    .map_err(net)?;
-    if !resp.status().is_success() {
-        let e = response_error(resp).await;
-        if matches!(&e, AgentError::Server { code, .. } if code == "HASH_MISMATCH" || code == "TRANSFER_NOT_OPEN")
-        {
-            // The agent closed this session; the next attempt must open a new one.
-            lock(&item.resume).session = None;
-        }
-        if matches!(&e, AgentError::Server { code, .. } if code == "CONFLICT") {
-            // Something took the name while the file was on its way. Retire the session, so the
-            // next attempt opens a new one and settles the name by the conflict choice again.
-            lock(&item.resume).session = None;
-            delete_session(&conn, &session.id).await;
-        }
-        return Err(describe(&e));
-    }
-    #[derive(Deserialize, Default)]
-    #[serde(default)]
-    struct Done {
-        verified: bool,
-    }
-    // Read through the same size cap as every other agent answer: a pinned agent that never ends a 200 body
-    // must not grow memory without limit (audit F-150).
-    let done: Done = read_json(resp, MAX_JSON_BODY).await.unwrap_or_default();
-    lock(&item.resume).session = None;
-    item.update(|v| v.verified = done.verified);
-    Ok(())
+    complete_upload(item, http, base, &conn, &session.id, size).await
 }
 
 // ---- the app's side: credentials and the downloads folder ----
@@ -1932,10 +2150,60 @@ pub fn download_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     default_download_folder(app)
 }
 
+/// Shown when the window names a download folder that is not an absolute path, or is not inside
+/// the person's home folder or Downloads folder.
+const DEST_OUTSIDE_ALLOWED: &str = "Downloads can only be saved in a folder inside your home folder or your Downloads folder, so nothing was downloaded.";
+
+/// Checks a download folder the window named. The folder must be an absolute path, and once
+/// symlinks and `..` are resolved it must lie inside one of `allowed` (also resolved). Returns the
+/// resolved folder, `None` when it is not an existing folder (the caller then falls back to the
+/// usual one), or an error when it points anywhere else.
+fn check_dest_dir(dir: &Path, allowed: &[PathBuf]) -> Result<Option<PathBuf>, String> {
+    if !dir.is_absolute() {
+        return Err(DEST_OUTSIDE_ALLOWED.into());
+    }
+    let Ok(real) = std::fs::canonicalize(dir) else {
+        return Ok(None);
+    };
+    if !real.is_dir() {
+        return Ok(None);
+    }
+    let inside = allowed
+        .iter()
+        .filter_map(|root| std::fs::canonicalize(root).ok())
+        .any(|root| real.starts_with(root));
+    if inside {
+        Ok(Some(real))
+    } else {
+        Err(DEST_OUTSIDE_ALLOWED.into())
+    }
+}
+
+/// The folders a window-named download folder may lie in: the user's home and Downloads folders.
+fn allowed_download_roots(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    use tauri::Manager;
+    let paths = app.path();
+    [paths.home_dir(), paths.download_dir()]
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect()
+}
+
 /// Where this download goes: the usual folder, or (when the window asks to ask) one the person
 /// picks now in the system's folder dialog.
-async fn download_target(app: &tauri::AppHandle, ask_where: bool) -> Result<PathBuf, String> {
+async fn download_target(
+    app: &tauri::AppHandle,
+    ask_where: bool,
+    dest_dir: Option<&str>,
+) -> Result<PathBuf, String> {
     if !ask_where {
+        // The folder chosen for one computer wins while it still exists; otherwise the general one.
+        // The window names it, so it must lie inside the home or Downloads folder.
+        if let Some(d) = dest_dir.filter(|d| !d.is_empty()) {
+            if let Some(real) = check_dest_dir(Path::new(d), &allowed_download_roots(app))? {
+                return Ok(real);
+            }
+        }
         return download_folder(app);
     }
     let start = download_folder(app).ok().map(|p| p.display().to_string());
@@ -1982,12 +2250,11 @@ pub async fn reset_download_folder(app: tauri::AppHandle) -> Result<String, Stri
 /// `host` scopes the login to one saved host (`host:port`); `None` is the active session. The
 /// transfer keeps it, so switching the active host never sends a transfer to another agent.
 pub fn saved_login(data_dir: PathBuf, host: Option<String>) -> Creds {
-    use crate::secrets::Offloaded;
     Arc::new(move || {
         let dir = data_dir.clone();
         let host = host.clone();
         Box::pin(async move {
-            let saved = Offloaded::os_keystore()
+            let saved = crate::keystore()
                 .scoped(host)
                 .run(move |s| crate::flows::load_saved(&dir, s))
                 .await?;
@@ -2031,7 +2298,7 @@ pub async fn transfer_download(
     remote_path: String,
     ask_where: Option<bool>,
 ) -> Result<String, String> {
-    let folder = download_target(&app, ask_where.unwrap_or(false)).await?;
+    let folder = download_target(&app, ask_where.unwrap_or(false), None).await?;
     state
         .start_download(app_ctx_in(&app, host, folder)?, &remote_path)
         .await
@@ -2071,11 +2338,8 @@ pub async fn transfer_upload_tree(
     if items.is_empty() && folders.is_empty() {
         return Err("that folder holds no files to upload".into());
     }
-    let dir = {
-        use tauri::Manager;
-        app.path().app_data_dir().map_err(|e| e.to_string())?
-    };
-    let store = crate::secrets::Offloaded::os_keystore().scoped(host.clone());
+    let dir = crate::data_dir(&app)?;
+    let store = crate::keystore().scoped(host.clone());
     // Each folder of the tree, empty ones too, shallowest first. One that already exists is fine.
     for rel in &folders {
         let (up, step) = match rel.rsplit_once('/') {
@@ -2120,8 +2384,8 @@ async fn folder_exists(
     step: &str,
 ) -> bool {
     let mut cursor: Option<String> = None;
-    for _ in 0..500 {
-        let Ok(page) = crate::files::list(dir, store, up, cursor.as_deref(), Some(1000)).await
+    for _ in 0..MAX_FOLDER_PAGES {
+        let Ok(page) = crate::files::list(dir, store, up, cursor.as_deref(), Some(MAX_PAGE)).await
         else {
             return false;
         };
@@ -2164,20 +2428,18 @@ pub async fn transfer_download_tree(
     remote_path: String,
     is_dir: bool,
     ask_where: Option<bool>,
+    dest_dir: Option<String>,
 ) -> Result<Vec<String>, String> {
     validate_remote(&remote_path, "enter the path of the file on the computer")?;
-    let base = download_target(&app, ask_where.unwrap_or(false)).await?;
+    let base = download_target(&app, ask_where.unwrap_or(false), dest_dir.as_deref()).await?;
     if !is_dir {
         let id = state
             .start_download(app_ctx_in(&app, host, base)?, &remote_path)
             .await?;
         return Ok(vec![id]);
     }
-    let dir = {
-        use tauri::Manager;
-        app.path().app_data_dir().map_err(|e| e.to_string())?
-    };
-    let store = crate::secrets::Offloaded::os_keystore().scoped(host.clone());
+    let dir = crate::data_dir(&app)?;
+    let store = crate::keystore().scoped(host.clone());
     let top = safe_name(&remote_path);
     // (remote folder, its path under the downloads folder)
     let mut stack = vec![(remote_path.clone(), top)];
@@ -2191,9 +2453,10 @@ pub async fn transfer_download_tree(
                 .map_err(|e| format!("cannot create {}: {e}", here.display()))?;
             let mut cursor: Option<String> = None;
             loop {
-                let page = crate::files::list(&dir, &store, &folder, cursor.as_deref(), Some(1000))
-                    .await
-                    .map_err(|e| crate::files::user_message(&e))?;
+                let page =
+                    crate::files::list(&dir, &store, &folder, cursor.as_deref(), Some(MAX_PAGE))
+                        .await
+                        .map_err(|e| crate::files::user_message(&e))?;
                 for e in page.entries {
                     if e.is_dir {
                         // A link to a folder may point back up the tree: it is not followed.
@@ -2217,7 +2480,7 @@ pub async fn transfer_download_tree(
                 }
             }
             folders += 1;
-            if folders > 20_000 || ids.len() > MAX_FOLDER_FILES {
+            if folders > MAX_FOLDER_COUNT || ids.len() > MAX_FOLDER_FILES {
                 return Err("that folder holds too many files to download at once".into());
             }
         }
@@ -2239,7 +2502,12 @@ pub async fn transfer_set_prefs(
     verify: bool,
 ) -> Result<(), String> {
     let policy = Policy::parse(&on_conflict).ok_or("that is not a way to settle a taken name")?;
-    state.set_prefs(parallel, limit_mbps.min(10_000) * 1_000_000, policy, verify);
+    state.set_prefs(
+        parallel,
+        limit_mbps.min(MAX_LIMIT_MBPS) * BPS_PER_MBPS,
+        policy,
+        verify,
+    );
     Ok(())
 }
 
@@ -2366,6 +2634,13 @@ mod checksum_tests {
     }
 
     #[tokio::test]
+    async fn a_404_that_says_the_file_is_gone_is_an_error_not_unverified() {
+        let body: &'static str =
+            Box::leak(format!(r#"{{"code":"{CODE_PATH_NOT_FOUND}"}}"#).into_boxed_str());
+        assert!(ask("404 Not Found", body).await.is_err());
+    }
+
+    #[tokio::test]
     async fn a_failed_or_garbled_check_is_an_error_not_unverified() {
         assert!(ask("500 Internal Server Error", "{}").await.is_err());
         assert!(ask("200 OK", "not json").await.is_err());
@@ -2374,7 +2649,30 @@ mod checksum_tests {
 
 #[cfg(test)]
 mod resume_tests {
-    use super::resume_is_unsafe;
+    use super::{resume_is_unsafe, validator};
+    use reqwest::header::{HeaderMap, HeaderValue, ETAG, LAST_MODIFIED};
+
+    fn headers(pairs: &[(reqwest::header::HeaderName, &'static str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(k.clone(), HeaderValue::from_static(v));
+        }
+        h
+    }
+
+    const STRONG_TAG: &str = "\"abc\"";
+    const WEAK_TAG: &str = "W/\"abc\"";
+    const MODIFIED: &str = "Wed, 21 Oct 2026 07:28:00 GMT";
+
+    #[test]
+    fn a_strong_etag_wins_and_a_weak_one_falls_back_to_last_modified() {
+        let both = headers(&[(ETAG, STRONG_TAG), (LAST_MODIFIED, MODIFIED)]);
+        assert_eq!(validator(&both).as_deref(), Some(STRONG_TAG));
+        let weak = headers(&[(ETAG, WEAK_TAG), (LAST_MODIFIED, MODIFIED)]);
+        assert_eq!(validator(&weak).as_deref(), Some(MODIFIED));
+        assert_eq!(validator(&headers(&[(ETAG, WEAK_TAG)])), None);
+        assert_eq!(validator(&HeaderMap::new()), None);
+    }
 
     #[test]
     fn bytes_without_a_known_version_are_not_continued() {
@@ -2396,5 +2694,80 @@ mod non_utf8_tests {
         std::fs::write(&path, b"x").unwrap();
         assert!(open_source(&path).is_ok());
         assert!(path.to_str().is_none(), "the name really is not UTF-8");
+    }
+}
+
+#[cfg(test)]
+mod dest_dir_tests {
+    use super::*;
+
+    fn roots(home: &Path) -> Vec<PathBuf> {
+        vec![home.to_path_buf()]
+    }
+
+    /// Makes a `home` folder and a sibling `elsewhere` folder inside a temp dir.
+    fn home_and_other() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let t = tempfile::tempdir().unwrap();
+        let home = t.path().join("home");
+        let other = t.path().join("elsewhere");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+        (t, home, other)
+    }
+
+    #[test]
+    fn a_folder_inside_home_is_accepted_resolved() {
+        let (_t, home, _) = home_and_other();
+        let sub = home.join("Photos");
+        std::fs::create_dir_all(&sub).unwrap();
+        let got = check_dest_dir(&sub, &roots(&home)).unwrap();
+        assert_eq!(got, Some(std::fs::canonicalize(&sub).unwrap()));
+    }
+
+    #[test]
+    fn a_folder_outside_home_is_refused() {
+        let (_t, home, other) = home_and_other();
+        assert_eq!(
+            check_dest_dir(&other, &roots(&home)),
+            Err(DEST_OUTSIDE_ALLOWED.to_string())
+        );
+    }
+
+    #[test]
+    fn a_dotdot_escape_is_refused() {
+        let (_t, home, _) = home_and_other();
+        let sneaky = home.join("..").join("elsewhere");
+        assert_eq!(
+            check_dest_dir(&sneaky, &roots(&home)),
+            Err(DEST_OUTSIDE_ALLOWED.to_string())
+        );
+    }
+
+    #[test]
+    fn a_relative_path_is_refused() {
+        let (_t, home, _) = home_and_other();
+        assert_eq!(
+            check_dest_dir(Path::new("Downloads"), &roots(&home)),
+            Err(DEST_OUTSIDE_ALLOWED.to_string())
+        );
+    }
+
+    #[test]
+    fn a_missing_folder_falls_back_instead_of_failing() {
+        let (_t, home, _) = home_and_other();
+        let gone = home.join("gone");
+        assert_eq!(check_dest_dir(&gone, &roots(&home)), Ok(None));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_leading_out_of_home_is_refused() {
+        let (_t, home, other) = home_and_other();
+        let link = home.join("shortcut");
+        std::os::unix::fs::symlink(&other, &link).unwrap();
+        assert_eq!(
+            check_dest_dir(&link, &roots(&home)),
+            Err(DEST_OUTSIDE_ALLOWED.to_string())
+        );
     }
 }

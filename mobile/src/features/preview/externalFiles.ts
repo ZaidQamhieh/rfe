@@ -6,10 +6,11 @@ import type { Host } from '../../core/models/host';
 import { fetchToFileNative, openFileExternal, shareFileExternal } from '../../core/native';
 import { clientForHost } from '../../services';
 import { hashKey } from '../explorer/thumbnails';
+import { localPath } from './previewFile';
 import { mimeFromExtension } from './previewKind';
 
 /** Largest file handed to another app; it is copied into the app cache first. */
-export const MAX_EXTERNAL_BYTES = 1024 * 1024 * 1024;
+const MAX_EXTERNAL_BYTES = 1024 * 1024 * 1024;
 
 /** A file name that is safe on disk and readable to the receiving app: anything outside word characters, dots and dashes becomes `_`. */
 export function safeFileName(name: string): string {
@@ -29,7 +30,7 @@ async function copyForHandOff(host: Host, entry: Entry, folder: 'share' | 'open'
   dir.create({ idempotent: true, intermediates: true });
   for (const f of dir.list()) f.delete();
   const file = new File(dir, safeFileName(entry.name));
-  const native = decodeURIComponent(file.uri.replace('file://', ''));
+  const native = localPath(file.uri);
   const spec = (await clientForHost(host)).downloadSpec(entry.path);
   const r = await fetchToFileNative(`x${hashKey(entry.path)}${Date.now().toString(36)}`, spec.url, spec.headers, spec.pin, native, 120_000, MAX_EXTERNAL_BYTES);
   if (r.status < 200 || r.status >= 300) throw statusError(r.status);

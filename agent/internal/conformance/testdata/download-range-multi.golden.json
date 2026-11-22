@@ -1,0 +1,14 @@
+{
+  "status": 206,
+  "headers": {
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+    "Content-Disposition": "attachment; filename=range.txt",
+    "Content-Security-Policy": "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Type": "multipart/byteranges; boundary=<boundary>",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "text": "--<boundary>\r\nContent-Range: bytes 0-1/100\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n01\r\n--<boundary>\r\nContent-Range: bytes 5-6/100\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n56\r\n--<boundary>--\r\n",
+  "bodyLen": 348
+}

@@ -29,13 +29,11 @@ class RfeTransportModule : Module() {
   } catch (e: javax.net.ssl.SSLException) {
     // Any TLS failure is fatal for this route; a pin mismatch surfaces as
     // CertPinMismatch (possibly wrapped) and must never look like "unreachable".
-    val mismatch = generateSequence<Throwable>(e) { it.cause }.any { it is CertPinMismatch }
-    if (mismatch) throw CodedException("ERR_CERT_PIN_MISMATCH", e.message, e)
+    if (PinnedHttp.isPinMismatch(e)) throw CodedException("ERR_CERT_PIN_MISMATCH", e.message, e)
     throw CodedException("ERR_TLS", e.message, e)
   } catch (e: java.io.IOException) {
     // A pin mismatch wrapped in a plain IOException is still a mismatch, not "unreachable" (audit F-153).
-    val mismatch = generateSequence<Throwable>(e) { it.cause }.any { it is CertPinMismatch }
-    if (mismatch) throw CodedException("ERR_CERT_PIN_MISMATCH", e.message, e)
+    if (PinnedHttp.isPinMismatch(e)) throw CodedException("ERR_CERT_PIN_MISMATCH", e.message, e)
     throw CodedException("ERR_CONNECTION", e.message, e)
   }
 
@@ -84,12 +82,18 @@ class RfeTransportModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("RfeTransport")
-    Events("onTransferUpdate")
+    Events("onTransferUpdate", "onLanAgentFound", "onAgentEvent")
 
     OnCreate {
       TransferHost.listener = { r -> sendEvent("onTransferUpdate", mapOf("record" to r.toJson().toString())) }
     }
     OnDestroy { TransferHost.listener = null }
+
+    // Numbers for the home-screen storage widget (the widget makes no requests of its own).
+    AsyncFunction("widgetSet") { title: String, detail: String, percent: Int ->
+      val ctx = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "no context", null)
+      StorageWidget.save(ctx, title, detail, percent)
+    }
 
     // Transports of the active network (wifi, ethernet, cellular, vpn, bluetooth); empty when offline.
     AsyncFunction("networkTransports") {
@@ -157,6 +161,12 @@ class RfeTransportModule : Module() {
     }
     AsyncFunction("fetchCancel") { id: String -> FetchFile.cancel(id) }
 
+    // Holds the pinned /v1/events stream open; each event reaches JS as onAgentEvent {id, kind}. Resolves with the HTTP status (0 = connection lost) when the stream ends.
+    AsyncFunction("eventStreamRun") Coroutine { id: String, url: String, headers: Map<String, String>, pin: String? ->
+      io { EventStream.run(id, url, headers, pin) { kind -> sendEvent("onAgentEvent", mapOf("id" to id, "kind" to kind)) } }
+    }
+    AsyncFunction("eventStreamStop") { id: String -> EventStream.stop(id) }
+
     // A corrupt or password-protected PDF surfaces as ERR_PDF instead of a crash.
     AsyncFunction("pdfPageCount") Coroutine { path: String ->
       withContext(Dispatchers.IO) { pdf { PdfPages.pageCount(path) } }
@@ -182,7 +192,7 @@ class RfeTransportModule : Module() {
     AsyncFunction("discoveryScan") { promise: expo.modules.kotlin.Promise ->
       val ctx = appContext.reactContext ?: return@AsyncFunction promise.reject(CodedException("ERR_NO_CONTEXT", "no context", null))
       val d = discovery ?: LanDiscovery(ctx).also { discovery = it }
-      d.scan { agents, err ->
+      d.scan(onFound = { agent -> sendEvent("onLanAgentFound", agent) }) { agents, err ->
         if (err != null) promise.reject(CodedException(err, "Local network search failed", null)) else promise.resolve(agents)
       }
     }

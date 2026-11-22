@@ -6,9 +6,8 @@ import { DeviceIdentity } from './core/security/deviceIdentity';
 import { HostStore, type KeyValueStore } from './core/storage/hostStore';
 import { SettingsRepo } from './core/settings/settings';
 import { importLegacyState, type ImportReport } from './core/storage/legacyImport';
-import type { BackupStorage } from './features/backup/backupService';
-import { isBackedUpPrefKey } from './features/backup/backupPayload';
-import { secureReadAll, offlineBodies, nativeSecureStore, nativeTransport, readLegacyPrefs, secureRandomBytes, probeFingerprint, nativeTransport as _transport , deviceIdNative } from './core/native';
+import { offlineBodies, nativeSecureStore, nativeTransport, readLegacyPrefs, secureRandomBytes, probeFingerprint, deviceIdNative, transfers } from './core/native';
+import { clearStaleTransfers } from './features/transfers/clearStaleTransfers';
 import type { Host } from './core/models/host';
 
 import type { PairingDeps } from './features/pairing/pairingService';
@@ -54,21 +53,9 @@ export const hostStore = new HostStore(kv, nativeSecureStore, async (id) => {
   clearContentCaches();
   await Promise.allSettled([listingCache.evictHost(id), offlineBodies.evictHost(id), forgetRoots(kv, id)]);
 });
-/** Everything the encrypted backup reads and replaces: the app's own preference rows and its secure-storage entries. */
-export const backupStorage: BackupStorage = {
-  allRows: () => Object.fromEntries(db.getAllSync<{ k: string; v: string }>('SELECT k, v FROM kv').map((r) => [r.k, r.v])),
-  replaceOwned(rows) {
-    db.withTransactionSync(() => {
-      for (const { k } of db.getAllSync<{ k: string }>('SELECT k FROM kv')) if (isBackedUpPrefKey(k)) db.runSync('DELETE FROM kv WHERE k = ?', k);
-      for (const [k, v] of Object.entries(rows)) db.runSync('INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)', k, v);
-    });
-  },
-  secureAll: () => secureReadAll(),
-  secure: nativeSecureStore,
-};
 export const settingsRepo = new SettingsRepo(kv);
 export const keyValue: KeyValueStore = kv;
-export const identity = new DeviceIdentity(nativeSecureStore, secureRandomBytes);
+const identity = new DeviceIdentity(nativeSecureStore, secureRandomBytes);
 
 let imported: Promise<ImportReport> | undefined;
 /** Runs the one-time Flutter state import (idempotent). */
@@ -89,17 +76,14 @@ export async function clientForHost(host: Host, probeLanFirst = false, timeoutMs
   });
 }
 
-export function unpinnedClient(host: Host): AgentClient {
-  return new AgentClient(host, { transport: nativeTransport });
-}
-
 export const pairingDeps: PairingDeps = {
-  transport: _transport,
+  transport: nativeTransport,
   identity,
   store: hostStore,
   deviceId: deviceIdNative,
   probe: probeFingerprint,
   randomBytes: secureRandomBytes,
+  clearStaleTransfers: (hostId) => clearStaleTransfers(hostId, transfers),
 };
 
 db.execSync('CREATE TABLE IF NOT EXISTS listing_cache (host TEXT NOT NULL, path TEXT NOT NULL, fetched_at INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (host, path))');

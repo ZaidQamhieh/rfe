@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -22,9 +23,16 @@ import (
 
 const maxWindowsApps = 5000
 
+const (
+	maxWindowsAppNameLen      = 256
+	maxWindowsAUMIDLen        = 257
+	maxWindowsAppsOutputBytes = 4 << 20
+)
+
 var safeAUMIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}(![A-Za-z0-9][A-Za-z0-9._-]{0,127})?$`)
 
-const appsFolderInventoryScript = `$ErrorActionPreference = 'Stop'
+// appsFolderInventoryScript is built at init from maxWindowsApps so the PowerShell cap cannot drift from the Go cap.
+var appsFolderInventoryScript = `$ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $folder = (New-Object -ComObject Shell.Application).NameSpace('shell:::{4234d49b-0245-4df3-b780-3893943456e1}')
 if ($null -eq $folder) { throw 'AppsFolder unavailable' }
@@ -32,11 +40,11 @@ $rows = New-Object System.Collections.Generic.List[object]
 foreach ($item in $folder.Items()) {
     $name = [string]$item.Name
     $aumid = [string]$item.Path
-    if ($name.Length -gt 256) { $name = $name.Substring(0, 256) }
-    if ($name.Length -gt 0 -and $aumid.Length -gt 0 -and $aumid.Length -le 257) {
+    if ($name.Length -gt ` + strconv.Itoa(maxWindowsAppNameLen) + `) { $name = $name.Substring(0, ` + strconv.Itoa(maxWindowsAppNameLen) + `) }
+    if ($name.Length -gt 0 -and $aumid.Length -gt 0 -and $aumid.Length -le ` + strconv.Itoa(maxWindowsAUMIDLen) + `) {
         $rows.Add([pscustomobject]@{ name = $name; aumid = $aumid })
     }
-    if ($rows.Count -ge 5000) { break }
+    if ($rows.Count -ge ` + strconv.Itoa(maxWindowsApps) + `) { break }
 }
 $payload = [pscustomobject]@{ apps = $rows.ToArray() }
 ConvertTo-Json -InputObject $payload -Compress -Depth 3
@@ -63,7 +71,7 @@ func listHostApps() (string, []appRecord, error) {
 		"-NoLogo", "-NoProfile", "-NonInteractive", "-Command", appsFolderInventoryScript)
 	cmd.Stderr = io.Discard
 	output, err := cmd.Output()
-	if err != nil || len(output) > 4<<20 {
+	if err != nil || len(output) > maxWindowsAppsOutputBytes {
 		return "windows", nil, errLauncherMissing
 	}
 

@@ -1,12 +1,12 @@
-import type { Device, FileCapability } from '../../core/api/models';
-import { FILE_CAPABILITIES } from '../../core/api/models';
-import { formatSize } from '../../core/format';
+import type { Device, DeviceGrant, DeviceGrants } from '../../core/api/models';
+import { DEVICE_GRANTS } from '../../core/api/models';
+import { formatRate } from '../../core/format';
 import { t } from '../../i18n';
 
 /** Upload/download limit choices in bytes per second; 0 is unlimited. */
 export const BANDWIDTH_PRESETS = [0, 1, 5, 10, 50].map((mb) => mb * 1024 * 1024);
 
-export const bandwidthLabel = (bytesPerSec: number) => (bytesPerSec === 0 ? t('bandwidthUnlimited') : `${formatSize(bytesPerSec)}/s`);
+export const bandwidthLabel = (bytesPerSec: number) => (bytesPerSec === 0 ? t('bandwidthUnlimited') : formatRate(bytesPerSec));
 
 /** Picker options: the presets, plus the host's current value first when it is not one of them. */
 export const bandwidthOptions = (current: number) => (BANDWIDTH_PRESETS.includes(current) ? BANDWIDTH_PRESETS : [current, ...BANDWIDTH_PRESETS]);
@@ -21,25 +21,18 @@ export function nextAppCapabilities(d: Pick<Device, 'viewApps' | 'launchApps'>, 
   return { viewApps, launchApps: change.viewApps === false ? false : viewApps ? (change.launchApps ?? currentLaunch) : false };
 }
 
-/** All six file grants after flipping one; the host always receives the complete set. */
-export function nextFileGrants(d: Pick<Device, FileCapability>, change: Partial<Record<FileCapability, boolean>>): Record<FileCapability, boolean> {
-  return Object.fromEntries(FILE_CAPABILITIES.map((c) => [c, change[c] ?? d[c] ?? false])) as Record<FileCapability, boolean>;
+/** All file grants after flipping one; the host always receives the complete set. `wake` is left out for a host that does not report it. */
+export function nextFileGrants(d: Pick<Device, DeviceGrant>, change: Partial<Record<DeviceGrant, boolean>>): DeviceGrants {
+  return Object.fromEntries(
+    DEVICE_GRANTS.filter((c) => c !== 'wake' || d.wake !== undefined || change.wake !== undefined).map((c) => [c, change[c] ?? d[c] ?? false]),
+  ) as DeviceGrants;
 }
 
 /** Applies [patch] to the device with [id], leaving the rest of the list untouched. */
 export const patchDevice = (list: Device[], id: string, patch: Partial<Device>) => list.map((d) => (d.id === id ? { ...d, ...patch } : d));
 
-export const FILE_CAPABILITY_LABEL: Record<FileCapability, string> = {
-  browse: 'Browse files',
-  download: 'Download files',
-  upload: 'Upload files',
-  modify: 'Modify files',
-  delete: 'Delete files',
-  share: 'Create share links',
-};
-
 /** The audit-trail actions the app knows; anything newer falls back to its raw name. */
-export const AUDIT_LABEL: Record<string, Parameters<typeof t>[0]> = {
+const AUDIT_LABEL: Record<string, Parameters<typeof t>[0]> = {
   pair: 'auditPair',
   register: 'auditRegister',
   login: 'auditLogin',

@@ -1,0 +1,21 @@
+{
+  "status": 202,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "results": [
+      {
+        "error": {
+          "code": "CONFLICT",
+          "message": "destination already exists"
+        },
+        "ok": false,
+        "path": "<ROOT>/made/needle-alpha.txt"
+      }
+    ]
+  }
+}

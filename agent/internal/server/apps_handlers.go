@@ -14,10 +14,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+const (
+	appCatalogRateLimitAttempts = 60
+	appCatalogRateLimitWindow   = time.Minute
+	appLaunchRateLimitAttempts  = 5
+	appLaunchRateLimitWindow    = time.Minute
+)
+
 var (
 	appIDPattern        = regexp.MustCompile(`^app_[0-9a-f]{64}$`)
-	appCatalogLimiter   = newKeyedLimiter(60, time.Minute)
-	appLaunchLimiter    = newKeyedLimiter(5, time.Minute)
+	safeIconNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+	appCatalogLimiter   = newKeyedLimiter(appCatalogRateLimitAttempts, appCatalogRateLimitWindow)
+	appLaunchLimiter    = newKeyedLimiter(appLaunchRateLimitAttempts, appLaunchRateLimitWindow)
 	appLaunchSlot       = make(chan struct{}, 1)
 	errAppUnsupported   = errors.New("app catalog is unsupported on this platform")
 	errNoDesktopSession = errors.New("no interactive desktop session")
@@ -26,6 +34,9 @@ var (
 	errAppNotFound      = errors.New("app is not in the current catalog")
 	errAppNotLaunchable = errors.New("app has no supported launch action")
 )
+
+// appNotInCatalogMsg is the 404 message for an app id that is no longer in the host catalog.
+const appNotInCatalogMsg = "app is no longer available in the host catalog"
 
 // appRecord contains only safe display data for the API. launchRef is an
 // internal registration reference and is never serialized or written to audit.
@@ -124,7 +135,7 @@ func launchAppHandler(db *store.DB) http.HandlerFunc {
 		}
 		if selected == nil {
 			auditAppLaunch(db, r, id, "", "not_found")
-			writeError(w, http.StatusNotFound, "APP_NOT_FOUND", "app is no longer available in the host catalog")
+			writeError(w, http.StatusNotFound, "APP_NOT_FOUND", appNotInCatalogMsg)
 			return
 		}
 		if !selected.Launchable {
@@ -147,17 +158,15 @@ func launchAppHandler(db *store.DB) http.HandlerFunc {
 			switch launchErr {
 			case errAppNotFound:
 				auditAppLaunch(db, r, id, selected.Name, "not_found")
-				writeError(w, http.StatusNotFound, "APP_NOT_FOUND", "app is no longer available in the host catalog")
+				writeError(w, http.StatusNotFound, "APP_NOT_FOUND", appNotInCatalogMsg)
 			case errNoDesktopSession:
 				auditAppLaunch(db, r, id, selected.Name, "no_interactive_session")
 				writeError(w, http.StatusServiceUnavailable, "NO_INTERACTIVE_SESSION", "the host has no active graphical desktop session")
 			case errLauncherMissing:
 				auditAppLaunch(db, r, id, selected.Name, "launcher_unavailable")
 				writeError(w, http.StatusServiceUnavailable, "APP_LAUNCH_UNAVAILABLE", "the host app launcher is unavailable")
-			case errAppStartFailed:
-				auditAppLaunch(db, r, id, selected.Name, "launch_failed")
-				writeError(w, http.StatusBadGateway, "APP_LAUNCH_FAILED", "the host could not start this app")
 			default:
+				// errAppStartFailed and any other launch error.
 				auditAppLaunch(db, r, id, selected.Name, "launch_failed")
 				writeError(w, http.StatusBadGateway, "APP_LAUNCH_FAILED", "the host could not start this app")
 			}
@@ -197,6 +206,9 @@ func auditAppLaunch(db *store.DB, r *http.Request, id, name, outcome string) {
 	audit(db, r, store.AuditAppLaunch, id, detail)
 }
 
+// appDisplayMaxBytes caps the bytes safeAppDisplay keeps.
+const appDisplayMaxBytes = 240
+
 func safeAppDisplay(value string) string {
 	var b strings.Builder
 	for _, r := range value {
@@ -206,7 +218,7 @@ func safeAppDisplay(value string) string {
 			}
 			continue
 		}
-		if b.Len() >= 240 {
+		if b.Len() >= appDisplayMaxBytes {
 			break
 		}
 		b.WriteRune(r)

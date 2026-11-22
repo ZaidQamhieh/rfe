@@ -43,12 +43,17 @@ pub fn fit_dims(w: u32, h: u32, max: u32) -> (u32, u32) {
     ((nw as u32).max(1), (nh as u32).max(1))
 }
 
+/// EXIF orientations 5-8 transpose the image, so its width and height trade places.
+fn swaps_axes(orientation: u8) -> bool {
+    (5..=8).contains(&orientation)
+}
+
 /// Where each source pixel lands for an EXIF orientation (1-8), as a function of the output size.
 fn orient(rgb: &[u8], w: usize, h: usize, orientation: u8) -> (Vec<u8>, usize, usize) {
     if orientation <= 1 || orientation > 8 {
         return (rgb.to_vec(), w, h);
     }
-    let swap = orientation >= 5;
+    let swap = swaps_axes(orientation);
     let (ow, oh) = if swap { (h, w) } else { (w, h) };
     let mut out = vec![0u8; rgb.len()];
     for y in 0..h {
@@ -89,7 +94,7 @@ pub fn render(data: &[u8], max: u32) -> Result<Thumb, RenderError> {
     let max = max.max(1);
     // The fit box applies to the oriented image, so size it from the oriented source dimensions.
     let d = decode::decode(data, max)?;
-    let swap = d.orientation >= 5 && d.orientation <= 8;
+    let swap = swaps_axes(d.orientation);
     let (ow, oh) = if swap {
         (d.src_height, d.src_width)
     } else {

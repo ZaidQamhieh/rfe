@@ -183,7 +183,7 @@ export class App {
     await this.clickLabel("They match: trust");
   }
 
-  /** New connection -> Manual: types the address, compares nothing, stops at the trust dialog. */
+  /** Add a computer -> Manual: types the address, compares nothing, stops at the trust dialog. */
   async addServer(agent, name) {
     await this.skipWelcome();
     await this.click("#rail [data-new]");
@@ -195,7 +195,7 @@ export class App {
     await waitFor("the trust dialog", () => this.visible(".fpfull"));
   }
 
-  /** The whole account sign-in, from the New connection dialog to the signed-in folder list. */
+  /** The whole account sign-in, from the Add a computer dialog to the signed-in folder list. */
   async signInAccount(agent, name) {
     await this.addServer(agent, name);
     await this.confirmTrust();

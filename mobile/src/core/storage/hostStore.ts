@@ -1,5 +1,8 @@
 import { hostFromJson, hostToJson, type Host } from '../models/host';
 import { normalizeFingerprint } from '../api/pin';
+import { ignoreError } from '../log';
+import { serialQueue } from '../serialQueue';
+import { mergeDuplicateHosts } from '../models/hostMerge';
 import { SecureKeys, type SecureStore } from '../security/secureStore';
 
 /** Non-secret key/value storage (host metadata, settings). Never used for tokens, pins or keys. */
@@ -26,6 +29,7 @@ export class MemoryKeyValueStore implements KeyValueStore {
 // array of host records; the Flutter StringList form is converted on import.
 export const HOSTS_KEY = 'rfe_hosts_v1';
 const lastSeenKey = (id: string) => `rfe_last_seen_${id}`;
+const refusedKey = (id: string) => `rfe_refused_${id}`;
 
 export class HostStore {
   constructor(
@@ -54,12 +58,7 @@ export class HostStore {
   }
 
   /** Mutations of the host list read, change and write it back: run one at a time so none overwrites another (F-29). */
-  private queue: Promise<unknown> = Promise.resolve();
-  private serial<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(fn, fn);
-    this.queue = run.catch(() => undefined);
-    return run;
-  }
+  private serial = serialQueue();
 
   addHost(host: Host) {
     return this.serial(async () => {
@@ -115,6 +114,8 @@ export class HostStore {
       await this.secure.write(SecureKeys.token(host.id), o.token);
       done.push(SecureKeys.token(host.id));
       await this.addHost({ ...host, certFingerprint: pin });
+      // A fresh login means the computer accepts this phone again.
+      await this.kv.remove(refusedKey(host.id)).catch(ignoreError('clear refused flag'));
     } catch (e) {
       for (const k of done) {
         const prev = before.get(k) ?? null;
@@ -122,16 +123,6 @@ export class HostStore {
       }
       throw e;
     }
-  }
-
-  touchHost(id: string) {
-    return this.serial(async () => {
-      const hosts = await this.listHosts();
-      const i = hosts.findIndex((h) => h.id === id);
-      if (i <= 0) return;
-      hosts.unshift(...hosts.splice(i, 1));
-      await this.save(hosts);
-    });
   }
 
   removeHost(id: string) {
@@ -142,9 +133,10 @@ export class HostStore {
       await this.secure.delete(SecureKeys.fingerprint(id));
       await this.save((await this.listHosts()).filter((h) => h.id !== id));
       await this.kv.remove(lastSeenKey(id));
+      await this.kv.remove(refusedKey(id));
       // A forgotten host must not keep serving its cached listings and files. Cleanup is best effort: the
       // host, token and pin are already gone, so a failure here cannot resurrect access.
-      await this.onRemoved(id).catch(() => {});
+      await this.onRemoved(id).catch(ignoreError('forget host: cleanup'));
     });
   }
 
@@ -163,6 +155,52 @@ export class HostStore {
     });
   }
 
+  /** True once the computer answered this phone's token with "refused"; stays until it accepts the phone or it is paired again. */
+  async getRefused(id: string): Promise<boolean> {
+    return (await this.kv.get(refusedKey(id))) === '1';
+  }
+
+  /** Remembers (or clears) that the computer refused this phone; ignored for a host that is no longer listed. */
+  setRefused(id: string, refused: boolean) {
+    return this.serial(async () => {
+      if (!(await this.listHosts()).some((h) => h.id === id)) return;
+      if (refused) await this.kv.set(refusedKey(id), '1');
+      else await this.kv.remove(refusedKey(id));
+    });
+  }
+
+  /**
+   * Folds saved copies of the same computer (same pinned certificate, read from the secure store when the record lacks
+   * its mirror) into one: the newest copy keeps its token, takes the nicest name, and the older copies' secrets and
+   * caches are removed. Secrets go first, the list is written last, so a failure leaves the copies for the next run.
+   * Returns how many copies were dropped.
+   */
+  mergeDuplicates(): Promise<number> {
+    return this.serial(async () => {
+      const hosts = await this.listHosts();
+      const withPins = await Promise.all(
+        hosts.map(async (h) => {
+          if (normalizeFingerprint(h.certFingerprint) !== null) return h;
+          const pin = await this.getPin(h.id);
+          return pin === null ? h : { ...h, certFingerprint: pin };
+        }),
+      );
+      const plan = mergeDuplicateHosts(withPins);
+      if (plan.dropped.length === 0) return 0;
+      for (const id of plan.dropped) {
+        await this.secure.delete(SecureKeys.token(id));
+        await this.secure.delete(SecureKeys.fingerprint(id));
+      }
+      await this.save(plan.hosts);
+      for (const id of plan.dropped) {
+        await this.kv.remove(lastSeenKey(id));
+        await this.kv.remove(refusedKey(id));
+        await this.onRemoved(id).catch(ignoreError('merge hosts: cleanup'));
+      }
+      return plan.dropped.length;
+    });
+  }
+
   getToken(id: string) {
     return this.secure.read(SecureKeys.token(id));
   }
@@ -173,10 +211,11 @@ export class HostStore {
   }
 }
 
-function safeParse(s: string): unknown {
+/** JSON.parse that returns [fallback] instead of throwing. */
+export function safeParse(s: string, fallback: unknown = null): unknown {
   try {
     return JSON.parse(s);
   } catch {
-    return null;
+    return fallback;
   }
 }

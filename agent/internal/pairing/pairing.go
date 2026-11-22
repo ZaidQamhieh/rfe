@@ -97,19 +97,19 @@ func (m *Manager) Payload(code string) QRPayload {
 	}
 }
 
-// PayloadJSON returns the QR payload as the JSON string embedded in the QR code.
+// JSON returns the QR payload as the JSON string embedded in the QR code.
 func (p QRPayload) JSON() string {
 	b, _ := json.Marshal(p)
 	return string(b)
 }
 
-// Consume validates code and clears it (single-use), returning its guest-mode
-// defaults (if any) to apply to the device created on success.
 // Peek reports what code would allow without consuming it.
 func (m *Manager) Peek(code string) store.PairingCodeInfo {
 	return m.db.PeekPairingCode(code)
 }
 
+// Consume validates code and clears it (single-use), returning its guest-mode
+// defaults (if any) to apply to the device created on success.
 func (m *Manager) Consume(code string) store.PairingCodeInfo {
 	return m.db.ConsumePairingCode(code)
 }

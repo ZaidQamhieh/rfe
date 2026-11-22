@@ -1,8 +1,9 @@
-// Package server — batch checksums handler.
+// Package server — batch checksums handler (POST /v1/fs/checksums). The file name is historical: no duplicate finder lives here.
 package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -33,7 +34,7 @@ func batchChecksumHandler(ops *fsops.Ops) http.HandlerFunc {
 			return
 		}
 		if len(req.Paths) > batchChecksumMaxPaths {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "too many paths (max 1000)")
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("too many paths (max %d)", batchChecksumMaxPaths))
 			return
 		}
 		if req.Algo == "" {
@@ -50,7 +51,7 @@ func batchChecksumHandler(ops *fsops.Ops) http.HandlerFunc {
 		}
 		close(work)
 
-		for w := 0; w < batchChecksumWorkers; w++ {
+		for wk := 0; wk < batchChecksumWorkers; wk++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

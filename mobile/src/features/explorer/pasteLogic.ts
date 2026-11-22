@@ -1,4 +1,4 @@
-import { parentDirOf } from './paths';
+import { comparablePath, parentDirOf } from './paths';
 
 /**
  * The clipboard paths a paste should act on. A cut source that already sits in the destination folder has nothing to
@@ -11,7 +11,7 @@ export function pasteSources(paths: readonly string[], dest: string, isCut: bool
 
 /** Why [dest] cannot take [sources]: a folder cannot go into itself or one of its own sub-folders. Null when it can. */
 export function destinationProblem(sources: readonly string[], dest: string): 'inside-itself' | null {
-  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+  const norm = (p: string) => comparablePath(p);
   const d = norm(dest);
   return sources.some((s) => d === norm(s) || d.startsWith(`${norm(s)}/`)) ? 'inside-itself' : null;
 }

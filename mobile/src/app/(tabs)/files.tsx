@@ -8,7 +8,9 @@ import { LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
 import { ExplorerScreen } from '../../features/explorer/ExplorerScreen';
 import { HostRootView } from '../../features/explorer/HostRootView';
+import { t } from '../../i18n';
 import { useActiveHost } from '../../state/activeHost';
+import { Spacing } from '../../design/tokens';
 
 /** Files tab: pick a host on the Devices tab, then a shared root, then browse. */
 export default function Files() {
@@ -26,23 +28,24 @@ export default function Files() {
     [setActive],
   );
 
-  // Back from the top of a shared folder shows the host's shared folders (or drives) again. An unrestricted Unix host
+  // Back from the top of a shared folder returns to Home (the mockup has no shared-folders screen between). An unrestricted Unix host
   // opens straight at "/", which has nothing above it.
   const leaveRoot = useCallback(() => {
     const cur = useActiveHost.getState().active;
     if (cur) setActive({ ...cur, rootPath: undefined, initialPath: undefined });
-  }, [setActive]);
+    router.navigate('/');
+  }, [setActive, router]);
 
   if (!active) {
     return (
       <View style={{ flex: 1 }}>
-        <TopBar context="Files" />
-        <PageHead title="Files" subtitle="Select a computer to browse its files" />
+        <TopBar context={t('filesTabTitle')} />
+        <PageHead title={t('filesTabTitle')} subtitle={t('filesTabSubtitle')} />
         <View style={{ paddingHorizontal: 18 }}>
-          <GroupedCard style={{ alignItems: 'center', gap: 14, paddingVertical: 24 }}>
+          <GroupedCard style={{ alignItems: 'center', gap: 14, paddingVertical: Spacing.lg }}>
             <Server size={40} color={c.onSurfaceVariant} />
-            <Text style={[LumenType.meta, { textAlign: 'center' }]} muted>Pick a computer on the Home tab, then a shared folder, to start browsing.</Text>
-            <Button size="lg" kind="filled" label="Go to Home" renderIcon={(k) => <Server size={20} color={k} />} onPress={() => router.navigate('/')} />
+            <Text style={[LumenType.meta, { textAlign: 'center' }]} muted>{t('filesTabHint')}</Text>
+            <Button size="lg" kind="filled" label={t('filesTabGoHome')} renderIcon={(k) => <Server size={20} color={k} />} onPress={() => router.navigate('/')} />
           </GroupedCard>
         </View>
       </View>

@@ -8,7 +8,6 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 
-/// Protocol version both sides must agree on in the handshake.
 /// The version a sidecar announces: the release it was built for (`RFE_RELEASE_VERSION`, set by the release
 /// workflow so every binary in an archive reports the same version), else the crate version.
 pub const fn release_version(crate_version: &'static str) -> &'static str {
@@ -18,6 +17,7 @@ pub const fn release_version(crate_version: &'static str) -> &'static str {
     }
 }
 
+/// Protocol version both sides must agree on in the handshake.
 pub const PROTO_VERSION: u32 = 1;
 
 pub const KIND_JSON: u8 = 0;
@@ -62,6 +62,44 @@ impl Hello {
     }
 }
 
+/// The hello frame as a JSON value. `crate_version` is the sidecar's `CARGO_PKG_VERSION`.
+pub fn hello_value(name: &str, crate_version: &'static str) -> serde_json::Value {
+    serde_json::to_value(Hello::new(name, release_version(crate_version))).unwrap()
+}
+
+/// A sidecar's stdout, shared by the request threads and the read loop.
+pub type Out<W> = std::sync::Arc<std::sync::Mutex<W>>;
+
+/// The message of the error answering a request that is not a valid envelope (sent with id 0).
+pub const MALFORMED_REQUEST: &str = "malformed request";
+
+/// Cancel flags of the requests in flight, by request id.
+pub type Cancels =
+    std::sync::Mutex<std::collections::HashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>>;
+
+/// Sets the cancel flag of request `target`, if it is still in flight.
+pub fn cancel_request(cancels: &Cancels, target: u64) {
+    if let Some(flag) = cancels
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&target)
+    {
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Writes one JSON frame, then the BIN frame when `body` is given, as one flushed unit. A write failure means the
+/// peer is gone; the read loop sees EOF and exits, so it is not reported here.
+pub fn send_frames<W: Write>(out: &Out<W>, v: &serde_json::Value, body: Option<&[u8]>) {
+    let bytes = serde_json::to_vec(v).unwrap_or_default();
+    let mut w = out.lock().unwrap_or_else(|e| e.into_inner());
+    let _ = write_frame(&mut *w, KIND_JSON, &bytes);
+    if let Some(b) = body {
+        let _ = write_frame(&mut *w, KIND_BIN, b);
+    }
+    let _ = w.flush();
+}
+
 /// Fields every request carries; the rest of the JSON object is op-specific.
 #[derive(Debug, Deserialize)]
 pub struct Envelope {
@@ -91,11 +129,13 @@ pub fn write_frame<W: Write>(w: &mut W, kind: u8, payload: &[u8]) -> io::Result<
 /// Reads one frame. `Ok(None)` is a clean end of stream (the peer closed between frames).
 pub fn read_frame<R: Read>(r: &mut R) -> io::Result<Option<Frame>> {
     let mut len_buf = [0u8; 4];
-    match r.read_exact(&mut len_buf) {
-        Ok(()) => {}
-        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+    // Zero bytes before the header is a clean close; a stream cut inside the header is not.
+    match r.read(&mut len_buf[..1]) {
+        Ok(0) => return Ok(None),
+        Ok(_) => {}
         Err(e) => return Err(e),
     }
+    r.read_exact(&mut len_buf[1..])?;
     let len = u32::from_be_bytes(len_buf) as usize;
     if len == 0 || len > MAX_FRAME_BYTES {
         return Err(io::Error::new(
@@ -163,6 +203,12 @@ mod tests {
         write_frame(&mut buf, KIND_JSON, b"hello world").unwrap();
         buf.truncate(buf.len() - 3);
         assert!(read_frame(&mut Cursor::new(buf)).is_err());
+    }
+
+    #[test]
+    fn a_stream_cut_inside_the_length_header_is_an_error() {
+        let err = read_frame(&mut Cursor::new(vec![0, 0])).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
     }
 
     #[test]

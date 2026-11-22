@@ -1,20 +1,26 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { useState } from 'react';
 
-import type { Entry , BatchResult } from '../../core/api/models';
+import type { BatchResult, Entry } from '../../core/api/models';
 import type { Host } from '../../core/models/host';
 import { useDialogs, useToast } from '../../design/components';
 import { useScheme } from '../../design/theme';
 import { t } from '../../i18n';
-import { humanizeError } from '../pairing/pairingService';
-import { enqueueUploads } from '../transfers/enqueueUploads';
-import { cleanUploadName, planUploads, type Resolution } from '../transfers/uploadPlan';
+import { humanizeError } from '../../core/humanizeError';
+import { enqueueUploads, PartialUploadError } from '../transfers/enqueueUploads';
+import { cleanUploadName, planUploads, type Resolution, type UploadItem } from '../transfers/uploadPlan';
 import { formatSize } from '../../core/format';
 import { clientForHost } from '../../services';
 import { useFileClipboard } from './clipboard';
+import { compressDefaultStem, freeZipName, zipFileName } from './compressName';
+import { extractToFreshFolder } from './extractToFolder';
 import { uploadSpaceShortfall } from './freeSpace';
 import { useConflictPrompt } from './useConflictPrompt';
 import { currentPath, type Explorer, type ExplorerState } from './explorerStore';
-import { basenameOf, folderLabel, renameDestination } from './paths';
+import { chooseDeleteMode } from './deleteChoice';
+import { basenameOf, folderLabel, isFsRoot, isSameName, joinRemotePath, renameDestination } from './paths';
+import { InFlightGate } from './inFlight';
+import { invalidNameReason } from './nameValidation';
 import { deleteSubtitle } from './selectionLogic';
 import { compareVerdict, sizeVerdict, type Verdict } from './compareFiles';
 import { moveUndo, renameUndo, type UndoOp } from './undoPlan';
@@ -27,6 +33,8 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
   const c = useScheme();
   const askConflict = useConflictPrompt();
   const clip = useFileClipboard();
+  const [extractGate] = useState(() => new InFlightGate());
+  const [compressGate] = useState(() => new InFlightGate());
 
   /** Runs an undo from the toast and says how it went. */
   async function undo(op: UndoOp) {
@@ -45,7 +53,7 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     }
     await dialogs.report({
       title: t('batchResultWithErrors', { verb, errorCount: res.failed.length }),
-      items: res.failed.map((f) => ({ primary: f.path, secondary: f.errorMessage ?? f.errorCode ?? 'failed' })),
+      items: res.failed.map((f) => ({ primary: f.path, secondary: f.errorMessage ?? f.errorCode ?? t('batchItemFailed') })),
     });
   }
 
@@ -70,6 +78,7 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
    * false when the user cancelled, nothing was left to do or a step failed.
    */
   async function transferInto(dest: string, paths: readonly string[], isCut: boolean, retry: () => void): Promise<boolean> {
+    const operationLabel = isCut ? t('moveLabel') : t('copyLabel');
     if (destinationProblem(paths, dest)) {
       toast.error(t('cannotPasteIntoItself'));
       return false;
@@ -91,7 +100,7 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
         if (res === 'skip') {
           sources = sources.filter((p) => !colliding.has(basenameOf(p)));
           if (sources.length === 0) {
-            toast.info(t('clipboardAllExistNothing', { folder: folderLabel(dest), operation: isCut ? t('moveLabel') : t('copyLabel') }));
+            toast.info(t('clipboardAllExistNothing', { folder: folderLabel(dest), operation: operationLabel }));
             return false;
           }
         }
@@ -107,7 +116,7 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
       // A partial failure keeps the clipboard (and selection) so the failed items can be pasted again.
       return transferFullySucceeded(res);
     } catch (e) {
-      toast.error(t('operationFailed', { operation: isCut ? t('moveLabel') : t('copyLabel'), error: humanizeError(e) }), retry);
+      toast.error(t('operationFailed', { operation: operationLabel, error: humanizeError(e) }), retry);
       return false;
     }
   }
@@ -175,6 +184,21 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     return dialogs.confirm({ title: t('notEnoughSpaceTitle'), description: t('notEnoughSpaceBody', { needed: formatSize(short.needed), free: formatSize(short.free) }), confirmLabel: t('uploadAnywayButton'), cancelLabel: t('cancelButton') });
   }
 
+  /**
+   * Queues [items] for upload into [dest] and reports the result. When one fails after others were queued, the retry
+   * button queues only the files still to do, so the ones already on their way are not queued twice.
+   */
+  async function queueUploads(dest: string, items: UploadItem[]): Promise<void> {
+    try {
+      const queued = await enqueueUploads(host, dest, items);
+      toast.success(items.length === 1 ? t('uploadingFile', { name: items[0].targetName }) : t('uploadingNFiles', { count: queued }));
+    } catch (e) {
+      const partial = e instanceof PartialUploadError ? e : null;
+      const retry = partial ? (partial.remaining.length > 0 ? () => void queueUploads(dest, partial.remaining) : undefined) : () => void upload();
+      toast.error(t('operationFailed', { operation: t('uploadFileTooltip'), error: humanizeError(partial ? partial.failure : e) }), retry);
+    }
+  }
+
   /** Picks files on the phone and queues them for upload into the current folder, asking first about name clashes. */
   async function upload() {
     const dest = currentPath(ex.getState());
@@ -201,8 +225,7 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
         return;
       }
       if (!(await roomForUpload(dest, items.reduce((n, i) => n + (i.source.size ?? 0), 0)))) return;
-      const queued = await enqueueUploads(host, dest, items);
-      toast.success(items.length === 1 ? t('uploadingFile', { name: items[0].targetName }) : t('uploadingNFiles', { count: queued }));
+      await queueUploads(dest, items);
     } catch (e) {
       toast.error(t('operationFailed', { operation: t('uploadFileTooltip'), error: humanizeError(e) }), () => void upload());
     }
@@ -213,14 +236,9 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     const picked = [...ex.getState().selected];
     const count = picked.length;
     if (count === 0) return;
-    const choice = await dialogs.choose<'forever' | 'trash'>({
-      title: t('deleteTitle'),
+    const choice = await chooseDeleteMode(dialogs, {
       subtitle: deleteSubtitle({ count, hostLabel: host.label, name: count === 1 ? basenameOf(picked[0]) : undefined }),
       tint: c.error,
-      options: [
-        { value: 'trash', label: t('moveToTrashButton') },
-        { value: 'forever', label: t('deleteForeverButton'), tint: c.error },
-      ],
     });
     if (choice === null) return;
     const permanent = choice === 'forever';
@@ -232,20 +250,43 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     }
   }
 
+  /** Asks for the archive's name (never replacing an existing item), then compresses the selection with a progress toast. A second tap while the prompt or the job runs is ignored. */
   async function compressSelected() {
-    const paths = [...ex.getState().selected];
-    if (paths.length === 0) return;
-    const dir = currentPath(ex.getState());
-    const sep = dir.includes('\\') ? '\\' : '/';
-    const stem = paths.length === 1 ? basenameOf(paths[0]) : folderLabel(dir) === 'Root' ? 'Archive' : folderLabel(dir);
-    const dest = dir.endsWith(sep) ? `${dir}${stem}.zip` : `${dir}${sep}${stem}.zip`;
-    try {
-      const entry = await ex.compressSelected(dest, paths);
-      ex.clearSelection();
-      toast.success(t('compressedTo', { name: entry.name }));
-    } catch (e) {
-      toast.error(t('compressFailed', { error: humanizeError(e) }));
-    }
+    await compressGate.run(async () => {
+      const state = ex.getState();
+      const paths = [...state.selected];
+      if (paths.length === 0) return;
+      const dir = currentPath(state);
+      const single = paths.length === 1 ? { name: basenameOf(paths[0]), isDir: state.entries.find((e) => e.path === paths[0])?.isDir ?? false } : null;
+      const stem = compressDefaultStem(single, isFsRoot(dir) ? null : folderLabel(dir));
+      const typed = await dialogs.prompt({ title: t('zipNameTitle'), placeholder: t('newNameLabel'), initialValue: stem, confirmLabel: t('compressButton'), validate: invalidNameReason });
+      if (!typed) return;
+      // Checked against the listing as it is now, so a name made while the prompt was open is not reused.
+      const zipName = freeZipName(zipFileName(typed), ex.getState().entries.map((e) => e.name));
+      const dest = joinRemotePath(dir, zipName);
+      toast.info(t('compressingTo', { name: zipName }));
+      try {
+        const entry = await ex.compressSelected(dest, paths);
+        ex.clearSelection();
+        toast.success(t('compressedTo', { name: entry.name }));
+      } catch (e) {
+        toast.error(t('compressFailed', { error: humanizeError(e) }));
+      }
+    });
+  }
+
+  /** Extracts one selected archive into a new folder beside it, then refreshes the listing and says where it went. A second call while one runs is ignored. */
+  async function extractArchive(archive: Entry) {
+    await extractGate.run(async () => {
+      try {
+        const folder = await extractToFreshFolder(await clientForHost(host), archive);
+        ex.clearSelection();
+        await ex.refresh();
+        toast.success(t('extractedToFolder', { folder }));
+      } catch (e) {
+        toast.error(t('extractFailed', { error: humanizeError(e) }));
+      }
+    });
   }
 
   async function createNamed(isFolder: boolean) {
@@ -261,16 +302,23 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     }
   }
 
-  async function rename(entry: Entry) {
-    const name = await dialogs.prompt({ title: 'Rename', initialValue: entry.name, confirmLabel: 'Rename' });
-    if (!name || name === entry.name) return;
+  /** Renames one item: a prompt prefilled with its current name, checked as the Details sheet checks it, then Undo on the toast. */
+  async function renameOne(path: string) {
+    const current = basenameOf(path);
+    const name = await dialogs.prompt({ title: t('renameButton'), placeholder: t('newNameLabel'), initialValue: current, confirmLabel: t('renameButton') });
+    if (!name || isSameName(current, name)) return;
+    const bad = invalidNameReason(name);
+    if (bad) return void toast.error(bad);
     try {
-      await ex.rename(entry.path, name);
-      const op = renameUndo(entry.path, renameDestination(entry.path, name));
-      toast.success(t('renamedLabel'), op ? () => void undo(op) : undefined);
+      await ex.rename(path, name);
     } catch (e) {
       toast.error(t('renameFailed', { error: humanizeError(e) }));
+      return;
     }
+    ex.clearSelection();
+    // The host refuses to replace anything, so undoing into a name that was taken meanwhile fails instead of overwriting.
+    const back = renameUndo(path, renameDestination(path, name));
+    toast.success(t('renamedTo', { newName: name }), back ? () => void undo(back) : undefined);
   }
 
   /** Applies [newNames] (aligned with [paths]) through the store's two-phase rename, then reports per-item failures. */
@@ -284,5 +332,5 @@ export function useFileActions(host: Host, ex: Explorer & { getState(): Explorer
     }
   }
 
-  return { copySelection, cutSelection, paste, transferSelectionTo, duplicateSelection, compareSelection, confirmDelete, compressSelected, createNamed, rename, applyBatchRename, upload, askConflict, reportBatch };
+  return { copySelection, cutSelection, paste, transferSelectionTo, duplicateSelection, compareSelection, confirmDelete, compressSelected, extractArchive, createNamed, renameOne, applyBatchRename, upload };
 }

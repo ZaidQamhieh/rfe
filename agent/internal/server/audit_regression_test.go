@@ -40,7 +40,7 @@ func TestAuditRepro_DownloadFIFOReturnsPromptly(t *testing.T) {
 	}
 }
 
-// F-05: expiresInSeconds is multiplied by time.Second before the 24h cap
+// F-05: expiresInSeconds is multiplied by time.Second before the 7d cap
 // comparison; 18446744074 s overflows int64 to ~0.29 s and passes the check.
 func TestAuditRepro_ShareExpiryOverflowRejected(t *testing.T) {
 	ops, root := newFsFixture(t)
@@ -53,7 +53,7 @@ func TestAuditRepro_ShareExpiryOverflowRejected(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler(rr, httptest.NewRequest(http.MethodPost, "/v1/share/mint", strings.NewReader(body)))
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expiresInSeconds above the 24h cap accepted: %d %s", rr.Code, rr.Body.String())
+		t.Fatalf("expiresInSeconds above the 7d cap accepted: %d %s", rr.Code, rr.Body.String())
 	}
 }
 

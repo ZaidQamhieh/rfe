@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +23,24 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 	"github.com/ZaidQamhieh/rfe/agent/internal/transfer"
+)
+
+const (
+	// transferNotFoundMsg is the 404 message for an unknown transfer id.
+	transferNotFoundMsg = "transfer not found"
+	// headerChunkSHA256 is the request header carrying a chunk's SHA-256.
+	headerChunkSHA256 = "X-Chunk-Sha256"
+	// codeTransferActive is the 409 error code for a transfer that is busy.
+	codeTransferActive = "TRANSFER_ACTIVE"
+	// codeBadRequest is the 400 error code for a malformed or incomplete request.
+	codeBadRequest = "BAD_REQUEST"
+	// codeInsufficientStorage is the 507 error code for an upload the host's disk cannot hold right now.
+	codeInsufficientStorage = "INSUFFICIENT_STORAGE"
+	// storageRetryAfter is the Retry-After (seconds) of a 507: freeing disk space takes the owner longer than a
+	// busy-slot retry, so the client should back off further than for a 429.
+	storageRetryAfter = "30"
+	// pathRequiredMsg is the 400 message for a request that names no path.
+	pathRequiredMsg = "path required"
 )
 
 // compressibleExtensions are the (lowercase, dot-free) file extensions
@@ -40,6 +60,9 @@ var compressibleExtensions = map[string]bool{
 // compressMinBytes is the floor below which gzip overhead isn't worth it.
 const compressMinBytes = 1024
 
+// gzipPool reuses compressor state (about a megabyte each) across downloads.
+var gzipPool = sync.Pool{New: func() any { return gzip.NewWriter(io.Discard) }}
+
 // --------- /content GET ---------
 
 func downloadHandler(ops *fsops.Ops, st ...*settings.Store) http.HandlerFunc {
@@ -51,7 +74,7 @@ func downloadHandler(ops *fsops.Ops, st ...*settings.Store) http.HandlerFunc {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		f, err := ops.Open(path)
@@ -77,6 +100,8 @@ func downloadHandler(ops *fsops.Ops, st ...*settings.Store) http.HandlerFunc {
 			return
 		}
 		setUntrustedFileResponseHeaders(w, info.Name())
+		// A strong validator for If-Range / If-Match, set before the gzip branch so both answers name the same version.
+		w.Header().Set("ETag", downloadETag(info))
 		w = countingWriter{w}
 
 		// Apply download bandwidth throttle if configured.
@@ -103,13 +128,21 @@ func downloadHandler(ops *fsops.Ops, st ...*settings.Store) http.HandlerFunc {
 			w.Header().Set("Content-Type", contentTypeForName(info.Name()))
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Header().Set("Vary", "Accept-Encoding")
-			gz := gzip.NewWriter(w)
-			defer gz.Close()
-			_, _ = io.Copy(gz, content) // best-effort stream; client sees a truncated body on error
+			gz, _ := gzipPool.Get().(*gzip.Writer)
+			gz.Reset(w)
+			if _, err := io.Copy(gz, content); err != nil {
+				// No gzip trailer on a failed copy, so the client sees a corrupt stream, not a short "complete" file.
+				gz.Reset(io.Discard)
+				gzipPool.Put(gz)
+				return
+			}
+			_ = gz.Close()
+			gz.Reset(io.Discard) // do not keep the response writer alive in the pool
+			gzipPool.Put(gz)
 			return
 		}
 
-		// http.ServeContent handles Range, 206, 416, Content-Type, ETag, etc.
+		// http.ServeContent handles Range, 206, 416, Content-Type, If-Range / If-Match against the ETag above, etc.
 		http.ServeContent(w, r, info.Name(), info.ModTime(), content)
 	}
 }
@@ -158,7 +191,7 @@ func writeContentHandler(ops *fsops.Ops) http.HandlerFunc {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 
@@ -166,7 +199,7 @@ func writeContentHandler(ops *fsops.Ops) http.HandlerFunc {
 		if bm := r.URL.Query().Get("baseModified"); bm != "" {
 			t, err := time.Parse(time.RFC3339Nano, bm)
 			if err != nil {
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "baseModified must be RFC3339")
+				writeError(w, http.StatusBadRequest, codeBadRequest, "baseModified must be RFC3339")
 				return
 			}
 			baseModified = &t
@@ -177,10 +210,10 @@ func writeContentHandler(ops *fsops.Ops) http.HandlerFunc {
 		if err != nil {
 			var maxErr *http.MaxBytesError
 			if errors.As(err, &maxErr) {
-				writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "content exceeds maximum size of 5MiB")
+				writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", fmt.Sprintf("content exceeds maximum size of %dMiB", MaxContentBytes>>20))
 				return
 			}
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "failed to read request body")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "failed to read request body")
 			return
 		}
 
@@ -201,6 +234,27 @@ const maxChunkSize = 32 * 1024 * 1024 // 32 MiB
 
 // --------- POST /transfers ---------
 
+// Bounds and alphabet of the optional Idempotency-Key header of POST /transfers.
+const (
+	idempotencyKeyHeader = "Idempotency-Key"
+	idempotencyKeyMin    = 16
+	idempotencyKeyMax    = 64
+)
+
+// validIdempotencyKey reports whether key is 16 to 64 characters of [A-Za-z0-9_-].
+func validIdempotencyKey(key string) bool {
+	if len(key) < idempotencyKeyMin || len(key) > idempotencyKeyMax {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		c := key[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 func openTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
@@ -212,22 +266,27 @@ func openTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerFunc 
 			Overwrite bool   `json:"overwrite"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "invalid request body")
 			return
 		}
 		if req.Path == "" || req.SHA256 == "" || req.ChunkSize <= 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path, sha256, and chunkSize required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "path, sha256, and chunkSize required")
 			return
 		}
 		if req.Size < 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "size must not be negative")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "size must not be negative")
 			return
 		}
 		if req.ChunkSize > maxChunkSize {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "chunkSize exceeds maximum of 32MiB")
+			writeError(w, http.StatusBadRequest, codeBadRequest, fmt.Sprintf("chunkSize exceeds maximum of %dMiB", maxChunkSize>>20))
 			return
 		}
 		if req.Overwrite && !requireDeviceFileCapabilities(w, r, capModify) {
+			return
+		}
+		key := r.Header.Get(idempotencyKeyHeader)
+		if key != "" && !validIdempotencyKey(key) {
+			writeError(w, http.StatusBadRequest, codeBadRequest, fmt.Sprintf("%s must be %d-%d characters of A-Z, a-z, 0-9, _ or -", idempotencyKeyHeader, idempotencyKeyMin, idempotencyKeyMax))
 			return
 		}
 		// Validate path is in jail.
@@ -243,8 +302,12 @@ func openTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerFunc 
 		}
 
 		id := uuid.New().String()
-		t, err := tm.OpenSessionWithStat(id, resolved, req.Size, req.ChunkSize, req.SHA256, req.Overwrite, deviceID, ops.Stat)
+		t, existed, err := tm.OpenSessionWithKey(id, resolved, req.Size, req.ChunkSize, req.SHA256, req.Overwrite, deviceID, key, ops.Stat)
 		if err != nil {
+			if errors.Is(err, transfer.ErrIdempotencyKeyUsed) {
+				writeError(w, http.StatusConflict, "IDEMPOTENCY_KEY_USED", err.Error())
+				return
+			}
 			if errors.Is(err, fsops.ErrForbidden) || errors.Is(err, fsops.ErrReadOnly) {
 				handleFsError(w, err)
 				return
@@ -261,26 +324,47 @@ func openTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerFunc 
 				writeError(w, http.StatusTooManyRequests, "RESOURCE_LIMIT", "upload capacity is full; finish or remove an existing session before opening another")
 				return
 			}
+			if errors.Is(err, transfer.ErrInsufficientStorage) {
+				writeStorageFull(w)
+				return
+			}
 			writeInternal(w, "open transfer", err)
+			return
+		}
+		if existed {
+			// A repeat of an open whose answer the client lost: the same session, not a new one.
+			writeJSON(w, http.StatusOK, transferSession(t))
 			return
 		}
 		writeJSON(w, http.StatusCreated, transferSession(t))
 	}
 }
 
-// callerOwnsTransfer reports whether the authenticated device opened this
-// transfer, or is an admin device. Non-owners are treated as if the transfer
-// does not exist so foreign session IDs are neither confirmed nor usable
-// (PR-11). Legacy sessions with no recorded owner are admin-only.
-func callerOwnsTransfer(r *http.Request, t *store.Transfer) bool {
+// writeStorageFull answers 507 INSUFFICIENT_STORAGE with Retry-After: the host's disk cannot hold the upload
+// right now. The session stays open and keeps every chunk already received, so the client waits and retries.
+func writeStorageFull(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", storageRetryAfter)
+	writeError(w, http.StatusInsufficientStorage, codeInsufficientStorage, "the host has no free disk space for this upload; retry later")
+}
+
+// callerOwnsDevice reports whether the authenticated device is ownerID (the device
+// that opened a transfer or minted a share token), or is an admin device. Non-owners
+// are treated as if the record does not exist so foreign IDs are neither confirmed
+// nor usable. Records with no recorded owner (ownerID "") are admin-only.
+func callerOwnsDevice(r *http.Request, ownerID string) bool {
 	d := deviceFromContext(r)
 	if d == nil {
 		return false
 	}
-	if t.DeviceID != "" && t.DeviceID == d.ID {
+	if ownerID != "" && ownerID == d.ID {
 		return true
 	}
 	return isAdminDevice(d)
+}
+
+// writeTransferCompletionBusy is the 409 for a transfer whose completion is still running.
+func writeTransferCompletionBusy(w http.ResponseWriter) {
+	writeError(w, http.StatusConflict, codeTransferActive, "transfer completion is in progress; retry after it finishes")
 }
 
 // --------- GET /transfers/{id} ---------
@@ -291,23 +375,23 @@ func transferStatusHandler(tm *transfer.Manager) http.HandlerFunc {
 		t, err := tm.Lookup(id)
 		if err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			} else {
 				writeInternal(w, "transfer status", err)
 			}
 			return
 		}
-		if !callerOwnsTransfer(r, t) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+		if !callerOwnsDevice(r, t.DeviceID) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			return
 		}
 		// Only an authorized owner refreshes the retention clock.
 		t, err = tm.Status(id)
 		if err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			} else if errors.Is(err, transfer.ErrSessionActive) {
-				writeError(w, http.StatusConflict, "TRANSFER_ACTIVE", "transfer completion is in progress; retry after it finishes")
+				writeTransferCompletionBusy(w)
 			} else {
 				writeInternal(w, "transfer status", err)
 			}
@@ -329,26 +413,26 @@ func uploadChunkHandler(tm *transfer.Manager, st ...*settings.Store) http.Handle
 		nStr := chi.URLParam(r, "n")
 		n, err := strconv.Atoi(nStr)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid chunk index")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "invalid chunk index")
 			return
 		}
-		chunkSHA256 := r.Header.Get("X-Chunk-Sha256")
+		chunkSHA256 := r.Header.Get(headerChunkSHA256)
 		if chunkSHA256 == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "X-Chunk-Sha256 header required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, headerChunkSHA256+" header required")
 			return
 		}
 
 		t, err := tm.Lookup(id)
 		if err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 				return
 			}
 			writeInternal(w, "upload chunk", err)
 			return
 		}
-		if !callerOwnsTransfer(r, t) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+		if !callerOwnsDevice(r, t.DeviceID) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			return
 		}
 		if t.Overwrite && !requireDeviceFileCapabilities(w, r, capModify) {
@@ -360,11 +444,11 @@ func uploadChunkHandler(tm *transfer.Manager, st ...*settings.Store) http.Handle
 		release, err := tm.BeginActivity(id)
 		if err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 				return
 			}
 			if errors.Is(err, transfer.ErrSessionActive) {
-				writeError(w, http.StatusConflict, "TRANSFER_ACTIVE", "transfer completion is in progress; retry after it finishes")
+				writeTransferCompletionBusy(w)
 				return
 			}
 			if errors.Is(err, transfer.ErrNotOpen) {
@@ -425,16 +509,16 @@ func uploadChunkHandler(tm *transfer.Manager, st ...*settings.Store) http.Handle
 
 		if err := tm.WriteChunk(id, n, data, chunkSHA256); err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 				return
 			}
 			if errors.Is(err, transfer.ErrChunkMismatch) {
 				writeError(w, http.StatusConflict, "CHUNK_HASH_MISMATCH", err.Error())
 				return
 			}
-			// Client-side geometry errors, not server faults (PR-12).
+			// Client-side geometry errors, not server faults.
 			if errors.Is(err, transfer.ErrChunkOutOfRange) || errors.Is(err, transfer.ErrChunkWrongSize) {
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+				writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
 				return
 			}
 			if errors.Is(err, transfer.ErrNotOpen) {
@@ -442,7 +526,11 @@ func uploadChunkHandler(tm *transfer.Manager, st ...*settings.Store) http.Handle
 				return
 			}
 			if errors.Is(err, transfer.ErrSessionActive) {
-				writeError(w, http.StatusConflict, "TRANSFER_ACTIVE", "transfer completion is in progress; retry after it finishes")
+				writeTransferCompletionBusy(w)
+				return
+			}
+			if errors.Is(err, transfer.ErrInsufficientStorage) {
+				writeStorageFull(w)
 				return
 			}
 			writeInternal(w, "upload chunk", err)
@@ -464,32 +552,46 @@ func completeTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerF
 		// request's effective Ops and performs the final placement using the
 		// same rooted filesystem boundary. A prior Resolve check is not enough
 		// because the path can change between authorization and rename.
-		var verifiedSHA256 string
 		t, err := tm.Lookup(id)
 		if err != nil {
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			} else {
 				writeInternal(w, "complete transfer status", err)
 			}
 			return
 		}
 		if t == nil {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			return
 		}
-		if !callerOwnsTransfer(r, t) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+		if !callerOwnsDevice(r, t.DeviceID) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 			return
 		}
 		if t.Overwrite && !requireDeviceFileCapabilities(w, r, capModify) {
 			return
 		}
-		verifiedSHA256 = t.SHA256
+		verifiedSHA256 := t.SHA256
+		// A repeated complete (the first answer was lost) is idempotent: the session is already
+		// published, so answer with the same success body and publish nothing. Only the owning
+		// device (checked above) reaches this; failed sessions keep their TRANSFER_NOT_OPEN error.
+		if t.Status == store.TransferCompleted {
+			tm.NoteCompleteOnTerminalSession(id)
+			writeCompleteSuccess(w, ops, t.TargetPath, verifiedSHA256)
+			return
+		}
 		_, targetPath, err := tm.CompleteWithPublisher(id, func(path string, source io.Reader, overwrite bool) (os.FileInfo, error) {
-			info, publishErr := ops.PublishReader(path, source, overwrite)
+			info, publishErr := ops.PublishReaderWith(path, source, overwrite, tm.PublishOptions(id))
 			if errors.Is(publishErr, fsops.ErrConflict) {
 				return nil, transfer.ErrDestinationExists
+			}
+			// An overwrite cannot replace a folder: the rename fails with an OS-specific
+			// error, so report the occupied destination as a conflict, not a 500.
+			if publishErr != nil && overwrite {
+				if fi, statErr := ops.Stat(path); statErr == nil && fi.IsDir() {
+					return nil, transfer.ErrDestinationExists
+				}
 			}
 			return info, publishErr
 		})
@@ -499,7 +601,7 @@ func completeTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerF
 				return
 			}
 			if errors.Is(err, transfer.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "transfer not found")
+				writeError(w, http.StatusNotFound, "NOT_FOUND", transferNotFoundMsg)
 				return
 			}
 			if errors.Is(err, transfer.ErrIncomplete) {
@@ -511,7 +613,7 @@ func completeTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerF
 				return
 			}
 			// Something occupied the target while the upload ran, and this
-			// session was opened with overwrite=false (PR-50).
+			// session was opened with overwrite=false.
 			if errors.Is(err, transfer.ErrDestinationExists) {
 				writeError(w, http.StatusConflict, "CONFLICT", "destination already exists")
 				return
@@ -521,7 +623,7 @@ func completeTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerF
 				return
 			}
 			if errors.Is(err, transfer.ErrSessionActive) {
-				writeError(w, http.StatusConflict, "TRANSFER_ACTIVE", "transfer has another active operation; retry after it finishes")
+				writeError(w, http.StatusConflict, codeTransferActive, "transfer has another active operation; retry after it finishes")
 				return
 			}
 			writeInternal(w, "complete transfer", err)
@@ -530,28 +632,34 @@ func completeTransferHandler(tm *transfer.Manager, ops *fsops.Ops) http.HandlerF
 		// Complete() only returns successfully once the whole-file SHA-256 has
 		// been verified against t.SHA256 (captured above), so it's safe to
 		// report that hash back to the client as the verified checksum.
-		entry, err := ops.Meta(targetPath)
-		if err != nil {
-			// Transfer succeeded but meta failed — return a minimal entry.
-			writeJSON(w, http.StatusOK, map[string]any{
-				"path":     targetPath,
-				"modified": time.Now(),
-				"sha256":   verifiedSHA256,
-				"verified": true,
-			})
-			return
-		}
-		// Marshal the Entry and merge in the verification fields, so the
-		// response keeps all Entry fields (including omitempty behavior)
-		// plus sha256/verified.
-		resp := map[string]any{}
-		if b, marshalErr := json.Marshal(entry); marshalErr == nil {
-			_ = json.Unmarshal(b, &resp)
-		}
-		resp["sha256"] = verifiedSHA256
-		resp["verified"] = true
-		writeJSON(w, http.StatusOK, resp)
+		writeCompleteSuccess(w, ops, targetPath, verifiedSHA256)
 	}
+}
+
+// writeCompleteSuccess writes the 200 body of a finished upload: the published file's Entry fields
+// plus its verified sha256. A first complete and a repeated one share it, so both answer alike.
+func writeCompleteSuccess(w http.ResponseWriter, ops *fsops.Ops, targetPath, verifiedSHA256 string) {
+	entry, err := ops.Meta(targetPath)
+	if err != nil {
+		// Transfer succeeded but meta failed — return a minimal entry.
+		writeJSON(w, http.StatusOK, map[string]any{
+			"path":     targetPath,
+			"modified": time.Now(),
+			"sha256":   verifiedSHA256,
+			"verified": true,
+		})
+		return
+	}
+	// Marshal the Entry and merge in the verification fields, so the
+	// response keeps all Entry fields (including omitempty behavior)
+	// plus sha256/verified.
+	resp := map[string]any{}
+	if b, marshalErr := json.Marshal(entry); marshalErr == nil {
+		_ = json.Unmarshal(b, &resp)
+	}
+	resp["sha256"] = verifiedSHA256
+	resp["verified"] = true
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // transferSession converts a store.Transfer to the UploadSession JSON shape.
