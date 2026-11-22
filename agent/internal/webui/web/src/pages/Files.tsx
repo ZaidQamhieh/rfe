@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
@@ -20,11 +20,28 @@ import {
   Download,
   Check,
 } from 'lucide-react';
-import { api, ApiError, contentUrl, type Entry, type ShareLink, type ShareLinkSummary, type TrashEntry } from '@/lib/api';
-import { restoreFailure } from '@/lib/requests';
+import { api, apiMessage, fetchContentBlob, type Entry, type ShareLink, type ShareLinkSummary, type TrashEntry } from '@/lib/api';
+import { formatBytes } from '@/lib/format';
+import { invalidateFolderViews } from '@/lib/folderViews';
+import { entriesOfPages } from '@/lib/listing';
+import { crumbsOf, joinPath, restoreFailure } from '@/lib/requests';
+import { confirmDestructive } from '@/lib/confirm';
 import { useToast } from '@/lib/toast-context';
 import { DataTable } from '@/components/DataTable';
 import { Dialog } from '@/components/Dialog';
+import { ListError } from '@/components/ListError';
+
+function IconBox({ Icon, cls }: { Icon: typeof File; cls?: string }) {
+  return (
+    <div className={`trow-icon${cls ? ` ${cls}` : ''}`}>
+      <Icon />
+    </div>
+  );
+}
+
+function sizeText(entry: Entry): string {
+  return entry.isDir ? '—' : formatBytes(entry.size);
+}
 
 type Tab = 'browse' | 'recent' | 'favorites' | 'trash' | 'shares';
 const TABS: { id: Tab; label: string }[] = [
@@ -35,38 +52,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'shares', label: 'Shares' },
 ];
 
-function formatBytes(n: number): string {
-  if (!n) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${i === 0 ? v : v.toFixed(1)} ${units[i]}`;
-}
+/** How long a download's object URL stays valid before it is revoked, in milliseconds. */
+const BLOB_REVOKE_MS = 60_000;
 
 function formatDate(iso?: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function joinPath(base: string, name: string): string {
-  return base === '/' || base === '' ? `/${name}` : `${base}/${name}`;
-}
-
-function crumbsOf(path: string): { label: string; full: string }[] {
-  const segs = path.split('/').filter(Boolean);
-  const out: { label: string; full: string }[] = [];
-  let acc = '';
-  for (const s of segs) {
-    acc = `${acc}/${s}`;
-    out.push({ label: s, full: acc });
-  }
-  return out;
 }
 
 function fileIconFor(entry: Entry): { Icon: typeof File; cls: string } {
@@ -85,8 +78,6 @@ export function Files() {
 
   // ---------- Browse ----------
   const [path, setPath] = useState('/');
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [browseQuery, setBrowseQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -96,7 +87,16 @@ export function Files() {
   const [renameValue, setRenameValue] = useState('');
   const [shareResult, setShareResult] = useState<ShareLink | null>(null);
 
-  const listing = useQuery({ queryKey: ['listing', path], queryFn: () => api.listDir(path), enabled: activeTab === 'browse' });
+  // One cached list of pages per folder: a page that arrives after the user opened another folder lands in the old
+  // folder's cache, and a refetch reloads every page already loaded instead of cutting back to the first.
+  const listing = useInfiniteQuery({
+    queryKey: ['listing', path],
+    queryFn: ({ pageParam }) => api.listDir(path, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: activeTab === 'browse',
+  });
+  const entries = useMemo(() => entriesOfPages(listing.data?.pages), [listing.data]);
   const searchResult = useQuery({
     queryKey: ['fsearch', path, browseQuery],
     queryFn: () => api.search(browseQuery, path),
@@ -104,43 +104,35 @@ export function Files() {
   });
 
   useEffect(() => {
-    if (listing.data) {
-      setEntries(listing.data.entries);
-      setNextCursor(listing.data.nextCursor ?? undefined);
-    }
-  }, [listing.data]);
-
-  useEffect(() => {
     setSelected(new Set());
     setSelecting(false);
   }, [path]);
 
   async function loadMore() {
-    if (!nextCursor) return;
-    const more = await api.listDir(path, nextCursor);
-    setEntries((prev) => [...prev, ...more.entries]);
-    setNextCursor(more.nextCursor ?? undefined);
+    const result = await listing.fetchNextPage();
+    if (result.isError) toast(apiMessage(result.error, 'Failed to load more'));
   }
 
   const mkdirMutation = useMutation({
     mutationFn: (name: string) => api.mkdir(joinPath(path, name)),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['listing', path] });
+      invalidateFolderViews(qc, path);
       toast('Folder created');
       setNewFolderOpen(false);
       setNewFolderName('');
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Failed to create folder'),
+    onError: (err) => toast(apiMessage(err, 'Failed to create folder')),
   });
 
   const renameMutation = useMutation({
     mutationFn: ({ p, newName }: { p: string; newName: string }) => api.rename(p, newName),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['listing', path] });
+      qc.invalidateQueries({ queryKey: ['fsearch'] });
       toast('Renamed');
       setRenameTarget(null);
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Rename failed'),
+    onError: (err) => toast(apiMessage(err, 'Rename failed')),
   });
 
   const shareMutation = useMutation({
@@ -149,23 +141,14 @@ export function Files() {
       setShareResult(data);
       qc.invalidateQueries({ queryKey: ['shares'] });
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Failed to create share link'),
+    onError: (err) => toast(apiMessage(err, 'Failed to create share link')),
   });
 
   async function downloadFile(entry: Entry) {
     try {
-      const response = await fetch(contentUrl(entry.path), {
-        headers: { 'X-RFE-Web-Session': '1' },
-        credentials: 'same-origin',
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new ApiError(response.status, data?.code ?? 'UNKNOWN', data?.message ?? response.statusText);
-      }
-
       // Never navigate the browser to host-controlled file content. Fetch with
       // the device credential, then trigger a save from a download-only blob.
-      const objectURL = URL.createObjectURL(await response.blob());
+      const objectURL = URL.createObjectURL(await fetchContentBlob(entry.path));
       const link = document.createElement('a');
       link.href = objectURL;
       link.download = entry.name;
@@ -173,9 +156,9 @@ export function Files() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectURL), 60_000);
+      window.setTimeout(() => URL.revokeObjectURL(objectURL), BLOB_REVOKE_MS);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Download failed');
+      toast(apiMessage(err, 'Download failed'));
     }
   }
 
@@ -188,25 +171,24 @@ export function Files() {
     });
   }
 
-  function bulkStub(endpoint: string) {
-    toast(`${selected.size} item${selected.size === 1 ? '' : 's'} — wire to ${endpoint}`);
-  }
-
-  async function onUploadPicked(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    for (const file of Array.from(files)) {
-      const dest = `${path.replace(/\/$/, '')}/${file.name}`;
+  async function onUploadPicked(files: File[]) {
+    for (const file of files) {
+      const dest = joinPath(path, file.name);
       try {
         await api.uploadFile(dest, file);
         toast(`Uploaded ${file.name}`);
       } catch (err) {
-        toast(err instanceof ApiError ? err.message : `Upload failed: ${file.name}`);
+        toast(apiMessage(err, `Upload failed: ${file.name}`));
       }
     }
-    qc.invalidateQueries({ queryKey: ['listing'] });
+    invalidateFolderViews(qc);
   }
 
   const rows = browseQuery.trim() ? searchResult.data ?? [] : entries;
+  // A failed query with nothing cached is shown as an error, not as an empty folder.
+  const failedQuery = browseQuery.trim() ? searchResult : listing;
+  // While the search (or the folder) is still loading, show that instead of "No matches" / an empty folder.
+  const browseLoading = browseQuery.trim() ? searchResult.isLoading : listing.isLoading;
 
   const browseColumns: ColumnDef<Entry, any>[] = [
     ...(selecting
@@ -241,15 +223,13 @@ export function Files() {
             style={{ cursor: entry.isDir ? 'pointer' : 'default' }}
             onClick={() => entry.isDir && setPath(entry.path)}
           >
-            <div className={`trow-icon${cls ? ` ${cls}` : ''}`}>
-              <Icon />
-            </div>
+            <IconBox Icon={Icon} cls={cls} />
             {entry.name}
           </div>
         );
       },
     },
-    { id: 'size', header: 'Size', cell: ({ row }) => (row.original.isDir ? '—' : formatBytes(row.original.size)) },
+    { id: 'size', header: 'Size', cell: ({ row }) => sizeText(row.original) },
     { id: 'modified', header: 'Modified', cell: ({ row }) => formatDate(row.original.modified) },
     {
       id: 'actions',
@@ -287,7 +267,7 @@ export function Files() {
                   <DropdownMenu.Item asChild>
                     <button
                       className="cmdk-item"
-                      style={{ width: '100%', textDecoration: 'none' }}
+                      style={{ width: '100%' }}
                       onClick={() => void downloadFile(entry)}
                     >
                       <Download /> Download
@@ -317,16 +297,14 @@ export function Files() {
         const { Icon, cls } = fileIconFor(row.original);
         return (
           <div className="tcell">
-            <div className={`trow-icon${cls ? ` ${cls}` : ''}`}>
-              <Icon />
-            </div>
+            <IconBox Icon={Icon} cls={cls} />
             {row.original.name}
           </div>
         );
       },
     },
     { id: 'modified', header: 'Opened', cell: ({ row }) => formatDate(row.original.modified) },
-    { id: 'size', header: 'Size', cell: ({ row }) => (row.original.isDir ? '—' : formatBytes(row.original.size)) },
+    { id: 'size', header: 'Size', cell: ({ row }) => sizeText(row.original) },
     {
       id: 'actions',
       header: '',
@@ -362,16 +340,16 @@ export function Files() {
       qc.invalidateQueries({ queryKey: ['trash'] });
       toast('Deleted forever');
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Delete failed'),
+    onError: (err) => toast(apiMessage(err, 'Delete failed')),
   });
   async function emptyTrash() {
     if (!trash.data || trash.data.length === 0) return;
-    if (!window.confirm(`Permanently delete all ${trash.data.length} item(s) in trash?`)) return;
+    if (!confirmDestructive(`Permanently delete all ${trash.data.length} item(s) in trash?`)) return;
     try {
       await api.emptyTrash();
       toast('Trash emptied');
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not empty the trash');
+      toast(apiMessage(err, 'Could not empty the trash'));
     }
     qc.invalidateQueries({ queryKey: ['trash'] });
   }
@@ -381,7 +359,7 @@ export function Files() {
       header: 'Name',
       cell: ({ row }) => (
         <div className="tcell">
-          <div className={`trow-icon${row.original.isDir ? ' blue' : ''}`}>{row.original.isDir ? <Folder /> : <File />}</div>
+          <IconBox Icon={row.original.isDir ? Folder : File} cls={row.original.isDir ? 'blue' : undefined} />
           {row.original.name}
         </div>
       ),
@@ -399,7 +377,7 @@ export function Files() {
             className="iconbtn"
             title="Delete forever"
             onClick={() => {
-              if (window.confirm(`Permanently delete "${row.original.name}"?`)) deleteForeverMutation.mutate(row.original.id);
+              if (confirmDestructive(`Permanently delete "${row.original.name}"?`)) deleteForeverMutation.mutate(row.original.id);
             }}
           >
             <Trash2 />
@@ -417,7 +395,7 @@ export function Files() {
       qc.invalidateQueries({ queryKey: ['shares'] });
       toast('Share revoked');
     },
-    onError: (err) => toast(err instanceof ApiError ? err.message : 'Revoke failed'),
+    onError: (err) => toast(apiMessage(err, 'Revoke failed')),
   });
   const shareColumns: ColumnDef<ShareLinkSummary, any>[] = [
     { id: 'path', header: 'File', cell: ({ row }) => row.original.path },
@@ -477,7 +455,18 @@ export function Files() {
             </button>
             <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
               <Upload /> Upload
-              <input type="file" multiple style={{ display: 'none' }} onChange={(e) => onUploadPicked(e.target.files)} />
+              <input
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  // Copy the picks, then clear the input: picking the same file again must still fire a change.
+                  const input = e.currentTarget;
+                  const picked = Array.from(input.files ?? []);
+                  input.value = '';
+                  void onUploadPicked(picked);
+                }}
+              />
             </label>
           </div>
 
@@ -485,25 +474,15 @@ export function Files() {
             <div className="bulkbar">
               <b>{selected.size} selected</b>
               <div className="sp" />
-              <button className="btn btn-ghost btn-sm" onClick={() => bulkStub('/fs/move')}>
-                Move
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => bulkStub('/fs/copy')}>
-                Copy
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => bulkStub('/fs/compress')}>
-                Compress
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => bulkStub('/fs/checksum')}>
-                Checksum
-              </button>
-              <button className="btn btn-danger btn-sm" onClick={() => bulkStub('/fs/delete')}>
-                Delete
-              </button>
             </div>
           )}
 
-          {listing.isLoading ? (
+          {failedQuery.isError && !failedQuery.data ? (
+            <ListError
+              title={browseQuery.trim() ? 'Could not search this folder' : 'Could not load this folder'}
+              error={failedQuery.error}
+            />
+          ) : browseLoading ? (
             <div className="empty">Loading…</div>
           ) : rows.length === 0 ? (
             <div className="empty">
@@ -517,8 +496,8 @@ export function Files() {
             <DataTable data={rows} columns={browseColumns} />
           )}
 
-          {!browseQuery.trim() && nextCursor && (
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={loadMore}>
+          {!browseQuery.trim() && listing.hasNextPage && (
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} disabled={listing.isFetchingNextPage} onClick={loadMore}>
               Load more
             </button>
           )}
@@ -527,7 +506,9 @@ export function Files() {
 
       {activeTab === 'recent' && (
         <>
-          {recent.isLoading ? (
+          {recent.isError && !recent.data ? (
+            <ListError title="Could not load recent files" error={recent.error} />
+          ) : recent.isLoading ? (
             <div className="empty">Loading…</div>
           ) : !recent.data || recent.data.length === 0 ? (
             <div className="empty">
@@ -542,7 +523,9 @@ export function Files() {
 
       {activeTab === 'favorites' && (
         <>
-          {!settings.data || settings.data.roots.length === 0 ? (
+          {settings.isError && !settings.data ? (
+            <ListError title="Could not load favorites" error={settings.error} />
+          ) : !settings.data || settings.data.roots.length === 0 ? (
             <div className="empty">
               <h4>No shortcuts configured</h4>
               <p>Favorites aren't backed by the agent yet — showing configured allowed folders instead, and none are set.</p>
@@ -583,7 +566,9 @@ export function Files() {
               Empty trash
             </button>
           </div>
-          {trash.isLoading ? (
+          {trash.isError && !trash.data ? (
+            <ListError title="Could not load trash" error={trash.error} />
+          ) : trash.isLoading ? (
             <div className="empty">Loading…</div>
           ) : !trash.data || trash.data.length === 0 ? (
             <div className="empty">
@@ -597,7 +582,9 @@ export function Files() {
 
       {activeTab === 'shares' && (
         <>
-          {shares.isLoading ? (
+          {shares.isError && !shares.data ? (
+            <ListError title="Could not load shares" error={shares.error} />
+          ) : shares.isLoading ? (
             <div className="empty">Loading…</div>
           ) : !shares.data || shares.data.length === 0 ? (
             <div className="empty">
@@ -656,9 +643,14 @@ export function Files() {
             <input type="text" readOnly value={shareResult.url} onFocus={(e) => e.currentTarget.select()} style={{ width: '100%' }} />
             <button
               className="btn btn-ghost"
-              onClick={() => {
-                navigator.clipboard.writeText(shareResult.url);
-                toast('Link copied');
+              onClick={async () => {
+                // The clipboard is missing on a plain-HTTP page and refuses without permission: say so, don't claim success.
+                try {
+                  await navigator.clipboard.writeText(shareResult.url);
+                  toast('Link copied');
+                } catch {
+                  toast('Could not copy the link — select it and copy it by hand');
+                }
               }}
             >
               Copy link

@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Contact sheet — pictures first, every file is a frame</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d14{--bg:#0e0e0f;--sf:#161617;--rz:#202022;--t1:#ededee;--t2:#a3a3a8;--t3:#828288;--line:rgba(237,237,238,.08);--line2:rgba(237,237,238,.14);--ac:#ededee;--on-ac:#0e0e0f;--ac-ink:#ededee;--ac-soft:rgba(237,237,238,.1);--pos:#4cc38a;--neg:#e5484d;--warn:#e0a43b;--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;--shadow:0 12px 32px rgba(0,0,0,.5);display:grid;grid-template-columns:208px 1fr;grid-template-rows:48px 1fr}
+.d14 .k-qr{background:#ededee}
+.d14 .top{grid-column:1/3;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line)}
+.d14 .top nav{display:flex;gap:2px;font-size:13px}
+.d14 .top nav button{height:30px;padding:0 10px;border-radius:6px;color:var(--t2)} .d14 .top nav button.on{background:var(--rz);color:var(--t1)}
+.d14 .top nav em{font-style:normal;font:11px var(--mono);color:var(--t3);margin-left:4px}
+.d14 .top .r{margin-left:auto;display:flex;gap:4px;align-items:center}
+.d14 .flt{border-right:1px solid var(--line);padding:16px 12px;overflow:auto;font-size:13px}
+.d14 .flt h4{font:500 12px var(--font);color:var(--t3);margin:16px 8px 6px}
+.d14 .flt button{display:flex;gap:8px;align-items:center;width:100%;height:30px;padding:0 8px;border-radius:6px;color:var(--t2)}
+.d14 .flt button:hover{background:var(--rz)} .d14 .flt button.on{background:var(--rz);color:var(--t1)}
+.d14 .flt small{margin-left:auto;font:11px var(--mono);color:var(--t3)}
+.d14 .stage{overflow:auto;padding:16px 20px 88px;min-height:0;position:relative}
+.d14 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}.d14 .k-files{flex:1}
+.d14 .sh{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.d14 .sh h3{grid-column:1/-1;font:500 13px var(--font);color:var(--t2);margin:16px 0 8px;display:flex;gap:12px}
+.d14 .sh h3:first-child{margin-top:0} .d14 .sh h3 small{color:var(--t3);font-family:var(--mono);font-weight:400}
+.d14 .fr{position:relative;aspect-ratio:4/3;overflow:hidden;cursor:pointer}
+.d14 .fr>svg{width:100%;height:100%;display:block}
+.d14 .fr .ck{position:absolute;top:8px;left:8px;width:20px;height:20px;border-radius:10px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);display:grid;place-items:center;color:#0e0e0f}
+.d14 .fr.sel{outline:2px solid var(--t1);outline-offset:-2px} .d14 .fr.sel .ck{background:#ededee;box-shadow:none}
+.d14 .fr .cap{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;font-size:11px;color:#fff;background:rgba(14,14,15,.55);opacity:0}
+.d14 .fr:hover .cap,.d14 .fr.sel .cap{opacity:1}
+.d14 .fr.dc{background:var(--sf);display:grid;place-items:center;color:var(--t3)} .d14 .fr.dc .cap{opacity:1;background:none;color:var(--t2)}
+.d14 .sel-bar{position:absolute;left:228px;right:20px;bottom:16px;height:52px;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;border-radius:14px;background:var(--rz);box-shadow:var(--shadow),inset 0 0 0 1px var(--line2);z-index:20;font-size:13px}
+.d14 .sel-bar b{font-weight:500;margin-right:8px}
+.d14 .sel-bar .sp{flex:1}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d14">
+ <header class="top" id="top"></header>
+ <aside class="flt" id="flt"></aside>
+ <main class="stage" id="st"></main>
+ <div class="sel-bar" id="selbar"></div>
+</div>
+<script>
+window.IDEA='For people whose PCs hold mostly photos and video. Folders open as a contact sheet of real thumbnails, grouped by day, with the computer and kind as filters on the left. Selecting frames brings up one bar with everything you can do to them, so a batch download or share is two clicks.';
+window.MAP=[['Navigation','Text tabs at the top; Sheet is home',1],['Switch computer','Computers in the filter column',1],['Connect and trust','Add a computer under Computers',1],['Servers and status','Servers tab; key tag on each computer',1],['Files and preview','Sheet of thumbnails; List for the full file list; double-click opens the viewer',0],['Upload and download','Selection bar: Download; drop files on the sheet to upload',1],['Pair a phone','QR icon at the top right',1],['Pairing requests','Devices tab with the count',1],['Transfers','Ring at the top right; Transfers tab',1],['Search','Search tab, or /',1],['Tools','Tools tab; duplicates under Storage',1],['History and audit','History tab',1],['Settings','Settings tab',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,D=K.D;
+const T=[['sheet','Sheet'],['files','List'],['servers','Servers'],['devices','Devices<em>2</em>'],['transfers','Transfers<em>3</em>'],['search','Search'],['tools','Tools'],['history','History'],['settings','Settings']];
+function topbar(v){document.getElementById('top').innerHTML=`<span style="display:flex;gap:8px;align-items:center;font-weight:500">${I('key',16)}RFE</span><nav>${T.map(t=>`<button class="${v===t[0]?'on':''}" data-k="go:${t[0]}">${t[1]}</button>`).join('')}</nav><div class="r"><button class="k-xpill" data-k="go:transfers">${K.C.ring(71)}2</button>${K.C.actions({no:['refresh']})}</div>`;document.getElementById('selbar').style.display=v==='sheet'?'flex':'none';}
+document.getElementById('flt').innerHTML=`<h4 style="margin-top:0">Computers</h4>${D.servers.map(s=>`<button class="${s.id==='studio'?'on':''}" data-k="${s.dot==='ok'?'go:sheet':s.dot==='bad'?'dlg:keychanged':'menu:server'}">${K.dot(s.dot)}${s.name}<small>${s.tag.slice(0,4)}</small></button>`).join('')}<button data-k="dlg:newconn">${I('plus',14)}Add a computer</button><h4>studio-pc · Photos</h4>${[['2026','1,204'],['garden-plan','11',1],['Lisbon trip','412'],['Screenshots','96']].map(f=>`<button class="${f[2]?'on':''}">${K.E('dir',16)}${f[0]}<small>${f[1]}</small></button>`).join('')}<h4>Kind</h4>${[['img','Photos','862'],['vid','Video','41'],['doc','Documents','118'],['arc','Archives','12']].map(f=>`<button>${K.E(f[0],16)}${f[1]}<small>${f[2]}</small></button>`).join('')}<h4>Saved</h4>${D.search.saved.map(s=>`<button data-k="go:search">${I('search',14)}${s}</button>`).join('')}`;
+document.getElementById('selbar').innerHTML=`<b>3 selected · 11.3 MB</b>${K.btn('Download',{i:'download',k:'pri sm',kc:'Ctrl D'})}${K.btn('Share link…',{i:'link',k:'sm',a:'dlg:share'})}${K.ib('more','Copy or move, compress, rename all','menu:sheetmore')}<span class="sp"></span>${K.ib('trash','Move to Trash (Delete)','dlg:delete')}${K.ib('x','Clear selection (Esc)')}`;
+K.MENU.sheetmore=[['Copy or move…','dlg:copyto','move'],['Compress to .zip','toast:Compressing 3 photos to garden-plan.zip','archive'],['Rename all…','dlg:batch','pencil']];
+const names=['north-bed-after.jpg','north-bed-before.jpg','south-bed-may.jpg','compost-bins.jpg','tomato-row-03.jpg','tomato-row-04.jpg','gate-repair.jpg','path-gravel.jpg','rain-barrel.jpg','seedlings-tray.jpg','north-bed-sketch.jpg','shed-roof.jpg','herb-spiral.jpg','bean-poles.jpg','frost-morning.jpg'];
+const sel=[0,1,4];
+const fr=(n,i)=>`<div class="fr${sel.includes(i)?' sel':''}" data-row="${n}" data-k="dlg:preview">${K.photo(i%4,240,180,0)}<span class="ck">${sel.includes(i)?I('check',12):''}</span><span class="cap">${n}</span></div>`;
+const sheet=()=>`<div class="sh"><h3>Today <small>1 Nov · 2 photos</small></h3>${names.slice(0,2).map(fr).join('')}<div class="fr dc" data-row="walkthrough.mp4">${K.E('vid',56)}<span class="cap">walkthrough.mp4 · 412 MB</span></div><div class="fr dc" data-row="bed-layout.pdf">${K.E('doc',56)}<span class="cap">bed-layout.pdf</span></div><div class="fr dc" data-row="soil-test-results.csv">${K.E('sheet',56)}<span class="cap">soil-test-results.csv</span></div><h3>October <small>10 photos</small></h3>${names.slice(2).map((n,i)=>fr(n,i+2)).join('')}</div>`;
+K.mount({stage:document.getElementById('st'),state:{view:'sheet'},views:{sheet},onGo:topbar});
+</script></body></html>

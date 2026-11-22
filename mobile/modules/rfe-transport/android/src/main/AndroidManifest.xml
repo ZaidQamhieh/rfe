@@ -7,6 +7,12 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application>
+    <receiver android:name="expo.modules.rfetransport.StorageWidget" android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/rfe_storage_widget_info" />
+    </receiver>
     <service
       android:name="expo.modules.rfetransport.TransferService"
       android:exported="false"

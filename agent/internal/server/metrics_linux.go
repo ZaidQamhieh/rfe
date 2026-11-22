@@ -10,6 +10,22 @@ import (
 // CPU/RAM are read from /proc — Linux-only, zero dependencies. The
 // non-Linux build (metrics_other.go) returns 0, matching how /agent/restart
 // returns 501 off-Linux; the owner's agent runs Linux.
+const (
+	procStatPath    = "/proc/stat"
+	procMeminfoPath = "/proc/meminfo"
+)
+
+// cpuStatMinFields is the field count of a usable /proc/stat "cpu" line: the label, then user, nice, system, idle.
+const cpuStatMinFields = 5
+
+// cpuIdleIndex and cpuIOWaitIndex index the "cpu" line fields after its label.
+const (
+	cpuIdleIndex   = 3
+	cpuIOWaitIndex = 4
+)
+
+// percentScale turns a 0..1 ratio into a percentage.
+const percentScale = 100
 
 var cpuSampleMu sync.Mutex
 var cpuLastIdle, cpuLastTotal uint64
@@ -19,7 +35,7 @@ var cpuLastIdle, cpuLastTotal uint64
 // prior sample so it reports utilization since boot; every call after is the
 // real interval delta (the web companion polls every 2s).
 func cpuPercent() float64 {
-	data, err := os.ReadFile("/proc/stat")
+	data, err := os.ReadFile(procStatPath)
 	if err != nil {
 		return 0
 	}
@@ -28,7 +44,7 @@ func cpuPercent() float64 {
 		line = line[:nl]
 	}
 	fields := strings.Fields(line)
-	if len(fields) < 5 || fields[0] != "cpu" {
+	if len(fields) < cpuStatMinFields || fields[0] != "cpu" {
 		return 0
 	}
 	var total, idle uint64
@@ -39,7 +55,7 @@ func cpuPercent() float64 {
 			continue
 		}
 		total += v
-		if i == 3 || i == 4 { // idle + iowait count as not-busy
+		if i == cpuIdleIndex || i == cpuIOWaitIndex { // idle + iowait count as not-busy
 			idle += v
 		}
 	}
@@ -52,7 +68,7 @@ func cpuPercent() float64 {
 	if dTotal == 0 {
 		return 0
 	}
-	busy := (1 - float64(dIdle)/float64(dTotal)) * 100
+	busy := (1 - float64(dIdle)/float64(dTotal)) * percentScale
 	if busy < 0 {
 		busy = 0
 	}
@@ -63,7 +79,7 @@ func cpuPercent() float64 {
 // /proc/meminfo (MemTotal minus MemAvailable, falling back to MemFree on the
 // rare kernel that omits MemAvailable).
 func ramPercent() float64 {
-	data, err := os.ReadFile("/proc/meminfo")
+	data, err := os.ReadFile(procMeminfoPath)
 	if err != nil {
 		return 0
 	}
@@ -90,5 +106,5 @@ func ramPercent() float64 {
 	if avail == 0 {
 		avail = memFree
 	}
-	return float64(memTotal-avail) / float64(memTotal) * 100
+	return float64(memTotal-avail) / float64(memTotal) * percentScale
 }

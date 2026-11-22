@@ -1,0 +1,57 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Spotlight — the window is a search box</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.sp{background:linear-gradient(160deg,#e9e4ff,#ffe9f1 45%,#e3f4ff);color:#1c1530;font-family:"Inter",system-ui,sans-serif}
+.sp .tb{color:#a69bc9}
+.sp .stage{flex:1;display:flex;flex-direction:column;align-items:center;padding-top:70px}
+.sp .box{width:780px;background:rgba(255,255,255,.72);backdrop-filter:blur(30px) saturate(1.4);border-radius:22px;box-shadow:0 30px 70px rgba(80,40,160,.18),0 0 0 1px rgba(255,255,255,.8) inset;overflow:hidden}
+.sp .in{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid rgba(80,40,160,.08)}
+.sp .in svg{flex:none}
+.sp .in input{flex:1;border:0;background:none;font:400 26px system-ui;outline:none;color:#1c1530}
+.sp .chips{display:flex;gap:6px}.sp .chip{font-size:12px;padding:5px 10px;border-radius:999px;background:rgba(124,92,255,.12);color:#5a3fd6}
+.sp .res{display:grid;grid-template-columns:1fr 300px;min-height:420px}
+.sp .grp{padding:10px 10px 14px}
+.sp .grp h3{font:600 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#9a8fc0;margin:10px 14px 6px}
+.sp .it{display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:12px;font-size:14px;cursor:pointer}
+.sp .it .i{width:28px;height:28px;border-radius:8px;background:#efeafd;display:grid;place-items:center;font-size:14px}
+.sp .it small{color:#9a8fc0;font-size:12px;margin-left:auto}
+.sp .it.on{background:#6d4cff;color:#fff}.sp .it.on small{color:#d9d0ff}.sp .it.on .i{background:rgba(255,255,255,.2)}
+.sp .it kbd{font:600 11px ui-monospace,monospace;background:rgba(0,0,0,.06);padding:2px 6px;border-radius:5px}
+.sp .it.on kbd{background:rgba(255,255,255,.2)}
+.sp .pv{border-left:1px solid rgba(80,40,160,.08);padding:18px;display:flex;flex-direction:column;gap:12px;background:rgba(255,255,255,.4)}
+.sp .pv .img{height:150px;border-radius:12px;background:linear-gradient(135deg,#ffb38a,#ff6fa5 50%,#8b6dff)}
+.sp .pv h4{margin:0;font-size:15px}.sp .pv p{margin:0;font-size:12.5px;color:#6f6590;line-height:1.6}
+.sp .pv .acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto}
+.sp .pv button{border:0;border-radius:10px;padding:9px;font:500 12.5px system-ui;background:#fff;color:#3b2f66;cursor:pointer;box-shadow:0 1px 0 rgba(80,40,160,.1)}
+.sp .pv button.p{background:#6d4cff;color:#fff}
+.sp .foot{display:flex;gap:18px;justify-content:center;margin-top:22px;font-size:12px;color:#7f74a6}
+.sp .foot b{color:#3b2f66}
+.sp .tray{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.sp .tray div{background:rgba(255,255,255,.7);backdrop-filter:blur(20px);border-radius:999px;padding:8px 14px;font-size:12.5px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 20px rgba(80,40,160,.1)}
+.sp .tray i{width:14px;height:14px;border-radius:50%;background:conic-gradient(#6d4cff 0 58%,#e4ddff 0)}
+.sp .tray .r{color:#c2185b}
+</style></head><body class="mk">
+<div class="win sp">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="stage">
+  <div class="box">
+   <div class="in"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6d4cff" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input value="hero" aria-label="Search files, computers and actions" autofocus><div class="chips"><span class="chip">all computers</span><span class="chip">any type</span></div></div>
+   <div class="res"><div>
+    <div class="grp"><h3>Files</h3>
+     <div class="it on"><span class="i">🖼</span>hero-final.png<small>studio-pc · Projects/launch-kit</small><kbd>↵</kbd></div>
+     <div class="it"><span class="i">🖼</span>hero-draft-03.psd<small>studio-pc · drafts</small></div>
+     <div class="it"><span class="i">📄</span>hero-copy.md<small>work-laptop · Documents</small></div></div>
+    <div class="grp"><h3>Folders</h3><div class="it"><span class="i">📁</span>heroes-archive<small>nas-box · media</small></div></div>
+    <div class="grp"><h3>Actions</h3>
+     <div class="it"><span class="i">⇪</span>Upload files to studio-pc…<small></small><kbd>Ctrl U</kbd></div>
+     <div class="it"><span class="i">⌗</span>Pair a phone with studio-pc<small></small></div>
+     <div class="it"><span class="i">⚙</span>Settings: Show hidden files<small>off</small></div></div>
+   </div>
+   <div class="pv"><div class="img"></div><h4>hero-final.png</h4><p>4.2 MB · 3840×2160 · modified today 09:12<br>studio-pc · /home/sam/Projects/launch-kit</p>
+    <div class="acts"><button class="p">Download ↵</button><button>Open folder ⇥</button><button>Share link</button><button>More ⋯</button></div></div>
+   </div>
+  </div>
+  <div class="foot"><span><b>↵</b> default action</span><span><b>Tab</b> open folder</span><span><b>Ctrl ↵</b> action menu</span><span><b>Empty box</b> shows recent + computers</span><span><b>Drop</b> files to upload</span></div>
+ </div>
+ <div class="tray"><div><i></i>2 transfers · 58%</div><div class="r">● 1 pairing request</div><div>studio-pc · work-laptop · nas-box</div></div>
+</div></body></html>

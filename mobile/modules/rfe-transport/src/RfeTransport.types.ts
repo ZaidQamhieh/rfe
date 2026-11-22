@@ -5,9 +5,3 @@ export type RfeResponse = {
   bodyText: string;
   seenFingerprint: string | null;
 };
-
-export type RfeTransportErrorCode =
-  | 'ERR_CERT_PIN_MISMATCH'
-  | 'ERR_PIN_POLICY'
-  | 'ERR_CONNECTION'
-  | 'ERR_TLS';

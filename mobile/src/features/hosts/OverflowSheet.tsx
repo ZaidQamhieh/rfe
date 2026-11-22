@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { BottomSheet, Pressable, SheetScroll, Text } from '../../design/components';
 import { LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
+import { Spacing } from '../../design/tokens';
 
 export type OverflowItem = { key: string; label: string; icon: LucideIcon; onPress: () => void; destructive?: boolean; disabled?: boolean };
 
@@ -12,16 +13,16 @@ export function OverflowSheet({ visible, title, items, onClose }: { visible: boo
   const c = useScheme();
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <View style={{ paddingTop: 10, paddingBottom: 4, alignItems: 'center' }}>
+      <View style={{ paddingTop: 10, paddingBottom: Spacing.xs, alignItems: 'center' }}>
         <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.outlineVariant }} />
       </View>
       {title ? (
-        <Text style={[LumenType.sectionLabel, { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 4 }]} muted numberOfLines={1} accessibilityRole="header">
+        <Text style={[LumenType.sectionLabel, { paddingHorizontal: 18, paddingTop: Spacing.sm, paddingBottom: Spacing.xs }]} muted numberOfLines={1} accessibilityRole="header">
           {title}
         </Text>
       ) : null}
       <SheetScroll>
-        <View style={{ paddingHorizontal: 8, paddingBottom: 12 }}>
+        <View style={{ paddingHorizontal: Spacing.sm, paddingBottom: Spacing.md2 }}>
           {items.map((it) => {
             const color = it.destructive ? c.error : c.onSurface;
             const Icon = it.icon;
@@ -37,7 +38,7 @@ export function OverflowSheet({ visible, title, items, onClose }: { visible: boo
                 }}
                 style={{ opacity: it.disabled ? 0.4 : 1 }}
               >
-                <View style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12 }}>
+                <View style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.md2 }}>
                   <Icon size={24} color={it.destructive ? c.error : c.onSurfaceVariant} />
                   <Text style={LumenType.rowTitle} color={color} numberOfLines={1}>
                     {it.label}

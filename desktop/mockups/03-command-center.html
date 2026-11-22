@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Command Center — every computer at a glance</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.cc{background:radial-gradient(1200px 600px at 80% -10%,#16234a,#070b17 60%);color:#cfd8f6;font-family:"Inter",system-ui,sans-serif}
+.cc .tb{background:transparent;color:#3b4a74}
+.cc .top{display:flex;align-items:center;gap:16px;padding:6px 22px 14px}
+.cc .top h1{font:600 15px system-ui;letter-spacing:.14em;text-transform:uppercase;color:#7f93d6;margin:0}
+.cc .top .s{margin-left:auto;width:360px;background:rgba(255,255,255,.05);border:1px solid rgba(130,150,255,.18);border-radius:10px;padding:9px 12px;color:#6c7cb0;font-size:13px}
+.cc .grid{flex:1;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:auto 1fr 1fr;gap:14px;padding:0 22px 22px;min-height:0}
+.cc .card{background:rgba(18,26,54,.72);border:1px solid rgba(120,140,255,.14);border-radius:14px;padding:14px 16px;min-height:0;overflow:hidden;backdrop-filter:blur(6px)}
+.cc .card h2{font:600 11px system-ui;letter-spacing:.12em;text-transform:uppercase;color:#6c7cb0;margin:0 0 10px;display:flex;justify-content:space-between}
+.cc .card h2 a{color:#8fa6ff;text-decoration:none;letter-spacing:0;text-transform:none;font-size:12px}
+.cc .srv{grid-column:span 3;display:flex;flex-direction:column;gap:8px;cursor:pointer}
+.cc .srv:hover{border-color:#5b7cff}
+.cc .srv .n{font:600 16px system-ui;color:#fff;display:flex;align-items:center;gap:8px}
+.cc .srv .n i{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 10px #4ade80}
+.cc .srv.off .n i{background:#64748b;box-shadow:none}.cc .srv.warn .n i{background:#fbbf24;box-shadow:0 0 10px #fbbf24}
+.cc .srv .meta{font-size:12px;color:#7d8bb8}
+.cc .gauge{height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}.cc .gauge i{display:block;height:100%;background:linear-gradient(90deg,#5b7cff,#a78bfa)}
+.cc .srv .row{display:flex;gap:6px}
+.cc .srv button{flex:1;border:1px solid rgba(120,140,255,.22);background:rgba(91,124,255,.1);color:#cfd8f6;border-radius:8px;padding:6px;font-size:12px;cursor:pointer}
+.cc .live{grid-column:span 7;grid-row:span 1}
+.cc .x{display:grid;grid-template-columns:22px 1fr 160px 70px;gap:10px;align-items:center;padding:7px 0;font-size:13px;border-bottom:1px solid rgba(120,140,255,.08)}
+.cc .x .b{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}.cc .x .b i{display:block;height:100%;background:#4ade80}
+.cc .x .r{text-align:right;color:#7d8bb8;font-size:12px}
+.cc .req{grid-column:span 5;border-color:rgba(251,191,36,.35)}
+.cc .code{font:600 30px ui-monospace,monospace;letter-spacing:.18em;color:#fde68a;margin:4px 0 8px}
+.cc .req p{margin:0 0 10px;font-size:12.5px;color:#a3afd6}
+.cc .req .row{display:flex;gap:8px}.cc .req button{border:0;border-radius:8px;padding:8px 16px;font:600 13px system-ui;cursor:pointer}
+.cc .ok{background:#fbbf24;color:#1a1302}.cc .no{background:rgba(255,255,255,.08);color:#cfd8f6}
+.cc .rec{grid-column:span 4}.cc .act{grid-column:span 4}.cc .qa{grid-column:span 4}
+.cc .f{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid rgba(120,140,255,.08)}.cc .f span{color:#7d8bb8;font-size:12px}
+.cc .ev{font-size:12.5px;padding:6px 0;color:#a3afd6;border-bottom:1px solid rgba(120,140,255,.08)}.cc .ev b{color:#e1e7ff;font-weight:500}.cc .ev.w b{color:#fca5a5}
+.cc .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cc .tiles div{background:rgba(91,124,255,.08);border:1px solid rgba(120,140,255,.14);border-radius:10px;padding:12px;font-size:13px;cursor:pointer}
+.cc .tiles div small{display:block;color:#7d8bb8;font-size:11px;margin-top:3px}
+.cc .tiles div:hover{background:rgba(91,124,255,.2)}
+.cc .drop{border:1.5px dashed rgba(143,166,255,.4)!important;text-align:center;color:#8fa6ff}
+</style></head><body class="mk">
+<div class="win cc">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="top"><h1>RFE · Command Center</h1><span style="font-size:12px;color:#7d8bb8">3 of 4 computers online · 2 transfers · 1 request</span><div class="s">⌕ Search files on all computers…</div></div>
+ <div class="grid">
+  <div class="card srv"><div class="n"><i></i>studio-pc</div><div class="meta">Linux · 100.71.4.2 · up 6 d</div><div class="gauge"><i style="width:62%"></i></div><div class="meta">Disk 1.2 / 2 TB · CPU 18%</div><div class="row"><button>Browse</button><button>Pair phone</button></div></div>
+  <div class="card srv"><div class="n"><i></i>work-laptop</div><div class="meta">Windows · 192.168.1.24 · up 2 h</div><div class="gauge"><i style="width:81%"></i></div><div class="meta">Disk 410 / 512 GB · CPU 6%</div><div class="row"><button>Browse</button><button>Pair phone</button></div></div>
+  <div class="card srv warn"><div class="n"><i></i>nas-box</div><div class="meta">Certificate changed since pairing</div><div class="gauge"><i style="width:44%"></i></div><div class="meta">Check the fingerprint before trusting</div><div class="row"><button>Review trust…</button></div></div>
+  <div class="card srv off"><div class="n"><i></i>media-mini</div><div class="meta">Offline since 08:14 · auto-retry on</div><div class="gauge"><i style="width:0"></i></div><div class="meta">Last seen on Tailscale</div><div class="row"><button>Retry now</button><button>⋯</button></div></div>
+  <div class="card live"><h2>Live transfers <a href="#">Pause all</a></h2>
+   <div class="x"><span>↑</span><span>raw-footage-day3.mov → studio-pc</span><span class="b"><i style="width:71%"></i></span><span class="r">71% · 3 min</span></div>
+   <div class="x"><span>↓</span><span>tax-2025.pdf ← work-laptop</span><span class="b"><i style="width:100%"></i></span><span class="r">✓ verified</span></div>
+   <div class="x"><span>↑</span><span>thesis-v12.docx → work-laptop</span><span class="b"><i style="width:0"></i></span><span class="r">waiting</span></div>
+   <div class="x"><span>↓</span><span>album.zip ← media-mini</span><span class="b"><i style="width:33%;background:#f87171"></i></span><span class="r" style="color:#fca5a5">Retry</span></div></div>
+  <div class="card req"><h2>Pairing request · studio-pc <span>1:42 left</span></h2><div style="font-size:14px;color:#fff">“Sam's Pixel 9” from 192.168.1.40</div><div class="code">482 913</div><p>Accept only if the phone shows this same code. It starts with browse access.</p><div class="row"><button class="ok">Codes match — accept</button><button class="no">Reject</button></div></div>
+  <div class="card rec"><h2>Recent files <a href="#">All</a></h2><div class="f">hero-final.png <span>studio-pc</span></div><div class="f">budget-q4.xlsx <span>work-laptop</span></div><div class="f">tax-2025.pdf <span>work-laptop</span></div><div class="f">recipes.md <span>studio-pc</span></div></div>
+  <div class="card act"><h2>Security activity <a href="#">History</a></h2><div class="ev"><b>Sign-in</b> · this app → studio-pc · 09:01</div><div class="ev w"><b>Failed sign-in</b> · 10.0.0.9 → nas-box · 07:55</div><div class="ev"><b>Share link</b> made for hero-final.png · Tue</div><div class="ev"><b>Device revoked</b> · old-tablet · Mon</div></div>
+  <div class="card qa"><h2>Quick</h2><div class="tiles"><div class="drop">Drop to upload<small>to studio-pc / Inbox</small></div><div>Trash<small>14 items · 3 computers</small></div><div>Share links<small>2 live</small></div><div>Apps on PC<small>Open on studio-pc</small></div></div></div>
+ </div>
+</div></body></html>

@@ -1,6 +1,8 @@
-// Package settings holds the agent's live-mutable configuration (read-only
-// mode, the folder jail, and the display name), persisted in the config table
-// so changes made from the phone take effect immediately without a restart.
+// Package settings holds the agent's live-mutable configuration: read-only mode,
+// the folder jail (roots), the display name, upload and download bandwidth
+// limits, one-time share links, and the phone photo-backup folder. Values are
+// persisted in the config table so changes made from the phone or the web
+// companion take effect immediately without a restart.
 package settings
 
 import (
@@ -54,18 +56,11 @@ func Initialised(db *store.DB) (bool, error) {
 func Load(db *store.DB, seedReadOnly bool, seedRoots []string, seedName string) (*Store, error) {
 	s := &Store{db: db}
 
-	ro, err := db.GetConfig(keyReadOnly)
+	ro, err := seedConfig(db, keyReadOnly, boolToStr(seedReadOnly))
 	if err != nil {
 		return nil, err
 	}
-	if ro == "" {
-		s.readOnly = seedReadOnly
-		if err := db.SetConfig(keyReadOnly, boolToStr(seedReadOnly)); err != nil {
-			return nil, err
-		}
-	} else {
-		s.readOnly = ro == "true"
-	}
+	s.readOnly = parseBool(ro)
 
 	rootsConfigured, err := db.HasConfig(keyRoots)
 	if err != nil {
@@ -84,31 +79,18 @@ func Load(db *store.DB, seedReadOnly bool, seedRoots []string, seedName string) 
 		s.roots = splitRoots(rts)
 	}
 
-	nm, err := db.GetConfig(keyAgentName)
+	nm, err := seedConfigKeepEmpty(db, keyAgentName, seedName)
 	if err != nil {
 		return nil, err
 	}
-	if nm == "" {
-		s.agentName = seedName
-		if err := db.SetConfig(keyAgentName, seedName); err != nil {
-			return nil, err
-		}
-	} else {
-		s.agentName = nm
-	}
+	s.agentName = nm
 
-	as, err := db.GetConfig(keyAllowSharing)
+	// R1: always seeds false, not CLI-configurable
+	as, err := seedConfig(db, keyAllowSharing, boolToStr(false))
 	if err != nil {
 		return nil, err
 	}
-	if as == "" {
-		s.allowSharing = false // R1: always seeds false, not CLI-configurable
-		if err := db.SetConfig(keyAllowSharing, boolToStr(false)); err != nil {
-			return nil, err
-		}
-	} else {
-		s.allowSharing = as == "true"
-	}
+	s.allowSharing = parseBool(as)
 
 	// No seed: empty means "not configured" (the owner sets it explicitly
 	// from the web companion), unlike the other keys above.
@@ -120,23 +102,11 @@ func Load(db *store.DB, seedReadOnly bool, seedRoots []string, seedName string) 
 
 	// Bandwidth limits default to 0 (unlimited) and are only written on
 	// first explicit set — no seed needed.
-	if v, err := db.GetConfig(keyMaxUploadBPS); err != nil {
+	if s.maxUploadBytesPS, err = loadBandwidth(db, keyMaxUploadBPS); err != nil {
 		return nil, err
-	} else if v != "" {
-		n, perr := parseBandwidth(keyMaxUploadBPS, v)
-		if perr != nil {
-			return nil, perr
-		}
-		s.maxUploadBytesPS = n
 	}
-	if v, err := db.GetConfig(keyMaxDownloadBPS); err != nil {
+	if s.maxDownloadBytesPS, err = loadBandwidth(db, keyMaxDownloadBPS); err != nil {
 		return nil, err
-	} else if v != "" {
-		n, perr := parseBandwidth(keyMaxDownloadBPS, v)
-		if perr != nil {
-			return nil, perr
-		}
-		s.maxDownloadBytesPS = n
 	}
 
 	return s, nil
@@ -174,47 +144,23 @@ func (s *Store) IsAllowSharing() bool {
 
 // SetAllowSharing persists and applies the share-links-enabled flag.
 func (s *Store) SetAllowSharing(v bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyAllowSharing, boolToStr(v)); err != nil {
-		return err
-	}
-	s.allowSharing = v
-	return nil
+	return s.persist(keyAllowSharing, boolToStr(v), func() { s.allowSharing = v })
 }
 
 // SetReadOnly persists and applies the read-only flag.
 func (s *Store) SetReadOnly(v bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyReadOnly, boolToStr(v)); err != nil {
-		return err
-	}
-	s.readOnly = v
-	return nil
+	return s.persist(keyReadOnly, boolToStr(v), func() { s.readOnly = v })
 }
 
 // SetRoots normalizes, persists, and applies the jail roots.
 func (s *Store) SetRoots(roots []string) error {
 	norm := normalizeRoots(roots)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyRoots, joinRoots(norm)); err != nil {
-		return err
-	}
-	s.roots = norm
-	return nil
+	return s.persist(keyRoots, joinRoots(norm), func() { s.roots = norm })
 }
 
 // SetAgentName persists and applies the display name.
 func (s *Store) SetAgentName(name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyAgentName, name); err != nil {
-		return err
-	}
-	s.agentName = name
-	return nil
+	return s.persist(keyAgentName, name, func() { s.agentName = name })
 }
 
 // PhotoBackupRoot returns the configured phone-photo-backup destination
@@ -229,13 +175,7 @@ func (s *Store) PhotoBackupRoot() string {
 // folder. Web-companion-only by convention (no phone-facing route calls this).
 func (s *Store) SetPhotoBackupRoot(v string) error {
 	v = strings.TrimSpace(v)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyPhotoBackupRoot, v); err != nil {
-		return err
-	}
-	s.photoBackupRoot = v
-	return nil
+	return s.persist(keyPhotoBackupRoot, v, func() { s.photoBackupRoot = v })
 }
 
 // MaxUploadBytesPerSec returns the upload throttle (0 = unlimited).
@@ -254,29 +194,26 @@ func (s *Store) MaxDownloadBytesPerSec() int64 {
 
 // SetMaxUploadBytesPerSec persists and applies the upload throttle.
 func (s *Store) SetMaxUploadBytesPerSec(v int64) error {
-	if v < 0 {
-		v = 0
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyMaxUploadBPS, strconv.FormatInt(v, 10)); err != nil {
-		return err
-	}
-	s.maxUploadBytesPS = v
-	return nil
+	v = clampBandwidth(v)
+	return s.persist(keyMaxUploadBPS, strconv.FormatInt(v, 10), func() { s.maxUploadBytesPS = v })
 }
 
 // SetMaxDownloadBytesPerSec persists and applies the download throttle.
 func (s *Store) SetMaxDownloadBytesPerSec(v int64) error {
-	if v < 0 {
-		v = 0
-	}
+	v = clampBandwidth(v)
+	return s.persist(keyMaxDownloadBPS, strconv.FormatInt(v, 10), func() { s.maxDownloadBytesPS = v })
+}
+
+// persist writes key to the config table, then runs apply, all under the write
+// lock. The DB write comes first, so a failed write leaves the in-memory value
+// unchanged.
+func (s *Store) persist(key, value string, apply func()) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.db.SetConfig(keyMaxDownloadBPS, strconv.FormatInt(v, 10)); err != nil {
+	if err := s.db.SetConfig(key, value); err != nil {
 		return err
 	}
-	s.maxDownloadBytesPS = v
+	apply()
 	return nil
 }
 
@@ -285,6 +222,12 @@ func boolToStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// parseBool is the inverse of boolToStr: only the exact stored "true" is true,
+// so any other value (including an empty or corrupt one) reads as false.
+func parseBool(s string) bool {
+	return s == "true"
 }
 
 // roots are stored newline-joined (paths may contain commas but not newlines).
@@ -326,4 +269,56 @@ func parseBandwidth(key, v string) (int64, error) {
 		return 0, fmt.Errorf("setting %s has an invalid value %q: expected a whole number of bytes per second (0 = unlimited); fix or delete this row in the config table of the agent database (sqlite3 <data dir>/agent.db)", key, v)
 	}
 	return n, nil
+}
+
+// seedConfig returns the stored value for key. If the key is unset it writes
+// seed back first, so the seed becomes the persisted value.
+func seedConfig(db *store.DB, key, seed string) (string, error) {
+	v, err := db.GetConfig(key)
+	if err != nil {
+		return "", err
+	}
+	if v != "" {
+		return v, nil
+	}
+	if err := db.SetConfig(key, seed); err != nil {
+		return "", err
+	}
+	return seed, nil
+}
+
+// seedConfigKeepEmpty is seedConfig for a key whose empty value is valid (an owner who cleared the agent
+// name): only a key that is absent is seeded, a stored empty string is kept.
+func seedConfigKeepEmpty(db *store.DB, key, seed string) (string, error) {
+	exists, err := db.HasConfig(key)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		return db.GetConfig(key)
+	}
+	if err := db.SetConfig(key, seed); err != nil {
+		return "", err
+	}
+	return seed, nil
+}
+
+// loadBandwidth returns the stored bandwidth limit for key, or 0 (unlimited)
+// when it has never been set.
+func loadBandwidth(db *store.DB, key string) (int64, error) {
+	v, err := db.GetConfig(key)
+	if err != nil || v == "" {
+		return 0, err
+	}
+	return parseBandwidth(key, v)
+}
+
+// clampBandwidth is the write-side rule for bandwidth limits: a negative value
+// is stored as 0 (unlimited). Load does not clamp; parseBandwidth rejects a
+// negative stored value instead.
+func clampBandwidth(v int64) int64 {
+	if v < 0 {
+		return 0
+	}
+	return v
 }

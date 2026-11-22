@@ -5,7 +5,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.security.MessageDigest
 import java.security.SecureRandom
 
 /** A stored body failed authentication (tampered, truncated, or bound to another host/path); the entry has been deleted. */
@@ -25,8 +24,7 @@ class OfflineBodyStore(private val dir: File, private val keyProvider: () -> Byt
 
   init { dir.mkdirs() }
 
-  private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
-  private fun sha256(s: String) = hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray(Charsets.UTF_8)))
+  private fun sha256(s: String) = sha256Hex(s.toByteArray(Charsets.UTF_8))
   private fun hostPrefix(hostId: String) = sha256("host:$hostId").take(16) + "-"
   private fun fileFor(hostId: String, path: String) = File(dir, hostPrefix(hostId) + sha256("$hostId\u0000$path"))
   private fun aad(hostId: String, path: String) = "rfe:offline-body-cache:v3\u0000$hostId\u0000$path".toByteArray(Charsets.UTF_8)

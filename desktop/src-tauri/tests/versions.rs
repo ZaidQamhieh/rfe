@@ -1,5 +1,5 @@
 //! The desktop version is written in two places, Cargo.toml and tauri.conf.json. A release tag
-//! `desktop-vX.Y.Z` must match both, so they must not drift apart.
+//! `host-vX.Y.Z` (`desktop-vX.Y.Z` before) must match both, so they must not drift apart.
 
 use std::path::Path;
 
@@ -26,7 +26,7 @@ fn versions_agree(cargo: &str, conf: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "{cargo} is not X.Y.Z or X.Y.Z-rc.N, the only forms a desktop-v tag can take"
+            "{cargo} is not X.Y.Z or X.Y.Z-rc.N, the only forms a host-v tag can take"
         ))
     }
 }
@@ -64,4 +64,46 @@ fn drifted_or_malformed_versions_are_rejected() {
             "{bad} should be rejected"
         );
     }
+}
+
+/// The product name is written twice: `productName` in tauri.conf.json and `APP_NAME` in
+/// `src/lib.rs`. The installer and the window title come from the first, the tray and the
+/// autostart entry from the second; they must be the same text.
+#[test]
+fn the_product_name_is_one_string() {
+    let conf: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string("tauri.conf.json").unwrap()).unwrap();
+    assert_eq!(
+        conf["productName"].as_str(),
+        Some(rfe_desktop_lib::APP_NAME),
+        "tauri.conf.json productName and APP_NAME differ"
+    );
+}
+
+/// The window's smallest width is set in `tauri.conf.json` and again when the interface size
+/// changes (`MIN_WIDTH` in `src/desktop.rs`); the two must be the same number.
+#[test]
+fn the_minimum_window_width_is_one_number() {
+    let conf: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string("tauri.conf.json").unwrap()).unwrap();
+    let from_conf = conf["app"]["windows"][0]["minWidth"]
+        .as_f64()
+        .expect("minWidth");
+    let src = std::fs::read_to_string("src/desktop.rs").unwrap();
+    let line = src
+        .lines()
+        .find(|l| l.starts_with("const MIN_WIDTH"))
+        .expect("MIN_WIDTH");
+    let from_src: f64 = line
+        .split('=')
+        .nth(1)
+        .unwrap()
+        .trim()
+        .trim_end_matches(';')
+        .parse()
+        .unwrap();
+    assert_eq!(
+        from_conf, from_src,
+        "tauri.conf.json minWidth and desktop.rs MIN_WIDTH differ"
+    );
 }

@@ -5,11 +5,11 @@ import type { KeyValueStore } from './hostStore';
  * (a JSON array whose items are JSON strings) and with plain object arrays. Corrupt items are
  * skipped so one bad record never hides the rest (PR-54).
  */
-export class RecordList<T> {
+class RecordList<T> {
   constructor(
     private readonly kv: KeyValueStore,
     private readonly key: string,
-    private readonly parse: (raw: unknown) => T | null,
+    private readonly parse: (raw: unknown, rawItem: unknown) => T | null,
     private readonly serialize: (item: T) => unknown = (x) => x,
   ) {}
 
@@ -33,7 +33,7 @@ export class RecordList<T> {
           v = item; // plain strings (recent searches)
         }
       }
-      const parsed = this.parse(v);
+      const parsed = this.parse(v, item);
       if (parsed !== null) out.push(parsed);
     }
     return out;
@@ -41,7 +41,15 @@ export class RecordList<T> {
 
   /** Writes in the Flutter StringList shape: each object item JSON-encoded as a string. */
   async save(items: T[]): Promise<void> {
-    await this.kv.set(this.key, JSON.stringify(items.map((i) => (typeof this.serialize(i) === 'string' ? this.serialize(i) : JSON.stringify(this.serialize(i))))));
+    await this.kv.set(
+      this.key,
+      JSON.stringify(
+        items.map((i) => {
+          const s = this.serialize(i);
+          return typeof s === 'string' ? s : JSON.stringify(s);
+        }),
+      ),
+    );
   }
 }
 
@@ -54,24 +62,46 @@ export type Pin = { hostId: string; remotePath: string };
 export type SavedSearch = { name: string; query: string };
 
 export const FAVORITES_KEY = 'rfe_favorites_v1';
-export const BOOKMARKS_KEY = 'bookmarks_v1';
-export const PINS_KEY = 'offline_pins_v1';
+const BOOKMARKS_KEY = 'bookmarks_v1';
+const PINS_KEY = 'offline_pins_v1';
 export const RECENT_SEARCHES_KEY = 'rfe_recent_searches_v1';
 export const SAVED_SEARCHES_KEY = 'rfe_saved_searches_v1';
-export const MAX_RECENT_SEARCHES = 10;
+const MAX_RECENT_SEARCHES = 10;
 
-export const parseFavorite = (v: unknown): Favorite | null => (isObj(v) && str(v.hostId) && str(v.path) && str(v.label) !== undefined ? { hostId: v.hostId as string, path: v.path as string, label: v.label as string } : null);
-export const parseBookmark = (v: unknown): Bookmark | null =>
+const parseFavorite = (v: unknown): Favorite | null => (isObj(v) && str(v.hostId) && str(v.path) && str(v.label) !== undefined ? { hostId: v.hostId as string, path: v.path as string, label: v.label as string } : null);
+const parseBookmark = (v: unknown): Bookmark | null =>
   isObj(v) && str(v.hostId) && str(v.remotePath)
     ? { hostId: v.hostId as string, remotePath: v.remotePath as string, ...(str(v.tag) ? { tag: v.tag as string } : {}), ...(typeof v.color === 'number' ? { color: v.color } : {}) }
     : null;
-export const parsePin = (v: unknown): Pin | null => (isObj(v) && str(v.hostId) && str(v.remotePath) ? { hostId: v.hostId as string, remotePath: v.remotePath as string } : null);
-export const parseSavedSearch = (v: unknown): SavedSearch | null => (isObj(v) ? { name: str(v.name) ?? '', query: str(v.query) ?? '' } : null);
+const parsePin = (v: unknown): Pin | null => (isObj(v) && str(v.hostId) && str(v.remotePath) ? { hostId: v.hostId as string, remotePath: v.remotePath as string } : null);
+const parseSavedSearch = (v: unknown): SavedSearch | null => (isObj(v) ? { name: str(v.name) ?? '', query: str(v.query) ?? '' } : null);
 
 export const favoritesList = (kv: KeyValueStore) => new RecordList<Favorite>(kv, FAVORITES_KEY, parseFavorite);
 export const bookmarksList = (kv: KeyValueStore) => new RecordList<Bookmark>(kv, BOOKMARKS_KEY, parseBookmark);
 export const pinsList = (kv: KeyValueStore) => new RecordList<Pin>(kv, PINS_KEY, parsePin);
-export const recentSearchesList = (kv: KeyValueStore) => new RecordList<string>(kv, RECENT_SEARCHES_KEY, (v) => (typeof v === 'string' ? v : null));
+
+/** True when [s] is valid JSON, so reading it back through JSON.parse would change it (e.g. "2024", "true", '"abc"'). */
+const parsesAsJson = (s: string): boolean => {
+  try {
+    JSON.parse(s);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Recent searches stay plain strings (Flutter-compatible); only a query that is itself valid JSON
+ * is stored JSON-encoded so load() can tell it from a decoded value. A parsed string is an encoded
+ * query; any other parsed value means the item was a legacy plain string, so the raw text is used.
+ */
+export const recentSearchesList = (kv: KeyValueStore) =>
+  new RecordList<string>(
+    kv,
+    RECENT_SEARCHES_KEY,
+    (v, rawItem) => (typeof v === 'string' ? v : typeof rawItem === 'string' ? rawItem : null),
+    (q) => (parsesAsJson(q) ? JSON.stringify(q) : q),
+  );
 
 /** Saved searches are stored as ONE JSON list string (not a StringList). */
 export class SavedSearches {
@@ -92,9 +122,10 @@ export class SavedSearches {
   }
 }
 
-// Pure list operations shared by the stores.
+export const isSameFavorite = (f: Favorite, hostId: string, path: string): boolean => f.hostId === hostId && f.path === path;
+
 export const toggleFavorite = (favs: Favorite[], fav: Favorite): Favorite[] =>
-  favs.some((f) => f.hostId === fav.hostId && f.path === fav.path) ? favs.filter((f) => !(f.hostId === fav.hostId && f.path === fav.path)) : [...favs, fav];
+  favs.some((f) => isSameFavorite(f, fav.hostId, fav.path)) ? favs.filter((f) => !isSameFavorite(f, fav.hostId, fav.path)) : [...favs, fav];
 
 export const upsertBookmark = (items: Bookmark[], b: Bookmark): Bookmark[] => [...items.filter((x) => !(x.hostId === b.hostId && x.remotePath === b.remotePath)), b];
 export const removeBookmark = (items: Bookmark[], hostId: string, remotePath: string) => items.filter((x) => !(x.hostId === hostId && x.remotePath === remotePath));

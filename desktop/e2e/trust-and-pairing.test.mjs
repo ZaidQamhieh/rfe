@@ -134,14 +134,14 @@ step("Create a new device key needs a confirmation", async () => {
   await app.go("settings");
   await waitFor("settings", () => app.has(/Appearance/, "#stage"));
   await app.clickLabel("Troubleshooting", ".setn");
-  await waitFor("the troubleshooting section", () => app.has(/Device key/, "#stage"));
-  await app.clickLabel("New key…", "#stage");
+  await waitFor("the troubleshooting section", () => app.has(/This computer’s identity/, "#stage"));
+  await app.clickLabel("Reset…", "#stage");
   await waitFor("the confirmation", () => app.visible(".dlg.danger"));
   assert.match(await app.text(".dlg h2"), /Create a new device key/);
   await app.shot("7-reset-key-asked.png");
   await app.clickLabel("Cancel");
   assert.doesNotMatch(await app.snacks(), /new device key will be created/);
-  await app.clickLabel("New key…", "#stage");
+  await app.clickLabel("Reset…", "#stage");
   await waitFor("the confirmation", () => app.visible(".dlg.danger"));
   await app.clickLabel("Create a new device key");
   await waitFor("the note", async () => /A new device key will be created/.test(await app.snacks()));

@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; base-uri 'none'; form-action 'none'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'"
+      "csp": "default-src 'self'; base-uri 'none'; form-action 'none'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; media-src blob:"
     }
   },
   "bundle": {

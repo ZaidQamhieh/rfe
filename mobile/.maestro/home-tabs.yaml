@@ -1,0 +1,12 @@
+appId: com.zqamhieh.remote_file_explorer
+---
+- launchApp
+- assertVisible: "RFE · Workspaces"
+- assertVisible: "Switch workspace"
+- tapOn:
+    text: "Activity"
+    index: 1
+- assertNotVisible: "Switch workspace"
+- tapOn:
+    text: "Home"
+- assertVisible: "RFE · Workspaces"

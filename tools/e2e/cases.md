@@ -69,7 +69,7 @@ Accept: after ProtectDir(D), ListDir, Meta, Open and Delete on D or D/file, and 
 ### REQ-12
 Opening, downloading or checksumming a FIFO, socket or device must return NOT_A_FILE (422) without reading its content.
 
-Accept: mkfifo R/p; GET /content?path=R/p returns 422 NOT_A_FILE and does not block. (Current code returns 500; see Conflicts.)
+Accept: mkfifo R/p; GET /content?path=R/p returns 422 NOT_A_FILE and does not block. (Current code returns 500.)
 
 ## Destructive operations
 

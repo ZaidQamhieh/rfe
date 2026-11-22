@@ -6,6 +6,16 @@
 use rfe_thumbd::{sandbox, server};
 use std::io::Write;
 
+/// The errno of a libc call that returned `ret`, or 0 when it succeeded.
+#[cfg(target_os = "linux")]
+fn errno_if_failed(ret: libc::c_int) -> libc::c_int {
+    if ret < 0 {
+        std::io::Error::last_os_error().raw_os_error().unwrap()
+    } else {
+        0
+    }
+}
+
 fn selftest() -> i32 {
     if let Err(e) = sandbox::enter() {
         println!("sandbox failed: {e}");
@@ -15,42 +25,14 @@ fn selftest() -> i32 {
     {
         // SAFETY: each call is made with valid, NUL-terminated arguments and is expected to fail.
         let open = unsafe { libc::open(c"/etc/passwd".as_ptr(), libc::O_RDONLY) };
-        println!(
-            "open={}",
-            if open < 0 {
-                std::io::Error::last_os_error().raw_os_error().unwrap()
-            } else {
-                0
-            }
-        );
+        println!("open={}", errno_if_failed(open));
         let sock = unsafe { libc::socket(libc::AF_INET, libc::SOCK_STREAM, 0) };
-        println!(
-            "socket={}",
-            if sock < 0 {
-                std::io::Error::last_os_error().raw_os_error().unwrap()
-            } else {
-                0
-            }
-        );
+        println!("socket={}", errno_if_failed(sock));
         let argv = [c"/bin/true".as_ptr(), std::ptr::null()];
         let exec = unsafe { libc::execv(c"/bin/true".as_ptr(), argv.as_ptr()) };
-        println!(
-            "exec={}",
-            if exec < 0 {
-                std::io::Error::last_os_error().raw_os_error().unwrap()
-            } else {
-                0
-            }
-        );
+        println!("exec={}", errno_if_failed(exec));
         let fork = unsafe { libc::fork() };
-        println!(
-            "fork={}",
-            if fork < 0 {
-                std::io::Error::last_os_error().raw_os_error().unwrap()
-            } else {
-                0
-            }
-        );
+        println!("fork={}", errno_if_failed(fork));
     }
     // Rendering still works.
     let png = include_bytes!("../tests/data/pixel.png");
@@ -71,7 +53,7 @@ fn main() {
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(2)
-        .min(4);
+        .min(8);
     let result = server::serve(
         std::io::stdin().lock(),
         std::io::stdout(),

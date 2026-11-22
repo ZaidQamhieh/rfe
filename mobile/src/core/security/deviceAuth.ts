@@ -1,15 +1,8 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 
-export type AuthOutcome = 'success' | 'failed' | 'unavailable';
+import { ignoreError } from '../log';
 
-/** Hardware present and the enrolled security level (0 none, 1 PIN/pattern, higher biometric). */
-export async function deviceAuthState(): Promise<{ hasHardware: boolean; level: number }> {
-  try {
-    return await readAuthState();
-  } catch {
-    return { hasHardware: false, level: 0 };
-  }
-}
+export type AuthOutcome = 'success' | 'failed' | 'unavailable';
 
 async function readAuthState(): Promise<{ hasHardware: boolean; level: number }> {
   const [hasHardware, level] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.getEnrolledLevelAsync()]);
@@ -27,7 +20,8 @@ export async function authenticate(reason: string): Promise<AuthOutcome> {
     if (!hasHardware || level === 0) return 'unavailable';
     const r = await LocalAuthentication.authenticateAsync({ promptMessage: reason, disableDeviceFallback: false });
     return r.success ? 'success' : 'failed';
-  } catch {
+  } catch (e) {
+    ignoreError('device auth')(e);
     return 'failed';
   }
 }

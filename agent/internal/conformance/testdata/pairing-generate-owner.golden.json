@@ -1,0 +1,19 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "expiresInSeconds": 3600,
+    "pairingCode": "<pairingCode>",
+    "qrPayload": {
+      "address": "<ADDR>",
+      "certFingerprint": "<certFingerprint>",
+      "pairingCode": "<pairingCode>"
+    },
+    "qrPngBase64": "<qrPngBase64>"
+  }
+}

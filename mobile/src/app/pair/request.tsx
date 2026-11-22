@@ -1,36 +1,33 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
-import { isUnsupportedByAgent } from "../../core/api/compat";
-import {
-  GroupedCard,
-  InlineError,
-  PageHead,
-  Text,
-  useToast,
-} from "../../design/components";
-import { LumenType } from "../../design/lumen";
-import { useScheme } from "../../design/theme";
-import { FontFamily } from "../../design/tokens";
-import { LumenFooter, StackTopBar } from "../../features/hosts/LumenRows";
-import {
-  awaitPairing,
-  humanizeError,
-  PairExpired,
-  PairRejected,
-  requestPairing,
-  type PairRequestHandle,
-} from "../../features/pairing/pairingService";
-import { t } from "../../i18n";
-import { pairingDeps } from "../../services";
+import { humanizeError } from '../../core/humanizeError';
+import { Text, useToast } from '../../design/components';
+import { LumenType } from '../../design/lumen';
+import { useScheme } from '../../design/theme';
+import { GettingInBar, ProblemView, WaitingView } from '../../features/pairing/GettingInViews';
+import { pairProblem, waitMinutes, type PairProblem } from '../../features/pairing/gettingInLogic';
+import { groupFingerprint } from '../../features/pairing/identity';
+import { awaitPairing, requestPairing, type PairRequestHandle } from '../../features/pairing/pairingService';
+import { t } from '../../i18n';
+import { pairingDeps } from '../../services';
+import { Spacing } from '../../design/tokens';
 
-type Phase =
-  | { kind: "connecting" }
-  | { kind: "waiting"; handle: PairRequestHandle }
-  | { kind: "failed"; message: string; tooOld?: boolean };
+type Phase = { kind: 'connecting' } | { kind: 'waiting'; handle: PairRequestHandle } | { kind: 'failed'; problem: PairProblem; detail: string; fingerprint?: string };
 
-/** Asks the computer to approve this phone and waits for the answer; the only thing shown is a match code to compare. */
+const PROBLEM_COPY: Record<PairProblem, { title: 'giDeclinedTitle' | 'giExpiredTitle' | 'giTooOldTitle' | 'giFailedTitle'; body: 'giDeclinedBody' | 'giExpiredBody' | 'giTooOldBody' | 'giFailedBody' }> = {
+  declined: { title: 'giDeclinedTitle', body: 'giDeclinedBody' },
+  expired: { title: 'giExpiredTitle', body: 'giExpiredBody' },
+  tooOld: { title: 'giTooOldTitle', body: 'giTooOldBody' },
+  failed: { title: 'giFailedTitle', body: 'giFailedBody' },
+};
+
+/**
+ * Asks the computer to allow this phone and waits for the answer. The screen shows the match number to compare and
+ * nothing technical; the address, the computer's identity and any error text are under a closed "Technical details" row. The request itself
+ * (pin on first contact, polling, the match code) is unchanged.
+ */
 export default function PairRequest() {
   const router = useRouter();
   const toast = useToast();
@@ -42,28 +39,18 @@ export default function PairRequest() {
   useEffect(() => {
     const ctl = new AbortController();
     void (async () => {
+      let fingerprint: string | undefined;
       try {
         const handle = await requestPairing(pairingDeps, address);
         if (ctl.signal.aborted) return;
+        fingerprint = handle.target.fingerprint;
         setPhase({ kind: 'waiting', handle });
         const host = await awaitPairing(pairingDeps, handle, { signal: ctl.signal });
         toast.success(t('pairedWith', { name: host.label }));
         router.dismissTo('/');
       } catch (e) {
         if (ctl.signal.aborted) return;
-        const message =
-          e instanceof PairRejected
-            ? t("pairRequestRejected")
-            : e instanceof PairExpired
-              ? t("pairRequestExpired")
-              : t("pairRequestFailed", { error: humanizeError(e) });
-        if (isUnsupportedByAgent(e))
-          setPhase({
-            kind: "failed",
-            message: t("pairRequestUnsupported"),
-            tooOld: true,
-          });
-        else setPhase({ kind: "failed", message });
+        setPhase({ kind: 'failed', problem: pairProblem(e), detail: humanizeError(e), fingerprint });
       }
     })();
     return () => ctl.abort();
@@ -73,74 +60,47 @@ export default function PairRequest() {
     setPhase({ kind: 'connecting' });
     setAttempt((a) => a + 1);
   };
+  const cancel = () => router.back();
 
-  return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: false, title: t('pairRequestTitle') }} />
-      <StackTopBar context="RFE · Pair" />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24, gap: 14 }}>
-        <View style={{ marginHorizontal: -18 }}>
-          <PageHead title={t('pairRequestTitle')} subtitle={address} />
-        </View>
-        {phase.kind === 'connecting' && (
-          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 32 }}>
-            <ActivityIndicator color={c.primary} />
-            <Text style={LumenType.meta} color={c.onSurfaceVariant}>{t('pairRequestConnecting')}</Text>
-          </View>
-        )}
-        {phase.kind === 'waiting' && (
-          <>
-            <GroupedCard>
-              <View style={{ alignItems: 'center', gap: 8, paddingVertical: 14 }}>
-                <Text style={LumenType.meta} color={c.onSurfaceVariant}>{t('pairRequestMatchCode')}</Text>
-                <Text style={{ fontFamily: FontFamily.monoMedium, fontSize: 40, lineHeight: 48, letterSpacing: 2, color: c.primary }} accessibilityLabel={phase.handle.matchCode.replace(/\D/g, ' ').trim()}>
-                  {phase.handle.matchCode}
-                </Text>
-              </View>
-            </GroupedCard>
-            <View style={{ alignItems: 'center', gap: 10 }}>
-              <ActivityIndicator color={c.primary} />
-              <Text style={LumenType.title}>{t('pairRequestApprove')}</Text>
-            </View>
-            <Text style={[LumenType.meta, { textAlign: 'center' }]} color={c.onSurfaceVariant}>{t('pairRequestApproveBody', { name: address })}</Text>
-          </>
-        )}
-        {phase.kind === 'failed' && <InlineError message={phase.message} />}
-      </ScrollView>
-      <LumenFooter
-        buttons={
-          phase.kind === 'failed'
-            ? [
-                phase.tooOld
-                  ? {
-                      key: "code",
-                      label: t("pairRequestUseCode"),
-                      primary: true,
-                      onPress: () => router.replace("/pair/scan"),
-                    }
-                  : {
-                      key: "retry",
-                      label: t("pairRequestRetry"),
-                      primary: true,
-                      onPress: retry,
-                    },
-                {
-                  key: "cancel",
-                  label: t("pairRequestCancel"),
-                  primary: false,
-                  onPress: () => router.back(),
-                },
-              ]
-            : [
-                {
-                  key: "cancel",
-                  label: t("pairRequestCancel"),
-                  primary: false,
-                  onPress: () => router.back(),
-                },
-              ]
-        }
+  let body;
+  if (phase.kind === 'waiting') {
+    body = (
+      <WaitingView
+        matchCode={phase.handle.matchCode}
+        minutes={waitMinutes(phase.handle.expiresInSeconds)}
+        details={[address ?? '', t('computerIdentityLine', { fingerprint: groupFingerprint(phase.handle.target.fingerprint) })]}
+        onSignIn={() => router.replace({ pathname: '/pair/login', params: { address } })}
+        onCancel={cancel}
       />
-    </View>
+    );
+  } else if (phase.kind === 'failed') {
+    const copy = PROBLEM_COPY[phase.problem];
+    body = (
+      <ProblemView
+        title={t(copy.title)}
+        body={t(copy.body)}
+        primary={phase.problem === 'tooOld' ? { label: t('giScanCode'), onPress: () => router.replace('/pair/scan') } : { label: t('giTryAgain'), onPress: retry }}
+        onCancel={cancel}
+        details={[address ?? '', ...(phase.fingerprint ? [t('computerIdentityLine', { fingerprint: groupFingerprint(phase.fingerprint) })] : []), phase.detail]}
+      />
+    );
+  } else {
+    body = (
+      <View style={{ flex: 1, backgroundColor: c.surface }}>
+        <GettingInBar onClose={cancel} />
+        <View style={{ paddingTop: Spacing.lg, paddingHorizontal: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md2 }} accessibilityRole="progressbar" accessibilityLabel={t('giConnecting')}>
+          <ActivityIndicator size="small" color={c.onSurfaceVariant} />
+          <Text style={LumenType.name} muted>
+            {t('giConnecting')}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false, title: t('pairRequestTitle') }} />
+      {body}
+    </>
   );
 }

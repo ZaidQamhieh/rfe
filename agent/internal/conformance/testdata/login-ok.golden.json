@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "address": "<ADDR>",
+    "agentName": "conformance-agent",
+    "certFingerprint": "<certFingerprint>",
+    "deviceId": "<deviceId>",
+    "deviceToken": "<deviceToken>"
+  }
+}

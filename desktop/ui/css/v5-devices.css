@@ -1,0 +1,44 @@
+/* v5 Devices and History: the glue between the mockup's page rules (v5-base.css, written for a window wrapper) and the app's grid.
+   The mockup rules hang on ".d5.rfe-pages", so each page puts that pair on one wrapper inside the stage and inside the side column. */
+#app.d5 #stage.v5p { padding: 1.5rem 1.75rem; background: var(--surface); }
+#app.d5 #stage.v5p > .v5pg { min-height: 0; }
+#app.d5 #main.v5r { --sidew: var(--rail-w) !important; }
+#app.d5 #side.v5rail { padding: 0; background: var(--sf); }
+#app.d5 #side > .v5rw { display: flex; flex: 1; min-height: 0; width: 100%; background: transparent; }
+#app.d5 #side > .v5rw > .rail { width: 100%; border-left: 0; }
+.v5pg { display: block; background: transparent; color: var(--t1); }
+/* the control outline the mockup defines on its window (.win); the app has no .win, so the two wrappers carry it (it follows --t1, so it needs no dark twin) */
+.v5pg, .v5rw { --ctl: var(--ctl-ring); }
+/* the old Files list also uses the class "li" (absolute rows in a grid); the page's own list is a plain stack */
+.v5pg .li { position: static; display: grid; grid-template-columns: none; height: auto; padding: 0; border-radius: 0; left: auto; right: auto; }
+/* the old page rules give headings in the stage their own size; the mockup's title size is restated for this page */
+#app.d5 .v5pg .k-title { font: 500 1.75rem/1.15 var(--display, var(--font)); letter-spacing: -.01em; margin: 0; }
+#app.d5 .v5pg .k-sub { font-size: 0.875rem; margin: 0.25rem 0 0; }
+/* with no computer the title stays at the left like Computers and Files; only the empty state is centred */
+.v5pg.v5e .k-ph-r:empty { display: none; }
+/* the empty states and the list/card gaps are the mockup's own (v5-base .b-empty, .k-card margin-bottom); nothing is added here */
+.v5pg .b-rqe { display: grid; gap: 0.25rem; padding: 1.125rem 0.5rem; }
+.v5pg .b-rqe small { color: var(--t3); }
+.v5rw button.k-sw { border: 0; padding: 0; font: inherit; }
+.v5rw button.k-sw:disabled { cursor: default; opacity: .6; }
+.v5rw button.k-sw:focus-visible, .v5pg .ro:focus-visible, .v5pg .b-ev:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: 0.125rem; }
+.v5rw .err:empty { display: none; }
+.v5rw .err { display: block; color: var(--neg); font-size: 0.75rem; margin-top: 0.25rem; }
+/* the request card's Technical details sit in the card's header, as a quiet link that opens a small panel */
+.v5pg .k-ch details.b-tech { position: relative; margin: 0; padding: 0; border: 0; }
+.v5pg .k-ch details.b-tech[open] > .k-kv { position: absolute; right: 0; top: 100%; z-index: 3; min-width: 16rem; margin: 0.25rem 0 0; padding: 0.75rem; background: var(--sf); border-radius: 0.5rem; box-shadow: var(--shadow), inset 0 0 0 1px var(--line); }
+.v5pg .b-hist .b-ev { cursor: pointer; }
+.v5-note { margin-top: 1rem; }
+.v5-evtext { margin: 0 0 1rem; }
+.v5-lim { margin-top: 0.75rem; }
+/* the "Devices on this computer" section of the Computers page: a card that folds; inside it the pairing requests, the device rows and the picked device's panel */
+.cpg .cdv { margin-top: 1.5rem; }
+.cpg details.cdv > summary { display: flex; gap: 0.5rem; align-items: center; cursor: pointer; font: 500 1rem var(--font); padding: 0.25rem 0; list-style-position: inside; }
+.cpg details.cdv > summary:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: 0.125rem; }
+.cpg .cdvb { padding-top: 0.75rem; }
+.cpg .cdvh { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
+.cpg .cdvb .prq, .cpg .cdvb .k-card { margin-bottom: 1rem; }
+/* the picked device's panel sits under the list instead of in a column of its own */
+.cpg .cdvb .rail.cdd { width: auto; border-left: 0; padding: 1rem 0; background: transparent; overflow: visible; }
+.cpg .cdvb .rail.cdd .k-dact .k-btn { width: auto; }
+

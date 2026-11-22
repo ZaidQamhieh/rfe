@@ -11,7 +11,7 @@ export interface BackgroundDeps {
 }
 
 /** Time the worker may keep the process busy; WorkManager cuts a job off at ten minutes. */
-export const UPLOAD_BUDGET_MS = 8 * 60 * 1000;
+const UPLOAD_BUDGET_MS = 8 * 60 * 1000;
 
 export type BackgroundReport = { photos: BackupResult | 'off' | 'error'; update: 'done' | 'error' };
 

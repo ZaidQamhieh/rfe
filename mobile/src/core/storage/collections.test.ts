@@ -41,6 +41,20 @@ describe('Flutter-compatible record lists', () => {
     expect(JSON.parse((await kv.get(RECENT_SEARCHES_KEY))!)[0]).toBe('q14');
   });
 
+  it('recent searches round-trip any string, including ones that parse as JSON', async () => {
+    const kv = new MemoryKeyValueStore();
+    const l = recentSearchesList(kv);
+    const queries = ['2024', '"abc"', 'null', 'true', '[]', '{"a":1}', 'plain text', ''];
+    await l.save(queries);
+    expect(await l.load()).toEqual(queries);
+  });
+
+  it('recent searches still read legacy plain-string entries that look like JSON', async () => {
+    const kv = new MemoryKeyValueStore();
+    await kv.set(RECENT_SEARCHES_KEY, JSON.stringify(['2024', 'true', '[]', 'abc']));
+    expect(await recentSearchesList(kv).load()).toEqual(['2024', 'true', '[]', 'abc']);
+  });
+
   it('saved searches use one JSON list string', async () => {
     const kv = new MemoryKeyValueStore();
     await kv.set(SAVED_SEARCHES_KEY, JSON.stringify(JSON.stringify([{ name: 'n', query: 'q' }, 5])));

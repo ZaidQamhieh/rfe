@@ -5,13 +5,18 @@ import { Animated, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useScheme } from '../theme';
-import { Radii } from '../tokens';
+import { t } from '../../i18n';
+import { FontFamily, Radii, Spacing } from '../tokens';
 import { Pressable } from './Pressable';
 import { Text } from './Text';
 
 type Kind = 'success' | 'error' | 'info';
 type Msg = { id: number; kind: Kind; text: string; retry?: () => void; label?: string };
 type Api = { success(text: string, onUndo?: () => void): void; error(text: string, onRetry?: () => void): void; info(text: string): void };
+
+const VISIBLE_MS = 4000;
+const VISIBLE_WITH_ACTION_MS = 8000;
+const HAPTIC_STYLE: Partial<Record<Kind, 'Light' | 'Heavy'>> = { success: 'Light', error: 'Heavy' };
 
 const Ctx = createContext<Api>({ success() {}, error() {}, info() {} });
 export const useToast = () => useContext(Ctx);
@@ -26,11 +31,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback(
     (kind: Kind, text: string, retry?: () => void, label?: string) => {
-      if (kind === 'success') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      if (kind === 'error') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+      const style = HAPTIC_STYLE[kind];
+      if (style) Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]).catch(() => {});
       setMsg({ id: Date.now(), kind, text, retry, label });
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => setMsg(null), retry ? 8000 : 4000);
+      timer.current = setTimeout(() => setMsg(null), retry ? VISIBLE_WITH_ACTION_MS : VISIBLE_MS);
     },
     [],
   );
@@ -40,12 +45,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const api = useMemo<Api>(
-    () => ({ success: (t, undo) => show('success', t, undo, 'Undo'), error: (t, r) => show('error', t, r), info: (t) => show('info', t) }),
+    () => ({ success: (text, undo) => show('success', text, undo, t('undoButton')), error: (t, r) => show('error', t, r), info: (t) => show('info', t) }),
     [show],
   );
 
-  const bg = msg?.kind === 'success' ? (c.dark ? '#2E7D32' : '#1B5E20') : msg?.kind === 'error' ? c.error : c.inverseSurface;
-  const fg = msg?.kind === 'success' ? '#FFFFFF' : msg?.kind === 'error' ? c.onError : c.onInverseSurface;
+  const bg = msg?.kind === 'success' ? c.success : msg?.kind === 'error' ? c.error : c.inverseSurface;
+  const fg = msg?.kind === 'success' ? c.onSuccess : msg?.kind === 'error' ? c.onError : c.onInverseSurface;
   const Icon = msg?.kind === 'success' ? CircleCheck : msg?.kind === 'error' ? CircleAlert : Info;
   return (
     <Ctx.Provider value={api}>
@@ -54,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         <Animated.View
           pointerEvents="box-none"
           accessibilityLiveRegion="polite"
-          style={{ position: 'absolute', left: 12, right: 12, bottom: insets.bottom + 12, opacity }}
+          style={{ position: 'absolute', left: Spacing.md2, right: Spacing.md2, bottom: insets.bottom + Spacing.md2, opacity }}
         >
           <View pointerEvents={msg.retry ? 'auto' : 'none'} style={{ backgroundColor: bg, borderRadius: Radii.card - 4, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Icon size={20} color={fg} />
@@ -62,8 +67,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               {msg.text}
             </Text>
             {msg.retry && (
-              <Pressable onPress={() => { const r = msg.retry; setMsg(null); r?.(); }} accessibilityLabel={msg.label ?? 'Retry'}>
-                <Text variant="labelLarge" color={fg} style={{ fontFamily: 'Lato_700Bold' }}>{msg.label ?? 'Retry'}</Text>
+              <Pressable onPress={() => { const r = msg.retry; setMsg(null); r?.(); }} accessibilityLabel={msg.label ?? t('retryButton')}>
+                <Text variant="labelLarge" color={fg} style={{ fontFamily: FontFamily.bold }}>{msg.label ?? t('retryButton')}</Text>
               </Pressable>
             )}
           </View>

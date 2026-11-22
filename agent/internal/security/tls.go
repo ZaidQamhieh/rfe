@@ -13,23 +13,68 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/fs"
+	"log"
 	"math/big"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
+
+// ErrIdentityMissing means the data directory already holds an agent database but not the TLS
+// certificate and key that identify it. A fresh identity would make every paired phone reject the host,
+// so it is never generated silently; the files must be restored (for example from a backup).
+var ErrIdentityMissing = errors.New("host identity missing")
+
+// Names of the identity files and of the database whose presence marks a dir as already set up.
+const (
+	CertFile = "agent-cert.pem"
+	KeyFile  = "agent-key.pem"
+	dbFile   = "agent.db"
+)
+
+// LoadCert reads the existing certificate and key under dir and never creates or changes a file.
+// It returns an error wrapping ErrIdentityMissing when either file is absent.
+func LoadCert(dir string) (tls.Certificate, error) {
+	certPath := filepath.Join(dir, CertFile)
+	keyPath := filepath.Join(dir, KeyFile)
+	if missing := missingIdentityFiles(certPath, keyPath); len(missing) > 0 {
+		return tls.Certificate{}, fmt.Errorf("%w: %s not found in %s", ErrIdentityMissing, strings.Join(missing, " and "), dir)
+	}
+	return tls.LoadX509KeyPair(certPath, keyPath)
+}
+
+// missingIdentityFiles lists the base names of those of the given files that do not exist.
+func missingIdentityFiles(paths ...string) []string {
+	var missing []string
+	for _, p := range paths {
+		if !fileExists(p) {
+			missing = append(missing, filepath.Base(p))
+		}
+	}
+	return missing
+}
 
 // LoadOrCreateCert returns the agent's TLS certificate, generating a self-signed
 // one on first run and persisting it under dir. The certificate's SHA-256
 // fingerprint is what the phone pins at pairing time (trust on first use).
+// When agent.db already exists in dir but the certificate or key is missing, it refuses with
+// ErrIdentityMissing instead of generating a new identity.
 func LoadOrCreateCert(dir string) (tls.Certificate, error) {
-	certPath := filepath.Join(dir, "agent-cert.pem")
-	keyPath := filepath.Join(dir, "agent-key.pem")
+	certPath := filepath.Join(dir, CertFile)
+	keyPath := filepath.Join(dir, KeyFile)
 
 	if fileExists(certPath) && fileExists(keyPath) {
 		return tls.LoadX509KeyPair(certPath, keyPath)
+	}
+	if _, err := os.Stat(filepath.Join(dir, dbFile)); err == nil {
+		return tls.Certificate{}, fmt.Errorf("%w: %s not found in %s although %s exists; refusing to create a new identity because paired phones would reject it. Restore the files from a backup (rfe restore) or remove the data dir to start over",
+			ErrIdentityMissing, strings.Join(missingIdentityFiles(certPath, keyPath), " and "), dir, dbFile)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return tls.Certificate{}, fmt.Errorf("check %s in %s: %w", dbFile, dir, err)
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -108,7 +153,9 @@ func writePEM(path, blockType string, der []byte, mode os.FileMode) error {
 		os.Remove(name)
 		return err
 	}
-	if err := tmp.Chmod(mode); err != nil && !errors.Is(err, os.ErrPermission) && runtime.GOOS != "windows" {
+	// A refused chmod must fail: it would leave the private key with a looser mode than asked for.
+	// Windows has no POSIX modes, so Chmod there is not meaningful.
+	if err := tmp.Chmod(mode); err != nil && runtime.GOOS != "windows" {
 		return fail(err)
 	}
 	if err := pem.Encode(tmp, &pem.Block{Type: blockType, Bytes: der}); err != nil {
@@ -137,6 +184,7 @@ func localIPs() []net.IP {
 	ips := []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
+		log.Printf("tls: listing interface addresses failed, certificate covers loopback only: %v", err)
 		return ips
 	}
 	for _, a := range addrs {

@@ -26,7 +26,7 @@ showing `HTTP_404`.
 ## How CI keeps this true
 
 `desktop.yml` runs the suite twice: against an agent built from the same checkout (a missing feature
-fails), and against the newest stable `agent-v*` tag, which is not a `-rc`. While that release lacks the
+fails), and against the newest stable `host-v*` (or older `agent-v*`) tag, which is not a `-rc`. While that release lacks the
 bound proof, the second run only proves the refusal (`tests/bound_proof.rs`); once a stable release has it,
 the second run is the whole suite again. Neither run has happened on GitHub yet.
 

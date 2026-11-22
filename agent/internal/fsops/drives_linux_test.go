@@ -5,9 +5,9 @@ package fsops
 import "testing"
 
 // TestDrives_RootIsOS verifies that on Linux, the "/" mount point is reported
-// as the OS drive via Drives().
+// as the OS drive via platformDrives().
 func TestDrives_RootIsOS(t *testing.T) {
-	drives, err := Drives()
+	drives, err := platformDrives()
 	if err != nil {
 		t.Fatalf("Drives: %v", err)
 	}

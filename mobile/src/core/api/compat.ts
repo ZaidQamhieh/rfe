@@ -1,14 +1,14 @@
-import { AgentApiError } from "./agentClient";
+import { AgentApiError, UNSUPPORTED_BY_AGENT } from "./agentClient";
 import type { Health } from "./models";
+import { t, type StringKey } from "../../i18n";
 
 /** Optional agent capabilities this app knows about. Everything else the app does is baseline and never gated. */
 export type FeatureId = "pairRequest";
 
-export const FEATURE_LABELS: Record<FeatureId, string> = {
-  pairRequest: "asking to pair without a code",
+/** The en.json key of each feature's plain-words label, read at call time. */
+const FEATURE_LABEL_KEYS: Record<FeatureId, StringKey> = {
+  pairRequest: "featurePairRequest",
 };
-
-export const UNSUPPORTED_BY_AGENT = "UNSUPPORTED_BY_AGENT";
 
 /**
  * Whether the agent offers an optional feature. Without a health reading (unpaired, offline, not loaded yet) the
@@ -25,11 +25,7 @@ export function hasFeature(
 }
 
 export const unsupportedByAgent = (feature: FeatureId) =>
-  new AgentApiError(
-    0,
-    UNSUPPORTED_BY_AGENT,
-    `This computer’s agent is too old for ${FEATURE_LABELS[feature]}. Update the agent on that computer.`,
-  );
+  new AgentApiError(0, UNSUPPORTED_BY_AGENT, t("agentTooOldForFeature", { feature: t(FEATURE_LABEL_KEYS[feature]) }));
 
 export const isUnsupportedByAgent = (e: unknown): e is AgentApiError =>
   e instanceof AgentApiError && e.code === UNSUPPORTED_BY_AGENT;

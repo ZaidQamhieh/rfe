@@ -186,3 +186,52 @@ func TestRegisterHandler_OrdinaryCodeIsNotBurned(t *testing.T) {
 		t.Fatal("the ordinary code was burned by a register attempt")
 	}
 }
+
+// A revoked device registering the owner again with its own key reuses its row, the same as pairing: it
+// must not inherit the old device's app access. (A different key is refused: register_replaces_test.go.)
+func TestRegisterHandler_RevokedDeviceSameKeyResetsItsAccess(t *testing.T) {
+	db, _ := newTestDeps(t)
+	pm := pairing.New(db, "127.0.0.1:8765", "10.0.0.1", "sha256-fp")
+	cfg := Config{Name: "test-pc", CertFingerprint: "sha256-fp", Address: "127.0.0.1:8765"}
+	nonces := newNonceStore()
+	handler := registerHandler(cfg, db, pm, nonces)
+
+	pubKey, nonce, sig := signedDeviceProof(t, nonces)
+	oldID, err := db.UpsertDevice("android-123", "old phone", "old-token", pubKey, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetDeviceAppPermissions(oldID, true, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RevokeDevice(oldID); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, err := pm.MintOwner(time.Minute)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	body := `{"pairingCode":"` + code + `","username":"owner","password":"correct-horse-battery",` +
+		`"deviceLabel":"new phone","deviceId":"android-123",` +
+		`"devicePublicKey":"` + pubKey + `","nonce":"` + nonce + `","signature":"` + sig + `"}`
+	rr := httptest.NewRecorder()
+	handler(rr, httptest.NewRequest(http.MethodPost, "/v1/register", strings.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp pairResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.DeviceID != oldID {
+		t.Fatalf("the row is reused: got %s want %s", resp.DeviceID, oldID)
+	}
+	d, err := db.GetDeviceByID(oldID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.ViewApps || d.LaunchApps {
+		t.Fatalf("a takeover must not inherit app access: %+v", d)
+	}
+}

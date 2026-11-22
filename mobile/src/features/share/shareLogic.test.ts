@@ -1,4 +1,4 @@
-import { SHARE_EXPIRY_PRESETS, sharedFiles } from './shareLogic';
+import { SHARE_EXPIRY_DEFAULT_INDEX, SHARE_EXPIRY_PRESETS, sharedFiles } from './shareLogic';
 
 const f = (path: string, fileName = 'a.txt', size: number | null = 5) => ({ path, fileName, size });
 
@@ -29,7 +29,15 @@ test('a malformed percent sequence in the path does not throw', () => {
   expect(sharedFiles([f('file:///c/100%.txt', '')])[0].name).toBe('100%.txt');
 });
 
-test('share expiry presets are 15 min, 1 h and 24 h, ascending, none above the agent cap', () => {
-  expect(SHARE_EXPIRY_PRESETS.map((p) => p.seconds)).toEqual([900, 3600, 86400]);
-  expect(Math.max(...SHARE_EXPIRY_PRESETS.map((p) => p.seconds))).toBeLessThanOrEqual(24 * 3600);
+test('share expiry presets are 1 hour, 1 day and 1 week, ascending, none above the agent cap', () => {
+  expect(SHARE_EXPIRY_PRESETS.map((p) => p.seconds)).toEqual([3600, 86400, 604800]);
+  expect(Math.max(...SHARE_EXPIRY_PRESETS.map((p) => p.seconds))).toBeLessThanOrEqual(7 * 24 * 3600);
+});
+
+test('a new share link defaults to the 1 day preset', () => {
+  expect(SHARE_EXPIRY_PRESETS[SHARE_EXPIRY_DEFAULT_INDEX].seconds).toBe(86400);
+});
+
+test('share expiry presets are labelled from the string table', () => {
+  expect(SHARE_EXPIRY_PRESETS.map((p) => p.label)).toEqual(['1 hour', '1 day', '1 week']);
 });

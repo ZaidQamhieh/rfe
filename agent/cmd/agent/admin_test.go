@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ZaidQamhieh/rfe/agent/internal/security"
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
@@ -56,6 +57,11 @@ func discardStderr(t *testing.T, fn func() error) error {
 func initializeAdminData(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
+	// A set-up agent has its identity before it has a database; LoadOrCreateCert refuses to invent one
+	// next to an existing agent.db.
+	if _, err := security.LoadOrCreateCert(dir); err != nil {
+		t.Fatalf("initialize identity: %v", err)
+	}
 	db, err := store.Open(dir)
 	if err != nil {
 		t.Fatalf("initialize database: %v", err)
@@ -347,14 +353,17 @@ func TestAdminRevokeRemoveAndStatusCommands(t *testing.T) {
 
 func TestParseAllow(t *testing.T) {
 	g, err := parseAllow("Download, upload")
-	if err != nil || g != [6]bool{false, true, true, false, false, false} {
+	if err != nil || g != [7]bool{false, true, true, false, false, false, false} {
 		t.Fatalf("got %v %v", g, err)
 	}
-	if g, _ := parseAllow("all"); g != [6]bool{true, true, true, true, true, true} {
+	if g, _ := parseAllow("all"); g != [7]bool{true, true, true, true, true, true, true} {
 		t.Fatalf("all: %v", g)
 	}
-	if g, _ := parseAllow("none"); g != [6]bool{} {
+	if g, _ := parseAllow("none"); g != [7]bool{} {
 		t.Fatalf("none: %v", g)
+	}
+	if g, err := parseAllow("wake"); err != nil || g != [7]bool{false, false, false, false, false, false, true} {
+		t.Fatalf("wake: %v %v", g, err)
 	}
 	if _, err := parseAllow("download,fly"); err == nil {
 		t.Fatal("unknown permission accepted")
@@ -376,5 +385,54 @@ func TestBackupDirInRoots(t *testing.T) {
 	}
 	if !backupDirInRoots("/anywhere", nil) {
 		t.Fatal("no roots means unrestricted")
+	}
+}
+
+func TestBackupDirInRoots_SymlinkEscape(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	link := filepath.Join(root, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if backupDirInRoots(link, []string{root}) {
+		t.Fatal("a symlink inside the root must not reach a folder outside it")
+	}
+	if !backupDirInRoots(filepath.Join(root, "not-yet"), []string{root}) {
+		t.Fatal("a folder that does not exist yet is judged lexically")
+	}
+}
+
+func TestAdminJSONOutputsAndApps(t *testing.T) {
+	data := initializeAdminData(t)
+	db, err := store.Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CreateDevice("device-json-1", "phone", "token-j"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AppendAudit(store.AuditDeviceUpdated, "owner", "device-json-1", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureStdout(t, func() error { return cmdApps([]string{"-data", data, "device-json-1", "off", "on"}) }); err == nil {
+		t.Fatal("apps accepted launch without view")
+	}
+	if _, err := captureStdout(t, func() error { return cmdApps([]string{"-data", data, "device-json-1", "on", "on"}) }); err != nil {
+		t.Fatal(err)
+	}
+	out, err := captureStdout(t, func() error { return cmdDevices([]string{"-json", "-data", data}) })
+	if err != nil || !strings.Contains(out, `"viewApps":true`) || !strings.Contains(out, `"launchApps":true`) || !strings.Contains(out, `"canWake":false`) || !strings.Contains(out, `"created":`) {
+		t.Fatalf("devices -json = (%q, %v)", out, err)
+	}
+	out, err = captureStdout(t, func() error { return cmdAudit([]string{"-json", "-data", data}) })
+	if err != nil || !strings.HasPrefix(out, "[") || !strings.Contains(out, "device_updated") {
+		t.Fatalf("audit -json = (%q, %v)", out, err)
+	}
+	out, err = captureStdout(t, func() error { return cmdPairRequests([]string{"-json", "-data", data}) })
+	if err != nil || strings.TrimSpace(out) != "[]" {
+		t.Fatalf("pair requests -json = (%q, %v)", out, err)
 	}
 }

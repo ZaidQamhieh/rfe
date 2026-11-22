@@ -12,7 +12,7 @@ import { Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { clientForHost } from '../../services';
 import { useResolvedVisibility } from '../../state/settings';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { BreadcrumbBar } from './Breadcrumb';
 import { createDestinationPicker, pickerPath } from './destinationPicker';
 
@@ -20,15 +20,15 @@ import { createDestinationPicker, pickerPath } from './destinationPicker';
  * Folder browser sheet for choosing where Move/Copy/Save goes. `onPick` gets the current directory; the
  * confirm button stays disabled while it is `originPath` (moving or copying into the same folder is a no-op).
  */
-export function DestinationPicker({ visible, host, originPath, title, confirmLabel, onPick, onClose }: { visible: boolean; host: Host; originPath: string; title: string; confirmLabel: string; onPick: (dir: string) => void; onClose: () => void }) {
+export function DestinationPicker({ visible, host, originPath, startPath, title, confirmLabel, onPick, onClose }: { visible: boolean; host: Host; originPath: string; /** Where the browser opens; defaults to [originPath]. */ startPath?: string; title: string; confirmLabel: string; onPick: (dir: string) => void; onClose: () => void }) {
   const c = useScheme();
   const roles = useRoles();
   const toast = useToast();
   const dialogs = useDialogs();
   const vis = useResolvedVisibility(host.id);
   const picker = useMemo(
-    () => createDestinationPicker({ hostId: host.id, startPath: originPath, getClient: () => clientForHost(host), visibility: () => vis, humanize: humanizeError }),
-    [host, originPath, vis],
+    () => createDestinationPicker({ hostId: host.id, startPath: startPath ?? originPath, getClient: () => clientForHost(host), visibility: () => vis, humanize: humanizeError }),
+    [host, originPath, startPath, vis],
   );
   const state = useStore(picker);
 

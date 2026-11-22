@@ -9,13 +9,13 @@ import { pdf } from '../../../core/native';
 import { Text } from '../../../design/components';
 import { useScheme } from '../../../design/theme';
 import { Spacing } from '../../../design/tokens';
+import { t } from '../../../i18n';
 import { hashKey } from '../../explorer/thumbnails';
-import { humanizeError } from '../../pairing/pairingService';
+import { humanizeError } from '../../../core/humanizeError';
 import { PreviewError, PreviewLoading, PreviewTooLarge } from '../PreviewChrome';
-import { MAX_IN_MEMORY_PREVIEW_BYTES, PAGER_CHIP_CLEARANCE, usePreviewFile } from '../previewFile';
+import { localPath, MAX_IN_MEMORY_PREVIEW_BYTES, PAGER_CHIP_CLEARANCE, usePreviewFile } from '../previewFile';
 
 const A4 = 1.414;
-const localPath = (uri: string) => decodeURIComponent(uri.replace('file://', ''));
 
 let pagesDir: Directory | null = null;
 function pageDir(): Directory {
@@ -55,14 +55,14 @@ function PdfDocument({ host, entry }: { host: Host; entry: Entry }) {
   }, [uri]);
 
   if (state.status === 'tooLarge') return <PreviewTooLarge size={state.size} />;
-  if (state.status === 'error') return <PreviewError message={`Could not load this PDF.\n${humanizeError(state.error)}`} onRetry={retry} />;
-  if (!uri || !pages) return <PreviewLoading message="Loading PDF…" />;
-  if ('error' in pages) return <PreviewError message={`Could not render this PDF.\n${humanizeError(pages.error)}`} />;
+  if (state.status === 'error') return <PreviewError message={t('couldNotLoadPdf', { error: humanizeError(state.error) })} onRetry={retry} />;
+  if (!uri || !pages) return <PreviewLoading message={t('loadingPdf')} />;
+  if ('error' in pages) return <PreviewError message={t('couldNotRenderPdf', { error: humanizeError(pages.error) })} />;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.surfaceContainer }}>
       <Text variant="bodySmall" muted style={{ alignSelf: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: Spacing.xs }}>
-        {`Page ${current} of ${pages.count}`}
+        {t('pdfPageIndicator', { current, total: pages.count })}
       </Text>
       <FlatList
         data={Array.from({ length: pages.count }, (_, i) => i)}
@@ -83,6 +83,7 @@ function PdfDocument({ host, entry }: { host: Host; entry: Entry }) {
 }
 
 const PdfPage = memo(function PdfPage({ src, index }: { src: string; index: number }) {
+  const c = useScheme();
   const { width } = useWindowDimensions();
   const w = width - Spacing.sm * 2;
   const px = Math.min(Math.round(w * PixelRatio.get()), 2048);
@@ -102,8 +103,8 @@ const PdfPage = memo(function PdfPage({ src, index }: { src: string; index: numb
 
   const aspect = page && 'aspect' in page ? page.aspect : A4;
   return (
-    <View style={{ width: w, height: w * aspect, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel={`Page ${index + 1}`}>
-      {page === null ? <ActivityIndicator /> : 'error' in page ? <Text style={{ color: '#B3261E', padding: Spacing.md }}>{page.error}</Text> : <Image source={{ uri: page.uri }} style={{ width: w, height: w * aspect }} contentFit="contain" />}
+    <View style={{ width: w, height: w * aspect, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel={t('pdfPageLabel', { page: index + 1 })}>
+      {page === null ? <ActivityIndicator /> : 'error' in page ? <Text style={{ color: c.error, padding: Spacing.md }}>{page.error}</Text> : <Image source={{ uri: page.uri }} style={{ width: w, height: w * aspect }} contentFit="contain" />}
     </View>
   );
 });

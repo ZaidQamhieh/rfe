@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Mover — the transfer queue is the main screen</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d07{--bg:#0b0d14;--sf:#11141c;--rz:#1a1e28;--t1:#eef0f5;--t2:#a3a9b8;--t3:#7a8296;--line:rgba(238,240,245,.08);--line2:rgba(238,240,245,.14);--ac:#5aa9e6;--on-ac:#0b0d14;--ac-ink:#7cbcee;--ac-soft:rgba(90,169,230,.12);--pos:#4cc38a;--neg:#e5484d;--warn:#e0a43b;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;--shadow:0 12px 32px rgba(0,0,0,.45);display:flex;flex-direction:column}
+.d07 .k-btn.pri{background:#eef0f5;color:#0b0d14}.d07 .k-chip.on{background:#eef0f5;color:#0b0d14}.d07 .k-qr{background:#eef0f5}
+.d07 .top{height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--line)}
+.d07 .seg{display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line)}
+.d07 .seg button{height:30px;padding:0 12px;border-radius:7px;color:var(--t2);font-size:13px;display:flex;gap:6px;align-items:center}
+.d07 .seg button.on{background:var(--rz);color:var(--t1);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.d07 .top .r{margin-left:auto;display:flex;gap:4px;align-items:center}
+.d07 .stage{flex:1;overflow:auto;padding:20px 24px;min-height:0}
+.d07 .stage:has(.mv),.d07 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d07 .k-files{flex:1}
+.d07 .mv{flex:1;display:grid;grid-template-columns:1fr 380px;gap:24px;min-height:0}
+.d07 .q{overflow:auto;min-height:0;padding-right:4px}
+.d07 .q .k-xc{background:var(--sf)}
+.d07 .big{display:flex;align-items:center;gap:16px 24px;margin-bottom:16px;flex-wrap:wrap}.d07 .big b{white-space:nowrap}.d07 .big small{flex:1;min-width:200px}
+.d07 .big b{font:500 40px/1 var(--mono);letter-spacing:-.02em} .d07 .big small{color:var(--t3);font-size:13px}
+.d07 .big .acts{margin-left:auto;display:flex;gap:8px}
+.d07 .speed{height:56px;margin:0 0 20px;position:relative}
+.d07 .speed svg{width:100%;height:56px;display:block}
+.d07 .pick{display:grid;grid-template-rows:1fr 1fr;gap:16px;min-height:0}
+.d07 .pk{background:var(--sf);border-radius:var(--rc);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;min-height:0;padding:12px}
+.d07 .pk h3{display:flex;gap:8px;align-items:center;margin:0 0 8px;font:500 13px var(--font)}
+.d07 .pk h3 small{color:var(--t3);font-family:var(--mono);font-weight:400}
+.d07 .pk .l{overflow:auto;flex:1}
+.d07 .pk .k-lrow{min-height:32px;font-size:13px;cursor:grab} .d07 .pk .k-lrow small{margin-left:auto}
+.d07 .pk .k-lrow.sel{background:var(--ac-soft)}
+.d07 .pk .h{font-size:12px;color:var(--t3);padding-top:8px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d07">
+ <header class="top" id="topbar"></header>
+ <main class="stage" id="st"></main>
+</div>
+<script>
+window.IDEA='For the person who mostly moves files. The queue is the home screen, with the speed drawn as a line; both sides (this computer and the server) are small pickers on the right, so sending is a drag onto the other picker. Browsing in full is one tab away.';
+window.MAP=[['Navigation','Segmented tabs: Move, Browse, Servers, Devices, Search, Tools, History, Settings',1],['Switch computer','Switcher in the server picker’s header, or Browse on at the top',1],['Connect and trust','Servers, New connection',2],['Servers and status','Servers tab; card menus',2],['Files and preview','Browse tab for the full list; the pickers for quick picks; right-click everywhere',1],['Upload and download','Drag between the pickers, or Upload, Ctrl U, Ctrl D',1],['Pair a phone','QR icon at the top right',1],['Pairing requests','Devices tab with the count',2],['Transfers','The home screen: groups, conflicts, retry, journal',0],['Search','Search tab, or /',1],['Tools','Tools tab',2],['History and audit','History tab',1],['Settings','Settings tab; parallel transfers and speed limit under Transfers',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I;
+const T=[['home','transfer','Move'],['files','folder','Browse'],['servers','server','Servers'],['devices','phone','Devices <em class="k-badge bad">2</em>'],['search','search','Search'],['tools','layers','Tools'],['history','history','History'],['settings','sliders','Settings']];
+function bar(v){document.getElementById('topbar').innerHTML=`<div class="seg">${T.map(t=>`<button class="${v===t[0]?'on':''}" data-k="go:${t[0]}">${I(t[1],14)}${t[2]}</button>`).join('')}</div><div class="r">${K.C.actions({no:['refresh']})}</div>`;}
+const pts=[8,14,22,30,28,36,41,38,44,52,49,55,51,53,52];const path=pts.map((y,i)=>`${i?'L':'M'}${i*(860/14)} ${56-y}`).join(' ');
+const home=()=>`<div class="mv"><div class="q"><div class="big"><b>52.4 MB/s</b><small>2 moving · 1 waiting for a slot · <span class="warn">3 need you</span> · 1.9 GB this session</small><div class="acts">${K.btn('Pause all',{i:'pause',k:'sm'})}</div></div><div class="speed"><svg viewBox="0 0 860 56" preserveAspectRatio="none"><path d="M0 55.5H860" stroke="var(--line2)" stroke-dasharray="2 4"/><path d="${path}" fill="none" stroke="var(--ac)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg></div>${K.V.xgroups()}<div class="k-journal">${K.E('scroll',24)}<div><b>Transfer journal</b><small>1 unfinished upload from the last session</small></div>${K.btn('Queue again',{k:'sm'})}</div></div>
+<div class="pick"><div class="pk"><h3>${K.E('server',16)}studio-pc <small>· garden-plan</small><span class="sp" style="flex:1"></span>${K.btn('Change',{k:'sm ghost',a:'menu:browse'})}</h3><div class="l">${K.D.files.map(f=>`<div class="k-lrow${f.n===K.D.sel?' sel':''}" data-row="${f.n}">${K.fic(f.k)}<span>${f.n}</span><small class="mono">${f.k==='dir'?f.c+' items':f.s}</small></div>`).join('')}</div><div class="h">${I('chevd',14)}Drag down to download · Ctrl D</div></div>
+<div class="pk"><h3>${K.E('laptop',16)}This computer <small>~/Downloads</small></h3><div class="l">${K.D.local.map(l=>`<div class="k-lrow" data-row="${l.n}">${K.fic(l.k)}<span>${l.n}</span><small class="mono">${l.k==='dir'?l.c+' items':l.s}</small></div>`).join('')}</div><div class="h">${I('up',14)}Drag up to upload · Ctrl U ${K.btn('Upload files…',{k:'sm ghost',a:'dlg:upload'})}</div></div></div></div>`;
+K.mount({stage:document.getElementById('st'),state:{view:'home'},views:{home,transfers:home},onGo:bar});
+</script></body></html>

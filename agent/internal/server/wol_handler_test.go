@@ -9,7 +9,7 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
 
-// TestWolRelayHandler_ReadOnlyDeviceForbidden is the PR-61 regression: a
+// TestWolRelayHandler_ReadOnlyDeviceForbidden is a regression: a
 // guest/read-only paired device must not be able to send Wake-on-LAN.
 func TestWolRelayHandler_ReadOnlyDeviceForbidden(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/wol", strings.NewReader(`{"mac":"aa:bb:cc:dd:ee:ff"}`))
@@ -40,7 +40,7 @@ func TestWolRelayHandler_NoDeviceForbidden(t *testing.T) {
 // past the authorization gate rather than dial success.
 func TestWolRelayHandler_FullAccessDeviceProceeds(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/wol", strings.NewReader(`{"mac":"not-a-mac"}`))
-	req = req.WithContext(withDevice(req.Context(), &store.Device{ReadOnly: false}))
+	req = req.WithContext(withDevice(req.Context(), &store.Device{ReadOnly: false, CanWake: true}))
 	rr := httptest.NewRecorder()
 	wolRelayHandler(nil)(rr, req)
 
@@ -56,7 +56,7 @@ func TestWolRelayHandler_RateLimitedPerDevice(t *testing.T) {
 	handler := wolRelayHandler(nil)
 	send := func(id string) int {
 		req := httptest.NewRequest(http.MethodPost, "/v1/wol", strings.NewReader(`{"mac":"not-a-mac"}`))
-		req = req.WithContext(withDevice(req.Context(), &store.Device{ID: id}))
+		req = req.WithContext(withDevice(req.Context(), &store.Device{ID: id, CanWake: true}))
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		return rr.Code

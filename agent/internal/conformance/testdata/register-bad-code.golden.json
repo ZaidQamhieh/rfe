@@ -1,0 +1,13 @@
+{
+  "status": 409,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "ACCOUNT_ALREADY_EXISTS",
+    "message": "this computer already has an account — log in instead, or ask the owner to add a device"
+  }
+}

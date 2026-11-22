@@ -1,6 +1,6 @@
 import type { Entry } from '../../core/api/models';
 import { defaultVisibility } from '../../core/visibility';
-import { activeFilterCount, defaultFilters, filterSearchResults, highlightRange, isGlobQuery, minBytesFor, queryForMode, resolveDatePreset, sortByRelevance } from './searchLogic';
+import { activeFilterCount, defaultFilters, filterSearchResults, highlightRange, isGlobQuery, minBytesFor, queryForMode, resolveDatePreset, sortByRelevance, suggestQuery } from './searchLogic';
 
 const e = (name: string, isDir = false): Entry => ({ name, path: `/${name}`, isDir, isSymlink: false });
 
@@ -28,7 +28,21 @@ describe('sortByRelevance', () => {
   });
 });
 
+describe('defaultFilters', () => {
+  it('can start on the whole computer, as a computer-level search does', () => {
+    expect(defaultFilters().fromHere).toBe(true);
+    expect(defaultFilters(false)).toEqual({ ...defaultFilters(), fromHere: false });
+  });
+});
+
 describe('highlightRange', () => {
+  it('points at the original name when lowercasing changes its length', () => {
+    // "İ" lowercases to two code units, which used to shift every later index by one.
+    expect(highlightRange('İstanbul', 'stan')).toEqual({ start: 1, end: 5 });
+    expect(highlightRange('xİy', 'y')).toEqual({ start: 2, end: 3 });
+    expect(highlightRange('xİy', 'İ')).toEqual({ start: 1, end: 2 });
+  });
+
   it('finds the first case-insensitive match', () => {
     expect(highlightRange('My Report Report', 'report')).toEqual({ start: 3, end: 9 });
     expect(highlightRange('abc', 'x')).toBeNull();
@@ -63,5 +77,19 @@ describe('presets and filters', () => {
     expect(activeFilterCount(f)).toBe(0);
     expect(activeFilterCount({ ...f, fromHere: false })).toBe(0);
     expect(activeFilterCount({ ...f, categories: ['image', 'video'], size: 'mb1', date: 'last7d', includeHidden: true })).toBe(5);
+  });
+});
+
+describe('suggestQuery', () => {
+  it('fixes the receipt/receive/ceiling spelling mix-up and keeps case', () => {
+    expect(suggestQuery('reciept')).toBe('receipt');
+    expect(suggestQuery('Recieve scan')).toBe('Receive scan');
+    expect(suggestQuery('CIELING')).toBe('CEILING');
+  });
+  it('offers nothing for a word it would not change', () => {
+    expect(suggestQuery('science')).toBeNull();
+    expect(suggestQuery('ancient history')).toBeNull();
+    expect(suggestQuery('receipt')).toBeNull();
+    expect(suggestQuery('')).toBeNull();
   });
 });

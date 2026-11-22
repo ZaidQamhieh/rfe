@@ -374,7 +374,7 @@ func TestHealthHandler_UnauthenticatedGetsMinimalFingerprint(t *testing.T) {
 		t.Fatalf("expected status ok, got %v", resp["status"])
 	}
 	// No topology/identity fields for a caller without a valid device token
-	// (PR-61) — an unpaired caller can't fingerprint or map the host.
+	// An unpaired caller can't fingerprint or map the host.
 	for _, field := range []string{"name", "version", "os", "readOnly", "address", "tailscaleAddress", "macAddress", "apiVersion", "features"} {
 		if _, ok := resp[field]; ok {
 			t.Fatalf("expected %q to be absent for an unauthenticated caller, got %v", field, resp[field])

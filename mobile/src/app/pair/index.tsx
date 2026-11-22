@@ -1,126 +1,76 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Globe, LogIn, Network, QrCode, Radar, Send, ShieldCheck, UserPlus, X } from 'lucide-react-native';
-import { useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { LogIn, QrCode, Server, UserPlus } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GroupedCard, IconTile, PageHead, SectionLabel, StatePill, Text, useDialogs } from '../../design/components';
-import { LumenType } from '../../design/lumen';
-import { useRoles, useScheme } from '../../design/theme';
-import { LumenFooter, MetaPill, MethodRow, StackTopBar } from '../../features/hosts/LumenRows';
+import { Button, Disclosure, DuoIcon, Row, SectionLabel, Text } from '../../design/components';
+import { useScheme } from '../../design/theme';
+import { GettingInBar } from '../../features/pairing/GettingInViews';
+import { hasAddress } from '../../features/pairing/gettingInLogic';
 import { LanPanel, useLanScan } from '../../features/pairing/LanPanel';
 import { ManualPanel } from '../../features/pairing/ManualPanel';
+import { useHosts } from '../../features/hosts/useHosts';
 import { t } from '../../i18n';
-
-type Method = 'qr' | 'lan' | 'address';
+import { Spacing } from '../../design/tokens';
 
 /**
- * Add workspace: three ways to pair (QR, local network, address) as selectable rows, the chosen one expanding under its
- * row, plus Log in / Register for account pairing. The footer action always runs the chosen method; pairing itself (the
- * first-contact pin, the approval request) is unchanged.
+ * Add a computer: scan the code on the computer (the main way), pick a computer found on this Wi-Fi, or sign in with an
+ * account. Typing an address is the last, closed "Technical details" row. Pairing itself (the first-contact pin and the
+ * Allow request) is unchanged and runs on the next screen.
  */
 export default function Pair() {
   const router = useRouter();
-  const dialogs = useDialogs();
   const c = useScheme();
-  const roles = useRoles();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ address?: string; mode?: string }>();
-  const [method, setMethod] = useState<Method>(params.mode === 'code' || params.address ? 'address' : 'qr');
   const [address, setAddress] = useState(params.address ?? '');
   const [touched, setTouched] = useState(false);
   const lan = useLanScan();
+  const saved = useHosts();
+  const { supported, toggle } = lan;
   const scroll = useRef<ScrollView>(null);
-  /** The expanded panel can start below the fold and under the footer button: bring it into view when it appears (audit F-38). */
-  const reveal = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, y - 96), animated: true });
+
+  // The address field and Ask button sit at the bottom: when the keyboard opens, bring them into view.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50));
+    return () => sub.remove();
+  }, []);
+
+  // Look on this Wi-Fi once when the screen opens, so the list is ready without another tap.
+  useEffect(() => {
+    if (supported) void toggle();
+  }, [supported, toggle]);
 
   const requestPair = (target: string) => router.push({ pathname: '/pair/request', params: { address: target } });
-  const account = (path: '/pair/login' | '/pair/register') => router.push({ pathname: path, params: { address: address.trim() || params.address } });
-
-  const footer =
-    method === 'qr'
-      ? { label: t('scanQrCodeButton'), icon: QrCode, run: () => router.push('/pair/scan'), disabled: false }
-      : method === 'lan'
-        ? { label: lan.scanning ? t('stopLocalSearch') : t('scanLocalNetwork'), icon: lan.scanning ? X : Radar, run: () => void lan.toggle(), disabled: !lan.supported }
-        : {
-            label: t('requestPairingButton'),
-            icon: Send,
-            run: () => {
-              setTouched(true);
-              if (address.trim()) requestPair(address.trim());
-            },
-            disabled: false,
-          };
-
-  const more = async () => {
-    const picked = await dialogs.choose<'login' | 'register'>({
-      title: t('addComputerTitle'),
-      options: [
-        { value: 'login', label: t('loginTab'), icon: <LogIn size={18} color={c.onSurfaceVariant} /> },
-        { value: 'register', label: t('registerTab'), icon: <UserPlus size={18} color={c.onSurfaceVariant} /> },
-      ],
-    });
-    if (picked === 'login') account('/pair/login');
-    if (picked === 'register') account('/pair/register');
+  const account = (path: '/pair/login' | '/pair/register' | '/pair/account-server') => router.push({ pathname: path, params: { address: address.trim() || params.address } });
+  const sendAddress = () => {
+    setTouched(true);
+    if (hasAddress(address)) requestPair(address.trim());
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.surface }} behavior="padding">
       <Stack.Screen options={{ headerShown: false }} />
-      <StackTopBar context="RFE · Add workspace" sub="New computer" right={<StatePill label="Secure setup" icon={ShieldCheck} tone="safe" />} onMore={more} />
-      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24, gap: 10 }} keyboardShouldPersistTaps="handled">
-        <View style={{ marginHorizontal: -18 }}>
-          <PageHead title="Add workspace" subtitle="Pair a computer or enter its address." />
+      <GettingInBar onClose={() => router.back()} back title={t('giAddComputer')} />
+      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
+        <Text style={{ paddingHorizontal: Spacing.md, fontSize: 15, lineHeight: 22 }}>{t('giAddIntro')}</Text>
+        <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.md2 }}>
+          <Button label={t('giScanCode')} kind="filled" onPress={() => router.push('/pair/scan')} icon={<DuoIcon icon={QrCode} size={22} color={c.onPrimary} />} style={{ alignSelf: 'stretch' }} />
         </View>
-        <GroupedCard>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <IconTile icon={Network} color={c.primary} size={46} radius={16} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={LumenType.title} numberOfLines={1}>
-                Pair your computer
-              </Text>
-              <Text style={[LumenType.meta, { marginTop: 2 }]} color={c.onSurfaceVariant}>
-                Open RFE on the host to begin.
-              </Text>
-            </View>
-          </View>
-        </GroupedCard>
-
-        <View style={{ marginTop: 6 }}>
-          <SectionLabel title="Choose a method" />
+        <LanPanel scan={lan} onSelect={requestPair} saved={saved ?? []} />
+        <View style={{ paddingHorizontal: Spacing.md3 }}>
+          <SectionLabel title={t('giWithAccount')} />
         </View>
-        <MethodRow
-          icon={QrCode}
-          tone={c.primary}
-          title={t('scanQrCodeButton')}
-          subtitle="Quick pairing from the host screen"
-          selected={method === 'qr'}
-          onPress={() => setMethod('qr')}
-          right={<MetaPill label="Easy" />}
-        />
-        {method === 'qr' ? (
-          <Text style={[LumenType.meta, { paddingHorizontal: 4 }]} color={c.onSurfaceVariant}>
-            {t('pairingQrHint')}
-          </Text>
-        ) : null}
-        <MethodRow icon={Network} tone={roles.route} title="Find on local network" subtitle="Both devices on the same Wi-Fi" selected={method === 'lan'} onPress={() => setMethod('lan')} />
-        {method === 'lan' ? (
-          <View onLayout={(e) => reveal(e.nativeEvent.layout.y)}>
-            <LanPanel scan={lan} onSelect={requestPair} />
-          </View>
-        ) : null}
-        <MethodRow icon={Globe} tone={roles.transfer} title="Enter address" subtitle="Hostname or IP address" selected={method === 'address'} onPress={() => setMethod('address')} />
-        {method === 'address' ? (
-          <View onLayout={(e) => reveal(e.nativeEvent.layout.y)}>
-            <ManualPanel address={address} onChange={setAddress} showRequired={touched} />
-          </View>
-        ) : null}
-
-        <View style={{ marginTop: 6 }}>
-          <SectionLabel title="With an account" />
+        <Row lead={<DuoIcon icon={LogIn} size={24} color={c.onSurfaceVariant} />} title={t('giSignIn')} onPress={() => account('/pair/login')} />
+        <Row lead={<DuoIcon icon={Server} size={24} color={c.onSurfaceVariant} />} title={t('accountServerTitle')} onPress={() => account('/pair/account-server')} />
+        <Row lead={<DuoIcon icon={UserPlus} size={24} color={c.onSurfaceVariant} />} title={t('giCreateAccount')} onPress={() => account('/pair/register')} />
+        <View style={{ marginTop: Spacing.sm }}>
+          <Disclosure label={t('giTechnical')} defaultOpen={!!params.address || params.mode === 'code'}>
+            <ManualPanel address={address} onChange={setAddress} showRequired={touched} onSubmit={sendAddress} />
+          </Disclosure>
         </View>
-        <MethodRow icon={LogIn} tone={c.primary} title={t('loginTab')} subtitle="Sign in with your host account" onPress={() => account('/pair/login')} />
-        <MethodRow icon={UserPlus} tone={roles.safe} title={t('registerTab')} subtitle="Create an account with a pairing code" onPress={() => account('/pair/register')} />
       </ScrollView>
-      <LumenFooter buttons={footer.disabled ? [] : [{ key: 'go', label: footer.label, primary: true, onPress: footer.run, renderIcon: (k) => <footer.icon size={22} color={k} /> }]} />
-    </View>
+    </KeyboardAvoidingView>
   );
 }

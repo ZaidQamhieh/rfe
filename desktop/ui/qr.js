@@ -52,10 +52,12 @@
     mask(best); fmt(best);
     return { size, version: v, get: (x, y) => x >= 0 && y >= 0 && x < size && y < size && M[y][x] };
   }
+  // Text made safe to sit inside a double-quoted attribute: & < > " ' become numeric character references.
+  function attr(s) { return String(s).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';'); }
   function svg(text, o) {
     o = o || {}; const q = make(text, o.ecc || 'M'), b = o.border == null ? 2 : o.border, n = q.size + b * 2; let d = '';
     for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++) if (q.get(x, y)) d += 'M' + (x + b) + ' ' + (y + b) + 'h1v1h-1z';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n + '" width="' + (o.px || 200) + '" height="' + (o.px || 200) + '" shape-rendering="crispEdges" role="img" aria-label="' + String(o.label || 'QR code').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';') + '"><rect width="' + n + '" height="' + n + '" fill="' + (o.bg || '#fff') + '"/><path d="' + d + '" fill="' + (o.fg || '#000') + '"/></svg>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n + '" width="' + (o.px || 200) + '" height="' + (o.px || 200) + '" shape-rendering="crispEdges" role="img" aria-label="' + attr(o.label || 'QR code') + '"><rect width="' + n + '" height="' + n + '" ' + (/^var\(--[a-z0-9-]+\)$/.test(o.bg || '') ? 'style="fill:' + o.bg + '"' : 'fill="' + attr(o.bg || '#fff') + '"') + '/><path d="' + d + '" fill="' + attr(o.fg || '#000') + '"/></svg>';
   }
   g.QR = { make, svg };
 })(window);

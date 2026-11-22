@@ -7,6 +7,7 @@
 //! nothing else; the tray menu only does what its four items say.
 
 use crate::transfers::Transfers;
+use crate::APP_NAME;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -14,6 +15,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 
 const TRAY_ID: &str = "rfe-tray";
+/// How often the tray's "running" line is checked against the transfers.
+const TRAY_REFRESH: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The choices the window passes on, and whether the tray exists at all.
 #[derive(Default)]
@@ -83,7 +86,7 @@ pub fn autostart_entry(exe: &Path) -> String {
     }
     quoted.push('"');
     format!(
-        "[Desktop Entry]\nType=Application\nName=RFE Desktop\nComment=Starts RFE Desktop hidden in the tray\nExec={quoted} --minimized\nTerminal=false\nX-GNOME-Autostart-enabled=true\n"
+        "[Desktop Entry]\nType=Application\nName={APP_NAME}\nComment=Starts {APP_NAME} hidden in the tray\nExec={quoted} --minimized\nTerminal=false\nX-GNOME-Autostart-enabled=true\n"
     )
 }
 
@@ -234,8 +237,9 @@ pub fn desktop_notify(
     Ok(true)
 }
 
-/// Brings the main window back from the tray (or from behind other windows).
-fn show_main(app: &AppHandle) {
+/// Brings the main window back from the tray (or from behind other windows); also used when a
+/// second copy of the program is started.
+pub(crate) fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -266,7 +270,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let sep = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &running, &pause, &pair, &sep, &quit])?;
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("RFE Desktop")
+        .tooltip(APP_NAME)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -301,7 +305,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     tauri::async_runtime::spawn(async move {
         let mut last = usize::MAX;
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(TRAY_REFRESH).await;
             let n = handle.state::<Transfers>().running_count();
             if n != last {
                 last = n;
@@ -335,11 +339,6 @@ pub fn on_close_requested(window: &tauri::Window, api: &tauri::CloseRequestApi) 
         api.prevent_close();
         let _ = window.hide();
     }
-}
-
-/// Brings the window forward when a second copy of the program is started.
-pub fn show_for_second_start(app: &AppHandle) {
-    show_main(app);
 }
 
 #[cfg(test)]

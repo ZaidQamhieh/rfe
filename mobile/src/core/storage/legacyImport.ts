@@ -6,7 +6,7 @@ import { HOSTS_KEY, type KeyValueStore } from './hostStore';
 export const IMPORT_DONE_KEY = 'rn_legacy_import_v1';
 
 /** Prefixes/keys of the Flutter app's own SharedPreferences (a superset of the backup's list: bookmarks, pins and digest state live outside `rfe_`). */
-export const OWNED_PREFIXES = ['rfe_', 'app.', 'host.', 'settings.', 'bookmarks_v1', 'offline_pins_v1', 'digest.'];
+const OWNED_PREFIXES = ['rfe_', 'app.', 'host.', 'settings.', 'bookmarks_v1', 'offline_pins_v1', 'digest.'];
 
 export type ImportReport = {
   status: 'imported' | 'already-done' | 'nothing-to-import';

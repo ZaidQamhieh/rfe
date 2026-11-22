@@ -1,0 +1,21 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "results": [
+      {
+        "error": {
+          "code": "PATH_NOT_FOUND",
+          "message": "statat does-not-exist.txt: no such file or directory"
+        },
+        "ok": false,
+        "path": "<ROOT>/does-not-exist.txt"
+      }
+    ]
+  }
+}

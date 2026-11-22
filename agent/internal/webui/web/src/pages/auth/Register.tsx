@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
-import { ApiError } from '@/lib/api';
+import { APP_HOME } from '@/lib/routes';
 
 export function Register() {
   const { register } = useAuth();
@@ -27,9 +27,9 @@ export function Register() {
     setBusy(true);
     try {
       await register(pairingCode, username, password);
-      navigate('/app/overview');
+      navigate(APP_HOME);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setBusy(false);
     }
@@ -40,16 +40,8 @@ export function Register() {
       <div style={{ width: 340 }}>
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
           <div
-            style={{
-              width: 48,
-              height: 48,
-              margin: '0 auto 12px',
-              borderRadius: 'var(--r-lg)',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              display: 'grid',
-              placeItems: 'center',
-            }}
+            className="auth-mark"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 22, height: 22 }}>
               <circle cx="12" cy="8" r="4" />

@@ -608,3 +608,43 @@ async fn a_file_outside_the_agents_folder_is_refused_by_the_agent() {
     let (status, _, _) = refusal(&err);
     assert!(status == 403 || status == 404, "{err:?}");
 }
+
+#[tokio::test]
+async fn a_video_is_read_whole_and_a_big_or_unplayable_or_outside_one_is_refused() {
+    let a = FileAgent::start();
+    let store = memory();
+    let app = a.owner(&store).await;
+    write(a.at("clip.mp4"), "not really a video");
+    let bytes = fileops::video(app.path(), &store, &a.at("clip.mp4"))
+        .await
+        .unwrap();
+    assert_eq!(bytes, b"not really a video");
+
+    // Over the cap: refused from the length the agent announces, with the plain message.
+    let big = std::fs::File::create(a.at("big.webm")).unwrap();
+    big.set_len(fileops::MAX_VIDEO_BYTES as u64 + 1).unwrap();
+    let err = fileops::video(app.path(), &store, &a.at("big.webm"))
+        .await
+        .unwrap_err();
+    assert_eq!(local_message(&err), fileops::ERR_VIDEO_BIG);
+
+    // A type the player does not handle, and a path that is not absolute, never reach the agent.
+    write(a.at("clip.mkv"), "x");
+    let err = fileops::video(app.path(), &store, &a.at("clip.mkv"))
+        .await
+        .unwrap_err();
+    assert_eq!(local_message(&err), fileops::ERR_VIDEO_TYPE);
+    assert!(fileops::video(app.path(), &store, "clip.mp4")
+        .await
+        .is_err());
+
+    // The agent's folder limit applies as it does to every read.
+    let outside = TempDir::new().unwrap();
+    write(outside.path().join("secret.mp4"), "secret");
+    let target = outside.path().join("secret.mp4");
+    let err = fileops::video(app.path(), &store, target.to_str().unwrap())
+        .await
+        .unwrap_err();
+    let (status, _, _) = refusal(&err);
+    assert!(status == 403 || status == 404, "{err:?}");
+}

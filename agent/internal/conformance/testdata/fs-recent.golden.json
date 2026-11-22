@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": [
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/plain; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "resume.txt",
+      "path": "<ROOT>/made/resume.txt",
+      "size": 10
+    },
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/plain; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "needle-alpha (1).txt",
+      "path": "<ROOT>/made/needle-alpha (1).txt",
+      "size": 27
+    },
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/plain; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "needle-alpha.txt",
+      "path": "<ROOT>/docs/sub/needle-alpha.txt",
+      "size": 27
+    }
+  ]
+}

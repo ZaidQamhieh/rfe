@@ -1,4 +1,4 @@
-import { hostCardActions, recentMeta, routeStripState } from './hostCardLogic';
+import { hostCardActions, routeStripState } from './hostCardLogic';
 
 describe('hostCardActions', () => {
   it('enables everything when online', () => {
@@ -21,14 +21,5 @@ describe('routeStripState', () => {
   it('names the route that answered', () => {
     expect(routeStripState({ online: true, checking: false, activeAddress: '100.1.2.3:8765' }, host)).toEqual({ kind: 'active', route: 'tailscale' });
     expect(routeStripState({ online: true, checking: false, activeAddress: null }, host)).toEqual({ kind: 'active', route: 'lan' });
-  });
-});
-
-describe('recentMeta', () => {
-  const size = (n: number) => `${n} B`;
-  it('joins parent folder and size', () => expect(recentMeta({ path: 'C:\\Work\\Projects\\plan.pdf', size: 5 }, size)).toBe('Projects · 5 B'));
-  it('drops what the listing lacks', () => {
-    expect(recentMeta({ path: '/plan.pdf' }, size)).toBe('');
-    expect(recentMeta({ path: '/a/plan.pdf' }, size)).toBe('a');
   });
 });

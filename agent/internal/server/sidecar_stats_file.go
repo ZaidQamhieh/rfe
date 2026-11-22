@@ -17,6 +17,10 @@ const SidecarStatsFile = "sidecar-stats.json"
 
 const sidecarStatsEvery = 30 * time.Second
 
+// sidecarStatsEarlyWrite schedules a second write shortly after the first, so `status` does not show a healthy
+// agent as "down" while the sidecars are still starting.
+const sidecarStatsEarlyWrite = 3 * time.Second
+
 // PublishSidecarStats writes the sidecar counters to dataDir every 30 s while there is something to report
 // (the file's age tells `status` whether the daemon is alive), until ctx ends.
 func PublishSidecarStats(ctx context.Context, dataDir string) {
@@ -30,17 +34,18 @@ func PublishSidecarStats(ctx context.Context, dataDir string) {
 			return
 		}
 		tmp := filepath.Join(dataDir, SidecarStatsFile+".tmp")
-		if err := os.WriteFile(tmp, b, 0o600); err == nil {
-			if err := os.Rename(tmp, filepath.Join(dataDir, SidecarStatsFile)); err != nil {
-				log.Printf("sidecar stats: %v", err)
-			}
+		if err := os.WriteFile(tmp, b, 0o600); err != nil {
+			log.Printf("sidecar stats: %v", err)
+			return
+		}
+		if err := os.Rename(tmp, filepath.Join(dataDir, SidecarStatsFile)); err != nil {
+			log.Printf("sidecar stats: %v", err)
 		}
 	}
 	t := time.NewTicker(sidecarStatsEvery)
 	defer t.Stop()
-	// The first write lands before the sidecars have finished starting; a second one shortly after keeps `status`
-	// from showing a healthy agent as "down" for half a minute.
-	early := time.After(3 * time.Second)
+	// The first write lands before the sidecars have finished starting.
+	early := time.After(sidecarStatsEarlyWrite)
 	write()
 	for {
 		select {

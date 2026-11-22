@@ -8,19 +8,18 @@ use std::path::Path;
 mod ui;
 
 const MESSAGES: &[&str] = &[
-    "Connect to a server first.",
-    "Open a connected server first to upload into it.",
-    "Open a connected server in Files first.",
-    "Select one file on a connected server in Files first.",
-    "Pick a server first: switch the main view to a server.",
-    "Copying between two servers isn’t supported.",
+    "Connect to a computer first.",
+    "Open a connected computer first to upload into it.",
+    "Open a connected computer in Files first.",
+    "Select one file on a connected computer in Files first.",
+    "Pick a computer first: switch the main view to a computer.",
+    "Copying between two computers isn’t supported.",
     "Nothing to transfer",
     "Open the folder in Files to extract.",
     "Trash is already empty",
     "Deleted forever:",
     "That folder can’t be opened:",
     "Could not start:",
-    "This sign-in cannot change what a device may do.",
     "The MAC address of",
     "Wake signal sent to",
     "The keystore works: a test secret was saved, read back and removed.",
@@ -67,6 +66,13 @@ fn every_tool_message_is_in_the_guide_and_still_in_the_app() {
             guide.contains(&format!("| {stem} |")),
             "user-guide.md does not explain {stem:?}"
         );
-        assert!(source.contains(stem), "{stem:?} is no longer in the app");
+        // A message built from a limit constant carries the name, not the number.
+        let templated = stem
+            .replace("256", "{MAX_QUERY_BYTES}")
+            .replace("1000", "{MAX_BATCH}");
+        assert!(
+            source.contains(stem) || source.contains(&templated),
+            "{stem:?} is no longer in the app"
+        );
     }
 }

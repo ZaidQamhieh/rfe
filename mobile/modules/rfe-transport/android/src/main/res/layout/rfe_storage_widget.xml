@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rfe_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:padding="8dp"
+    android:background="#CC1B1B1F">
+    <TextView
+        android:id="@+id/rfe_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <ProgressBar
+        android:id="@+id/rfe_widget_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="3dp"
+        android:layout_marginBottom="3dp"
+        android:max="100" />
+    <TextView
+        android:id="@+id/rfe_widget_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#C8C8D0"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

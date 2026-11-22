@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Quiet — one column, nothing until you need it</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.q{background:#fbfaf7;color:#1f1d1a;font-family:"Inter",system-ui,sans-serif}
+.q .tb{background:#fbfaf7;color:#b9b3a8}
+.q main{flex:1;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.q .col{width:760px;display:flex;flex-direction:column;height:100%}
+.q header{padding:34px 0 18px;display:flex;align-items:flex-end;gap:16px}
+.q .host{font:600 13px system-ui;color:#8a8378;display:flex;align-items:center;gap:8px;cursor:pointer}
+.q .host::before{content:"";width:7px;height:7px;border-radius:50%;background:#3fae6a}
+.q h1{font:400 40px/1.05 "Georgia","Iowan Old Style",serif;margin:6px 0 0;letter-spacing:-.01em}
+.q h1 span{color:#c5bfb4}
+.q .k{margin-left:auto;font-size:12px;color:#a59e92;border:1px solid #e6e1d7;border-radius:999px;padding:7px 14px;white-space:nowrap}
+.q .k kbd{font:600 11px ui-monospace,monospace;background:#efebe3;border-radius:4px;padding:1px 5px;color:#5e574c}
+.q ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
+.q li{display:grid;grid-template-columns:28px 1fr 90px 110px 0px;align-items:center;height:46px;border-bottom:1px solid #efebe3;font-size:14.5px;position:relative}
+.q li .ic{width:18px;height:18px;border-radius:4px;background:#e9e4da}
+.q li .ic.d{background:#d9c7a3}
+.q li .ic.img{background:linear-gradient(135deg,#a8c3d6,#e3c6a8)}
+.q li .m{color:#a59e92;font-size:12.5px;text-align:right}
+.q li .acts{position:absolute;right:0;display:none;gap:4px;background:#fbfaf7;padding-left:12px}
+.q li:hover{background:linear-gradient(90deg,transparent,#f3efe7 8%,#f3efe7 92%,transparent)}
+.q li:hover .acts{display:flex}
+.q li:hover .m{visibility:hidden}
+.q .acts button{border:0;background:none;font:500 12.5px system-ui;color:#6f685d;padding:6px 9px;border-radius:6px;cursor:pointer}
+.q .acts button:hover{background:#e9e4da;color:#1f1d1a}
+.q li.sel{background:#f0ebe1}
+.q footer{height:54px;display:flex;align-items:center;gap:18px;font-size:12.5px;color:#a59e92;border-top:1px solid #efebe3}
+.q .ring{width:16px;height:16px;border-radius:50%;background:conic-gradient(#3fae6a 0 64%,#e6e1d7 0)}
+.q footer .t{display:flex;align-items:center;gap:8px;color:#5e574c}
+.q footer .note{margin-left:auto}
+.q .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#d0623b;margin-right:6px}
+.q .drop{position:absolute;inset:30px 0 0;display:none}
+.q .pal{position:absolute;top:120px;left:50%;transform:translateX(-50%);width:560px;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(60,40,10,.18),0 0 0 1px #e6e1d7;padding:8px;display:none}
+.q.p .pal{display:block}
+.q .pal input{width:100%;box-sizing:border-box;border:0;font:400 20px Georgia,serif;padding:12px 14px;outline:none;background:none}
+.q .pal div{padding:9px 14px;border-radius:8px;font-size:13.5px;display:flex;justify-content:space-between;color:#5e574c}
+.q .pal div:first-of-type{background:#f3efe7;color:#1f1d1a}
+.q .pal small{color:#a59e92}
+.q .hint{position:absolute;right:26px;bottom:70px;font-size:12px;color:#a59e92;text-align:right;line-height:1.6}
+</style></head><body class="mk">
+<div class="win q" id="w">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <main><div class="col">
+  <header><div><div class="host" title="Click to switch computer">studio-pc ▾</div>
+   <h1><span>Projects /</span> launch-kit</h1></div>
+   <div class="k">Type anything <kbd>Ctrl K</kbd></div></header>
+  <ul>
+   <li><i class="ic d"></i>assets<span class="m">42 items</span><span class="m">Today</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic d"></i>drafts<span class="m">7 items</span><span class="m">Yesterday</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li class="sel"><i class="ic img"></i>hero-final.png<span class="m">4.2 MB</span><span class="m">Today 09:12</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic"></i>brief.md<span class="m">8 KB</span><span class="m">Oct 29</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic"></i>budget-q4.xlsx<span class="m">212 KB</span><span class="m">Oct 27</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic img"></i>moodboard.jpg<span class="m">11.8 MB</span><span class="m">Oct 22</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic"></i>launch-video.mp4<span class="m">1.4 GB</span><span class="m">Oct 20</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic"></i>press-release.pdf<span class="m">680 KB</span><span class="m">Oct 18</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+   <li><i class="ic"></i>contacts.csv<span class="m">14 KB</span><span class="m">Oct 11</span><span class="acts"><button>Download</button><button>Share</button><button>⋯</button></span></li>
+  </ul>
+  <footer><span class="t"><i class="ring"></i>Uploading 3 files · 64%</span><span>2 waiting</span>
+   <span class="note"><span class="dot"></span>Pixel 9 wants to pair — <u>review</u></span></footer>
+ </div></main>
+ <div class="hint">Drop files anywhere to upload here<br>Hover a row for its two most common actions</div>
+ <div class="pal"><input value="pair" aria-label="Command"><div>Pair a phone <small>Devices</small></div><div>Pairing requests (1) <small>Devices</small></div><div>Show Settings → Security <small>Settings</small></div><div>paired-devices.txt <small>studio-pc / Docs</small></div></div>
+</div>
+<script>addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='k'){e.preventDefault();w.classList.toggle('p')}if(e.key==='Escape')w.classList.remove('p')});
+document.querySelector('.q .k').onclick=()=>w.classList.toggle('p');</script>
+</body></html>

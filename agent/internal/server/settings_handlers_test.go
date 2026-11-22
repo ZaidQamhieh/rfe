@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,11 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/settings"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
+
+// withDevice injects a device into a context (test seam mirroring authMiddleware).
+func withDevice(ctx context.Context, d *store.Device) context.Context {
+	return context.WithValue(ctx, deviceCtxKey, d)
+}
 
 // asAdmin attaches an admin (via_login) device so a request passes the
 // settings/bandwidth admin gate.
@@ -478,7 +484,7 @@ func TestPatchSettingsHandler_InvalidJSON(t *testing.T) {
 	}
 }
 
-// TestPatchSettingsHandler_NonAdminForbidden is the PR-02 regression: an
+// TestPatchSettingsHandler_NonAdminForbidden is a regression: an
 // ordinary paired (non-admin) device must not be able to change global policy.
 func TestPatchSettingsHandler_NonAdminForbidden(t *testing.T) {
 	_, st := newTestDeps(t)
@@ -591,5 +597,56 @@ func TestFileCapabilitiesJSON(t *testing.T) {
 		if v {
 			t.Fatal("no device means nothing allowed")
 		}
+	}
+}
+
+func TestSetDeviceHandler_RevokedRefusedAndRepairResetsGrants(t *testing.T) {
+	root := t.TempDir()
+	db, st := newTestDepsWithRoots(t, []string{root})
+	id, err := db.UpsertDevice("client-r", "phone-r", "tok-r1", "", false)
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := db.SetDeviceFilePermissions(id, true, true, true, true, true, true); err != nil {
+		t.Fatalf("grants: %v", err)
+	}
+	if err := db.RevokeDevice(id); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	adminID, err := db.UpsertDevice("", "admin-session", "tok-admin", "", true)
+	if err != nil {
+		t.Fatalf("upsert admin: %v", err)
+	}
+	admin, _ := db.GetDeviceByID(adminID)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/devices/"+id, strings.NewReader(`{"readOnly":true}`))
+	req = req.WithContext(withDevice(req.Context(), admin))
+	req = withURLParam(req, map[string]string{"id": id})
+	rr := httptest.NewRecorder()
+	setDeviceJailHandler(db, st)(rr, req)
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for a revoked device, got %d: %s", rr.Code, rr.Body.String())
+	}
+	// Pairing again un-revokes it and starts it browse-only.
+	if _, err := db.UpsertDevice("client-r", "phone-r", "tok-r2", "", false); err != nil {
+		t.Fatalf("re-pair: %v", err)
+	}
+	d, _ := db.GetDeviceByID(id)
+	if d.Revoked || !d.CanBrowse || d.CanDownload || d.CanUpload || d.CanModify || d.CanDelete || d.CanShare {
+		t.Fatalf("expected browse-only after re-pair, got %+v", d)
+	}
+}
+
+// TestMergeFileGrants: an omitted (nil) field keeps the current value; a set
+// field overrides it, including an explicit false over a current true.
+func TestMergeFileGrants(t *testing.T) {
+	cur := &store.Device{CanBrowse: true, CanDownload: true, CanUpload: false, CanModify: false, CanDelete: true, CanShare: false}
+	if got, want := mergeFileGrants(cur, deviceUpdateBody{}), (fileGrants{browse: true, download: true, upload: false, modify: false, del: true, share: false}); got != want {
+		t.Fatalf("nil fields: got %+v, want %+v", got, want)
+	}
+	f, tr := false, true
+	got := mergeFileGrants(cur, deviceUpdateBody{Browse: &f, Upload: &tr, Share: &tr, Delete: &f})
+	want := fileGrants{browse: false, download: true, upload: true, modify: false, del: false, share: true}
+	if got != want {
+		t.Fatalf("set fields: got %+v, want %+v", got, want)
 	}
 }

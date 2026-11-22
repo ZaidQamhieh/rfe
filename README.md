@@ -17,36 +17,36 @@ app (Linux) controls the agent from the PC. See [Install the host agent](#instal
 </tr>
 <tr>
 <th align="left">Android</th>
-<td align="center" colspan="2"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/v1.0.0/rfe-1.0.0-83.apk">Universal APK</a></td>
+<td align="center" colspan="2"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe.apk">Universal APK</a> (also runs on 32-bit ARMv7 phones)</td>
 </tr>
 <tr>
 <th align="left">Windows</th>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-amd64.zip">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-windows-arm64.zip">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-windows-amd64.zip">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-windows-arm64.zip">Agent</a></td>
 </tr>
 <tr>
 <th align="left">macOS</th>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-amd64.tar.gz">Agent</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-darwin-arm64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-darwin-amd64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-darwin-arm64.tar.gz">Agent</a></td>
 </tr>
 <tr>
 <th align="left">Debian / Ubuntu</th>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.deb">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.deb">Desktop</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.deb">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-amd64.deb">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/RFE-Desktop_amd64.deb">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-arm64.deb">Agent</a></td>
 </tr>
 <tr>
 <th align="left">Fedora / openSUSE</th>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.rpm">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop-1.0.3-1.x86_64.rpm">Desktop</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.rpm">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-amd64.rpm">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/RFE-Desktop.x86_64.rpm">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-arm64.rpm">Agent</a></td>
 </tr>
 <tr>
 <th align="left">Other Linux</th>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-amd64.tar.gz">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/desktop-v1.0.3/RFE-Desktop_1.0.3_amd64.AppImage">Desktop</a></td>
-<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/agent-v1.0.0/agent-v1.0.0-linux-arm64.tar.gz">Agent</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-amd64.tar.gz">Agent</a> · <a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/RFE-Desktop_amd64.AppImage">Desktop</a></td>
+<td align="center"><a href="https://github.com/ZaidQamhieh/rfe/releases/download/downloads/rfe-agent-linux-arm64.tar.gz">Agent</a></td>
 </tr>
 </table>
 
-App 1.0.0 · Agent 1.0.0 · Desktop 1.0.3. Each release lists its `SHA256SUMS`; older versions are on the [releases page](https://github.com/ZaidQamhieh/rfe/releases).
+These links always serve the newest release. Each versioned release lists its `SHA256SUMS`; older versions are on the [releases page](https://github.com/ZaidQamhieh/rfe/releases).
 
 <!-- downloads:end -->
 
@@ -142,8 +142,10 @@ release's `SHA256SUMS`, runs `rfe setup` and adds the desktop app to your launch
 curl -fsSL https://raw.githubusercontent.com/ZaidQamhieh/rfe/master/tools/install.sh | sh -s all
 ```
 
-Packages are also published per release: `.deb` and `.rpm` for the agent (`agent-v*`) and the desktop app
-(`desktop-v*`), and the AUR packages `rfe-bin` and `rfe-desktop-bin` (recipes in `packaging/aur/`).
+Agent and desktop app are released together (`host-v*`). On Debian, Ubuntu, Fedora and openSUSE, the desktop
+app's `.deb` or `.rpm` installs the agent too (it replaces the agent-only package); the agent-only `.deb`, `.rpm` and
+archives are for servers, other CPUs, Windows and macOS. AUR recipes `rfe-bin` and `rfe-desktop-bin` are in
+`packaging/aur/`.
 
 Download the matching host binary, verify its SHA-256 checksum, and run `rfe setup`. New
 agent databases default to a dedicated `RFE Files` folder under the signed-in user's home,

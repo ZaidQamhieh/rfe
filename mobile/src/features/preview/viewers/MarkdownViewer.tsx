@@ -6,29 +6,23 @@ import type { Host } from '../../../core/models/host';
 import { Text } from '../../../design/components';
 import { useScheme } from '../../../design/theme';
 import { FontFamily, Radii, Spacing } from '../../../design/tokens';
+import { t } from '../../../i18n';
 import { parseMarkdown, type Block, type Inline } from '../markdown';
 import { PAGER_CHIP_CLEARANCE } from '../previewFile';
-import { MONO, textStateView, usePreviewText } from './TextViewer';
+import { EmptyFileNotice, MONO, textStateView, usePreviewText } from './TextViewer';
 
 const HEADING_SIZE = [0, 26, 22, 19, 17, 15.5, 14.5];
 
 /** Port of MarkdownPreviewScreen: rendered markdown, or the raw source when [raw] is on. */
 export function MarkdownViewer({ host, entry, raw, onText }: { host: Host; entry: Entry; raw: boolean; onText?: (text: string | null) => void }) {
-  const c = useScheme();
   const { file, text, retry } = usePreviewText(host, entry);
   const ready = text.status === 'ready' ? text.text : null;
   useEffect(() => onText?.(ready), [ready, onText]);
   const blocks = useMemo(() => (text.status === 'ready' && !raw ? parseMarkdown(text.text) : []), [text, raw]);
-  const pending = textStateView(file, text, retry, 'Loading markdown…');
+  const pending = textStateView(file, text, retry, t('loadingMarkdown'));
   if (pending) return pending;
   const src = text.status === 'ready' ? text.text : '';
-  if (src === '') {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text color={c.outline}>(empty file)</Text>
-      </View>
-    );
-  }
+  if (src === '') return <EmptyFileNotice />;
   return (
     <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: Spacing.md, paddingBottom: PAGER_CHIP_CLEARANCE }}>
       {raw ? (
@@ -104,9 +98,9 @@ function BlockView({ b }: { b: Block }) {
       );
     case 'list':
       return (
-        <View style={{ gap: 4 }}>
+        <View style={{ gap: Spacing.xs }}>
           {b.items.map((it, i) => (
-            <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+            <View key={i} style={{ flexDirection: 'row', gap: Spacing.sm }}>
               <Text variant="bodyLarge" style={{ minWidth: 18 }}>{b.ordered ? `${b.start + i}.` : '•'}</Text>
               <Text selectable variant="bodyLarge" style={{ flex: 1 }}>
                 <InlineView nodes={it} />
@@ -130,7 +124,7 @@ function BlockView({ b }: { b: Block }) {
             {[b.head, ...b.rows].map((row, r) => (
               <View key={r} style={{ flexDirection: 'row', backgroundColor: r === 0 ? c.surfaceContainerHighest : undefined, borderTopWidth: r ? 1 : 0, borderColor: c.outlineVariant }}>
                 {b.head.map((_, i) => (
-                  <Text key={i} selectable style={{ width: 130, padding: 8, fontSize: 13, fontFamily: r === 0 ? FontFamily.semibold : FontFamily.regular }}>
+                  <Text key={i} selectable style={{ width: 130, padding: Spacing.sm, fontSize: 13, fontFamily: r === 0 ? FontFamily.semibold : FontFamily.regular }}>
                     <InlineView nodes={row[i] ?? []} />
                   </Text>
                 ))}

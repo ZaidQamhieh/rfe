@@ -186,3 +186,34 @@ func TestDownloadHandler_IfRangeResume(t *testing.T) {
 		t.Fatalf("changed file: status %d, %d bytes; want 200 and the whole new file", rr.Code, rr.Body.Len())
 	}
 }
+
+func TestDownloadHandler_GzipWriterReusedAcrossRequests(t *testing.T) {
+	root := t.TempDir()
+	ops := fsops.New([]string{root}, false)
+	want := map[string][]byte{
+		"a.txt": []byte(strings.Repeat("alpha line\n", 200)),
+		"b.txt": []byte(strings.Repeat("a completely different beta body\n", 150)),
+	}
+	for name, data := range want {
+		if err := os.WriteFile(filepath.Join(root, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A pooled writer that kept state from the previous response would corrupt or mix these bodies.
+	for i := 0; i < 6; i++ {
+		for _, name := range []string{"a.txt", "b.txt"} {
+			rr := getContent(ops, filepath.Join(root, name), map[string]string{"Accept-Encoding": "gzip"})
+			if rr.Header().Get("Content-Encoding") != "gzip" {
+				t.Fatalf("%s round %d: not gzipped", name, i)
+			}
+			zr, err := gzip.NewReader(rr.Body)
+			if err != nil {
+				t.Fatalf("%s round %d: %v", name, i, err)
+			}
+			got, err := io.ReadAll(zr)
+			if err != nil || !bytes.Equal(got, want[name]) {
+				t.Fatalf("%s round %d: body mismatch (err %v)", name, i, err)
+			}
+		}
+	}
+}

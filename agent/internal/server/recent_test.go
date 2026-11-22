@@ -17,13 +17,13 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/fsops"
 )
 
-// doRecent invokes recentHandler directly with the given raw query string
+// doRecent invokes the recent handler directly with the given raw query string
 // (without the leading '?') and decodes the response.
 func doRecent(t *testing.T, ops *fsops.Ops, rawQuery string) (*httptest.ResponseRecorder, []fsops.Entry) {
 	t.Helper()
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/fs/recent?"+rawQuery, nil)
-	recentHandler(ops)(rr, req)
+	recentHandlerWithWalker(ops, walkForRecentWithOps)(rr, req)
 
 	var entries []fsops.Entry
 	if rr.Code == http.StatusOK {
@@ -230,7 +230,7 @@ func TestRecentHandler_SetsTimeBudgetHeaderWhenBudgetExhausted(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/fs/recent?limit=100", nil)
 	req = req.WithContext(ctx)
-	recentHandler(ops)(rr, req)
+	recentHandlerWithWalker(ops, walkForRecentWithOps)(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -293,8 +293,8 @@ func TestRecentHandler_LimitsConcurrentScans(t *testing.T) {
 	if busy.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when scan capacity is full, got %d: %s", busy.Code, busy.Body.String())
 	}
-	if got := busy.Header().Get("Retry-After"); got != recentBusyRetryAfter {
-		t.Fatalf("expected Retry-After=%q, got %q", recentBusyRetryAfter, got)
+	if got := busy.Header().Get("Retry-After"); got != busyRetryAfter {
+		t.Fatalf("expected Retry-After=%q, got %q", busyRetryAfter, got)
 	}
 	var apiErr apiError
 	if err := json.Unmarshal(busy.Body.Bytes(), &apiErr); err != nil {
@@ -317,7 +317,7 @@ func TestRecentHandler_LimitsConcurrentScans(t *testing.T) {
 	}
 }
 
-// TestWalkForRecent_SkipsUnreadableDirectory verifies that walkForRecent
+// TestWalkForRecent_SkipsUnreadableDirectory verifies that walkForRecentWithOps
 // silently skips directories with permission-denied errors and continues
 // the walk on readable parts of the tree.
 func TestWalkForRecent_SkipsUnreadableDirectory(t *testing.T) {
@@ -359,7 +359,7 @@ func TestWalkForRecent_SkipsUnreadableDirectory(t *testing.T) {
 	ctx := context.Background()
 	h := &recentHeap{}
 	heap.Init(h)
-	walkForRecent(ctx, dir, 100, h)
+	walkForRecentWithOps(ctx, fsops.New([]string{dir}, false), dir, 100, h)
 
 	// Both readable files must be present -- the one after the unreadable
 	// directory proves the walk continued past it -- and hidden.txt must not.

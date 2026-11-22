@@ -14,25 +14,70 @@ import {
   parseStatus,
   type AgentStatus,
   parsePairResponse,
+  parseAccountKey,
+  parseAccountAssertion,
+  type AccountKey,
+  type AccountAssertion,
   parseAuditEntry,
   parseHostAppCatalog,
   parseBandwidth,
   parseDevice,
   parseSearchResult,
+  parseUsage,
   parseShareLink,
+  parsePairRequest,
+  parseMediaInfo,
+  type MediaInfo,
+  type PairRequest,
   type AuditEntry,
   type BandwidthSettings,
   type Device,
-  type FileCapability,
+  type DeviceGrants,
   type HostAppCatalog,
   type SearchResult,
+  type UsageResult,
   type ShareLink,
   type Drive,
   type Health,
   type Listing,
   type PairResponse,
 } from './models';
-import { CertPinMismatch, MissingCertPin, normalizeFingerprint } from './pin';
+import { streamUrl, type StreamQuality } from './hlsStream';
+import { CertPinMismatch, ERR_CERT_PIN_MISMATCH, ERR_PIN_POLICY, MissingCertPin, normalizeFingerprint } from './pin';
+import { t } from '../../i18n';
+
+export { ERR_CERT_PIN_MISMATCH, ERR_PIN_POLICY };
+
+/** How long a share link lives when the caller names no length: one hour. */
+const DEFAULT_SHARE_SECONDS = 60 * 60;
+/** Longest side, in px, of a thumbnail when the caller gives no size. */
+const DEFAULT_THUMB_SIZE = 256;
+/** How long a pairing request waits for approval when the agent names no expiry, in seconds. */
+const DEFAULT_PAIR_EXPIRY_SECONDS = 120;
+/** Row limit for audit, search and recent-file queries when the caller names none. */
+const DEFAULT_RESULT_LIMIT = 100;
+/** Row limit for a folder listing page when the caller names none. */
+const DEFAULT_LIST_LIMIT = 200;
+
+/** An error named AbortError, what a cancelled request rejects with (the browser's own class is not in React Native). */
+export function abortError(): Error {
+  return Object.assign(new Error('The request was cancelled.'), { name: 'AbortError' });
+}
+
+/** True for the error a cancelled request rejects with. */
+export const isAbortError = (e: unknown): boolean => e instanceof Error && e.name === 'AbortError';
+
+/**
+ * Settles with [work], or rejects with an AbortError the moment [signal] fires. The listener is removed once [work]
+ * settles, so a long-lived signal does not collect them.
+ */
+function rejectOnAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
 
 /** Native transport surface (implemented by modules/rfe-transport; faked in tests). */
 export type TransportResponse = { status: number; headers: Record<string, string>; bodyText: string };
@@ -45,13 +90,27 @@ export interface Transport {
     bodyText: string | null;
     pin: string | null;
     timeoutMs?: number;
+    /** Optional: the caller no longer wants the answer; a transport that can, stops the request. */
+    signal?: AbortSignal;
   }): Promise<TransportResponse>;
 }
 
-/** Error codes the native transport rejects with. */
-export const ERR_CERT_PIN_MISMATCH = 'ERR_CERT_PIN_MISMATCH';
-export const ERR_PIN_POLICY = 'ERR_PIN_POLICY';
+/** Error codes the native transport rejects with. ERR_CERT_PIN_MISMATCH and ERR_PIN_POLICY live in ./pin. */
 export const ERR_CONNECTION = 'ERR_CONNECTION';
+/** Error code for a reply the app cannot read (not JSON, or the wrong shape). */
+export const BAD_RESPONSE = 'BAD_RESPONSE';
+/** Error code for an optional feature or route the agent is too old to offer. */
+export const UNSUPPORTED_BY_AGENT = 'UNSUPPORTED_BY_AGENT';
+
+/** Request header an apiVersion 3 agent reads the pair-poll nonce from (compat C3). */
+export const PAIR_NONCE_HEADER = 'X-RFE-Pair-Nonce';
+/** Query parameter agents before apiVersion 3 read the pair-poll nonce from. */
+export const PAIR_NONCE_QUERY = 'nonce';
+/** Per-item error code an apiVersion 3 agent gives a path that does not exist (compat C1). */
+export const ERR_PATH_NOT_FOUND = 'PATH_NOT_FOUND';
+const HTTP_NOT_FOUND = 404;
+/** The status an agent answers a missing, revoked or unknown token with. */
+export const HTTP_UNAUTHORIZED = 401;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -69,17 +128,32 @@ export class AgentApiError extends Error {
 }
 
 /** The error for a streamed download or upload that came back non-2xx: the body is not read there, so only the status is known. */
-export const statusError = (status: number) => new AgentApiError(status, status === 403 ? 'FORBIDDEN' : 'UNKNOWN', `HTTP ${status}`);
+export const statusError = (status: number) => new AgentApiError(status, status === 403 ? 'FORBIDDEN' : 'UNKNOWN', httpStatusMessage(status));
+
+/** The message for an HTTP status the agent gave no text for, e.g. "HTTP 404". */
+export const httpStatusMessage = (status: number): string => `HTTP ${status}`;
+const BARE_HTTP_STATUS_MESSAGE = /^HTTP \d+$/;
+/** True when a message is only the bare status, as a streamed call (which does not read the body) carries. */
+export const isBareHttpStatusMessage = (message: string): boolean => BARE_HTTP_STATUS_MESSAGE.test(message);
+
+/** The error for a success reply the app cannot read (not JSON, or not the expected shape). */
+const badReplyError = (status: number) => new AgentApiError(status, BAD_RESPONSE, t('computerReplyUnreadable'));
 
 const isSafeToRetryOnFallback = (m: string) => m === 'GET' || m === 'HEAD';
 
 /** Only these two calls may run before a pin exists; neither carries a secret. */
-export function isSafeUnpinnedPreflight(method: string, path: string): boolean {
+function isSafeUnpinnedPreflight(method: string, path: string): boolean {
   return (method === 'GET' && path === '/health') || (method === 'POST' && path === '/auth/challenge');
 }
 
-const errCode = (e: unknown): string | undefined =>
+export const errCode = (e: unknown): string | undefined =>
   typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: unknown }).code) : undefined;
+
+/** Request body for the pairing calls: the optional deviceId is sent only when it is set. */
+function bodyWithDeviceId<T extends { deviceId?: string }>(a: T) {
+  const { deviceId, ...rest } = a;
+  return { ...rest, ...(deviceId ? { deviceId } : {}) };
+}
 
 export type AgentClientOptions = {
   transport: Transport;
@@ -133,6 +207,8 @@ export class AgentClient {
     query: Record<string, string | number | undefined> | undefined,
     json: unknown,
     text?: string,
+    signal?: AbortSignal,
+    extraHeaders?: Record<string, string>,
   ) {
     if (this.pin === null && !isSafeUnpinnedPreflight(method, path)) throw new MissingCertPin();
     const qs = query
@@ -142,10 +218,10 @@ export class AgentClient {
           .join('&')
       : '';
     const url = `https://${this.addresses[addrIndex]}/v1${path}${qs ? `?${qs}` : ''}`;
-    const headers: Record<string, string> = { 'X-RFE-Client-Version': this.opts.clientVersion ?? 'rn' };
+    const headers = { ...this.versionHeaders(), ...extraHeaders };
     if (json !== undefined) headers['Content-Type'] = 'application/json';
     else if (text !== undefined) headers['Content-Type'] = 'application/octet-stream';
-    if (this.pin !== null && this.opts.deviceToken) headers.Authorization = `Bearer ${this.opts.deviceToken}`;
+    if (this.pin !== null) this.addBearer(headers);
     return this.opts.transport.request({
       url,
       method,
@@ -153,26 +229,40 @@ export class AgentClient {
       bodyText: json !== undefined ? JSON.stringify(json) : (text ?? null),
       pin: this.pin,
       timeoutMs: this.opts.timeoutMs,
+      signal,
     });
   }
 
   private async call(
     method: string,
     path: string,
-    o: { query?: Record<string, string | number | undefined>; json?: unknown; text?: string } = {},
+    o: { query?: Record<string, string | number | undefined>; json?: unknown; text?: string; signal?: AbortSignal; headers?: Record<string, string> } = {},
   ): Promise<unknown> {
     return (await this.callFull(method, path, o)).body;
   }
 
-  /** Like [call] but also returns the response headers (search reports truncation there). */
-  private async callFull(
+  /**
+   * Like [call] but also returns the response headers (search reports truncation there). With a signal, the call rejects
+   * with an AbortError as soon as the signal fires, even when the transport cannot stop the request itself.
+   */
+  private callFull(
     method: string,
     path: string,
-    o: { query?: Record<string, string | number | undefined>; json?: unknown; text?: string } = {},
+    o: { query?: Record<string, string | number | undefined>; json?: unknown; text?: string; signal?: AbortSignal; headers?: Record<string, string> } = {},
+  ): Promise<{ body: unknown; headers: Record<string, string> }> {
+    if (!o.signal) return this.callFullUnbound(method, path, o);
+    if (o.signal.aborted) return Promise.reject(abortError());
+    return rejectOnAbort(this.callFullUnbound(method, path, o), o.signal);
+  }
+
+  private async callFullUnbound(
+    method: string,
+    path: string,
+    o: { query?: Record<string, string | number | undefined>; json?: unknown; text?: string; signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<{ body: unknown; headers: Record<string, string> }> {
     let res;
     try {
-      res = await this.send(this.addrIndex, method, path, o.query, o.json, o.text);
+      res = await this.send(this.addrIndex, method, path, o.query, o.json, o.text, o.signal, o.headers);
     } catch (e) {
       const code = errCode(e);
       if (code === ERR_CERT_PIN_MISMATCH) throw new CertPinMismatch();
@@ -188,7 +278,7 @@ export class AgentClient {
   private async fallback(
     method: string,
     path: string,
-    o: { query?: Record<string, string | number | undefined>; json?: unknown },
+    o: { query?: Record<string, string | number | undefined>; json?: unknown; signal?: AbortSignal; headers?: Record<string, string> },
     first: unknown,
   ) {
     const source = this.addrIndex;
@@ -196,7 +286,7 @@ export class AgentClient {
     for (let i = 0; i < this.addresses.length; i++) {
       if (i === source) continue;
       try {
-        const res = await this.send(i, method, path, o.query, o.json);
+        const res = await this.send(i, method, path, o.query, o.json, undefined, o.signal, o.headers);
         this.addrIndex = i;
         AgentClient.lastGoodRoute.set(this.host.id, i);
         return res;
@@ -213,7 +303,7 @@ export class AgentClient {
   private toApiError(e: unknown): Error {
     if (e instanceof AgentApiError || e instanceof CertPinMismatch || e instanceof MissingCertPin) return e;
     if (errCode(e) === ERR_CONNECTION) {
-      return new AgentApiError(0, 'CONNECTION', 'Connection lost — check your network and try again.', e);
+      return new AgentApiError(0, 'CONNECTION', t('connectionLostMessage'), e);
     }
     return new AgentApiError(0, 'UNKNOWN', e instanceof Error ? e.message : String(e));
   }
@@ -230,14 +320,14 @@ export class AgentClient {
     if (res.status >= 200 && res.status < 300) {
       // A success whose body is not JSON (a proxy or captive-portal page) must not pass as "empty", or callers
       // would sign or index `undefined`.
-      if (unreadable) throw new AgentApiError(res.status, 'BAD_RESPONSE', 'The computer sent a reply this app could not read.');
+      if (unreadable) throw badReplyError(res.status);
       return body;
     }
     const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
     throw new AgentApiError(
       res.status,
       typeof b.code === 'string' ? b.code : 'UNKNOWN',
-      typeof b.message === 'string' ? b.message : `HTTP ${res.status}`,
+      typeof b.message === 'string' ? b.message : httpStatusMessage(res.status),
     );
   }
 
@@ -248,21 +338,45 @@ export class AgentClient {
    */
   downloadSpec(remotePath: string): { url: string; headers: Record<string, string>; pin: string } {
     if (this.pin === null) throw new MissingCertPin();
-    const headers: Record<string, string> = { 'X-RFE-Client-Version': this.opts.clientVersion ?? 'rn' };
-    if (this.opts.deviceToken) headers.Authorization = `Bearer ${this.opts.deviceToken}`;
     return {
       url: `https://${this.activeAddress}/v1/content?path=${encodeURIComponent(remotePath)}`,
-      headers,
+      headers: this.specHeaders(),
       pin: this.pin,
     };
   }
 
-  /** URL + credentials for the native thumbnail fetch (`GET /thumb`, JPEG, longest side ~[size] px). */
-  thumbnailSpec(remotePath: string, size = 256): { url: string; headers: Record<string, string>; pin: string } {
+  /** URL and credentials of the change-hint stream (`GET /events`), shaped like [downloadSpec]. */
+  eventsSpec(): { url: string; headers: Record<string, string>; pin: string } {
     if (this.pin === null) throw new MissingCertPin();
-    const headers: Record<string, string> = { 'X-RFE-Client-Version': this.opts.clientVersion ?? 'rn' };
+    return { url: `https://${this.activeAddress}/v1/events`, headers: this.specHeaders(), pin: this.pin };
+  }
+
+  /** The HLS playlist URL and credentials for a transcoded video (`GET /stream`), shaped like [downloadSpec]. */
+  streamSpec(remotePath: string, quality: StreamQuality): { url: string; headers: Record<string, string>; pin: string } {
+    if (this.pin === null) throw new MissingCertPin();
+    return { url: streamUrl(this.activeAddress, remotePath, quality), headers: this.specHeaders(), pin: this.pin };
+  }
+
+  /** URL + credentials for the native thumbnail fetch (`GET /thumb`, JPEG, longest side ~[size] px). */
+  thumbnailSpec(remotePath: string, size = DEFAULT_THUMB_SIZE): { url: string; headers: Record<string, string>; pin: string } {
+    if (this.pin === null) throw new MissingCertPin();
+    return { url: `https://${this.activeAddress}/v1/thumb?path=${encodeURIComponent(remotePath)}&size=${size}`, headers: this.specHeaders(), pin: this.pin };
+  }
+
+  private versionHeaders(): Record<string, string> {
+    return { 'X-RFE-Client-Version': this.opts.clientVersion ?? 'rn' };
+  }
+
+  /** Headers for the native fetches: the version header plus the bearer token when one is stored. */
+  private specHeaders(): Record<string, string> {
+    const headers = this.versionHeaders();
+    this.addBearer(headers);
+    return headers;
+  }
+
+  /** The one place the bearer header is built; the caller decides whether sending it is allowed (pinned or not). */
+  private addBearer(headers: Record<string, string>): void {
     if (this.opts.deviceToken) headers.Authorization = `Bearer ${this.opts.deviceToken}`;
-    return { url: `https://${this.activeAddress}/v1/thumb?path=${encodeURIComponent(remotePath)}&size=${size}`, headers, pin: this.pin };
   }
 
   async health(): Promise<Health> {
@@ -290,7 +404,13 @@ export class AgentClient {
 
   /** Removes a device row; a device may only remove itself. `purge` deletes the row and kills its token at once. */
   async deleteDevice(id: string, purge = true): Promise<void> {
-    await this.call('DELETE', `/devices/${encodeURIComponent(id)}`, { query: purge ? { purge: 'true' } : undefined });
+    try {
+      await this.call('DELETE', `/devices/${encodeURIComponent(id)}`, { query: purge ? { purge: 'true' } : undefined });
+    } catch (e) {
+      // The wish of a removal is that the device is gone: an unknown device (404) already is.
+      if (e instanceof AgentApiError && e.statusCode === HTTP_NOT_FOUND) return;
+      throw e;
+    }
   }
 
   /** Both flags are always sent: turning catalog access off must turn launch access off in the same operation. */
@@ -298,8 +418,13 @@ export class AgentClient {
     await this.call('PATCH', `/devices/${encodeURIComponent(id)}`, { json: { viewApps: o.viewApps, launchApps: o.launchApps } });
   }
 
+  /** Confines a phone to the folder [jailRoot] (an absolute path on the computer); "" lets it out again. */
+  async updateDeviceJailRoot(id: string, jailRoot: string): Promise<void> {
+    await this.call('PATCH', `/devices/${encodeURIComponent(id)}`, { json: { jailRoot } });
+  }
+
   /** The full set of file grants in one PATCH, so the switches never drift from the host. */
-  async updateDeviceFileCapabilities(id: string, grants: Record<FileCapability, boolean>): Promise<void> {
+  async updateDeviceFileCapabilities(id: string, grants: DeviceGrants): Promise<void> {
     await this.call('PATCH', `/devices/${encodeURIComponent(id)}`, { json: grants });
   }
 
@@ -313,7 +438,7 @@ export class AgentClient {
 
   /** Account and device events, newest first. Owner-only; `before` pages backwards from an entry id. */
   async audit(o: { limit?: number; before?: number } = {}): Promise<AuditEntry[]> {
-    const d = (await this.call('GET', '/audit', { query: { limit: o.limit ?? 100, before: o.before } })) as Record<string, unknown>;
+    const d = (await this.call('GET', '/audit', { query: { limit: o.limit ?? DEFAULT_RESULT_LIMIT, before: o.before } })) as Record<string, unknown>;
     return (Array.isArray(d.entries) ? (d.entries as Record<string, unknown>[]) : []).map(parseAuditEntry);
   }
 
@@ -325,40 +450,45 @@ export class AgentClient {
   /** Starts one catalog app by its opaque id; the agent re-checks the id against its current catalog. */
   async launchApp(id: string): Promise<void> {
     const d = await this.call('POST', `/apps/${encodeURIComponent(id)}/launch`);
-    if (!isObject(d) || d.status !== 'started') throw new Error('Unexpected app launch response.');
+    if (!isObject(d) || d.status !== 'started') throw new Error(t('unexpectedLaunchResponse'));
   }
 
   async challenge(): Promise<string> {
     const d = await this.call("POST", "/auth/challenge");
     if (!isObject(d) || typeof d.nonce !== "string" || d.nonce === "")
-      throw new AgentApiError(
-        200,
-        "BAD_RESPONSE",
-        "The computer sent a reply this app could not read.",
-      );
+      throw badReplyError(200);
     // An agent older than the v2 proof can only check a bare-nonce signature, which a relay can replay.
     // Refuse with a clear message instead of failing every sign-in with INVALID_SIGNATURE.
     if (d.proof !== "v2")
-      throw new AgentApiError(
-        0,
-        "UNSUPPORTED_BY_AGENT",
-        "This computer’s agent is too old to sign in from this app. Update the agent on that computer.",
-      );
+      throw new AgentApiError(0, UNSUPPORTED_BY_AGENT, t('agentTooOldToSignIn'));
     return d.nonce;
   }
 
-  async login(a: {
-    username: string;
-    password: string;
-    deviceLabel: string;
-    devicePublicKey: string;
-    nonce: string;
-    signature: string;
-    deviceId?: string;
-  }): Promise<PairResponse> {
-    const { deviceId, ...rest } = a;
-    const d = await this.call('POST', '/login', { json: { ...rest, ...(deviceId ? { deviceId } : {}) } });
+  /** Password login, or (with `assertion`, no username/password) a login vouched for by the account server this agent trusts. */
+  async login(
+    a: {
+      deviceLabel: string;
+      devicePublicKey: string;
+      nonce: string;
+      signature: string;
+      deviceId?: string;
+    } & ({ username: string; password: string; assertion?: undefined } | { assertion: string; username?: undefined; password?: undefined }),
+  ): Promise<PairResponse> {
+    const d = await this.call('POST', '/login', { json: bodyWithDeviceId(a) });
     return parsePairResponse(d as Record<string, unknown>);
+  }
+
+  /** The account server's public signing key (`GET /accounts/key`, unauthenticated; 403 while the role is off). */
+  async accountKey(): Promise<AccountKey> {
+    return parseAccountKey((await this.call('GET', '/accounts/key')) as Record<string, unknown>);
+  }
+
+  /**
+   * Asks this (account server) agent to vouch for the caller at one member agent (`POST /accounts/assertion`).
+   * Needs a token from a password login on this agent. The result is a short-lived bearer credential: never log it.
+   */
+  async accountAssertion(a: { audience: string; devicePublicKey: string; memberNonce: string }): Promise<AccountAssertion> {
+    return parseAccountAssertion((await this.call('POST', '/accounts/assertion', { json: a })) as Record<string, unknown>);
   }
 
   async register(a: {
@@ -371,8 +501,7 @@ export class AgentClient {
     signature: string;
     deviceId?: string;
   }): Promise<PairResponse> {
-    const { deviceId, ...rest } = a;
-    const d = await this.call('POST', '/register', { json: { ...rest, ...(deviceId ? { deviceId } : {}) } });
+    const d = await this.call('POST', '/register', { json: bodyWithDeviceId(a) });
     return parsePairResponse(d as Record<string, unknown>);
   }
 
@@ -384,8 +513,7 @@ export class AgentClient {
     signature: string;
     deviceId?: string;
   }): Promise<PairResponse> {
-    const { deviceId, ...rest } = a;
-    const d = await this.call('POST', '/pair', { json: { ...rest, ...(deviceId ? { deviceId } : {}) } });
+    const d = await this.call('POST', '/pair', { json: bodyWithDeviceId(a) });
     return parsePairResponse(d as Record<string, unknown>);
   }
 
@@ -399,9 +527,24 @@ export class AgentClient {
     clientNonceCommit: string;
     deviceId?: string;
   }): Promise<{ requestId: string; expiresInSeconds: number }> {
-    const { deviceId, ...rest } = a;
-    const d = (await this.call('POST', '/pair/request', { json: { ...rest, ...(deviceId ? { deviceId } : {}) } })) as Record<string, unknown>;
-    return { requestId: String(d.requestId ?? ''), expiresInSeconds: Number(d.expiresInSeconds ?? 120) };
+    const d = (await this.call('POST', '/pair/request', { json: bodyWithDeviceId(a) })) as Record<string, unknown>;
+    return { requestId: String(d.requestId ?? ''), expiresInSeconds: Number(d.expiresInSeconds ?? DEFAULT_PAIR_EXPIRY_SECONDS) };
+  }
+
+  /** Phones waiting to be let in (owner only: another device gets 403). */
+  async listPairRequests(): Promise<PairRequest[]> {
+    const d = (await this.call('GET', '/pair/requests')) as Record<string, unknown> | null;
+    return (Array.isArray(d?.requests) ? (d.requests as Record<string, unknown>[]) : []).map(parsePairRequest);
+  }
+
+  /** Lets a waiting phone in (owner only); 404 when it was already answered or ran out of time. */
+  async approvePairRequest(id: string): Promise<void> {
+    await this.call('POST', `/pair/requests/${encodeURIComponent(id)}/approve`);
+  }
+
+  /** Turns a waiting phone away (owner only); 404 when it was already answered or ran out of time. */
+  async rejectPairRequest(id: string): Promise<void> {
+    await this.call('POST', `/pair/requests/${encodeURIComponent(id)}/reject`);
   }
 
   /** Sends the nonce committed in [requestPair]; only now is the owner asked to approve. */
@@ -409,20 +552,25 @@ export class AgentClient {
     await this.call('POST', `/pair/request/${encodeURIComponent(id)}/reveal`, { json: { clientNonce } });
   }
 
+  /**
+   * Polls a pairing request. The nonce goes in BOTH the `nonce` query parameter (agents before apiVersion 3 read only
+   * that) and the `PAIR_NONCE_HEADER` header (an apiVersion 3 agent reads only that and ignores the query). The route is
+   * unauthenticated, so the agent's version cannot be read first; each agent ignores the form it does not know.
+   */
   async pairRequestStatus(id: string, clientNonce: string): Promise<{ status: 'pending' | 'rejected' } | { status: 'approved'; response: PairResponse }> {
-    const d = (await this.call('GET', `/pair/request/${encodeURIComponent(id)}`, { query: { nonce: clientNonce } })) as Record<string, unknown>;
+    const d = (await this.call('GET', `/pair/request/${encodeURIComponent(id)}`, { query: { [PAIR_NONCE_QUERY]: clientNonce }, headers: { [PAIR_NONCE_HEADER]: clientNonce } })) as Record<string, unknown>;
     if (d.status === 'approved') return { status: 'approved', response: parsePairResponse(d) };
     return { status: d.status === 'rejected' ? 'rejected' : 'pending' };
   }
 
   async drives(): Promise<Drive[]> {
     const d = await this.call('GET', '/system/drives');
-    if (!Array.isArray(d)) throw new AgentApiError(200, 'BAD_RESPONSE', 'The computer sent a reply this app could not read.');
+    if (!Array.isArray(d)) throw badReplyError(200);
     return (d as Record<string, unknown>[]).map(parseDrive);
   }
 
   async list(path: string, o: { cursor?: string; limit?: number } = {}): Promise<Listing> {
-    const d = await this.call('GET', '/fs', { query: { path, cursor: o.cursor, limit: o.limit ?? 200 } });
+    const d = await this.call('GET', '/fs', { query: { path, cursor: o.cursor, limit: o.limit ?? DEFAULT_LIST_LIMIT } });
     return parseListing(d as Record<string, unknown>);
   }
 
@@ -432,6 +580,11 @@ export class AgentClient {
 
   async meta(path: string): Promise<Entry> {
     return parseEntry((await this.call('GET', '/fs/meta', { query: { path } })) as Record<string, unknown>);
+  }
+
+  /** Size, capture date and length of a photo or video, read from its header; `{}` for a folder or an unsupported file. */
+  async mediaInfo(path: string, signal?: AbortSignal): Promise<MediaInfo> {
+    return parseMediaInfo(await this.call('GET', '/fs/media-info', { query: { path }, signal }) as Record<string, unknown>);
   }
 
   async checksum(path: string, algo = 'sha256'): Promise<string> {
@@ -488,20 +641,29 @@ export class AgentClient {
   }
 
   /** Collision precedence is server-side: `duplicate` (keep both) wins over `overwrite`; otherwise a CONFLICT per item. */
-  async copy(sources: string[], destDir: string, o: { duplicate?: boolean; overwrite?: boolean } = {}): Promise<BatchResult> {
-    const d = await this.call('POST', '/fs/copy', { json: { sources, destDir, duplicate: o.duplicate ?? false, overwrite: o.overwrite ?? false } });
+  copy(sources: string[], destDir: string, o: { duplicate?: boolean; overwrite?: boolean } = {}): Promise<BatchResult> {
+    return this.batchFs('/fs/copy', sources, destDir, o);
+  }
+
+  move(sources: string[], destDir: string, o: { duplicate?: boolean; overwrite?: boolean } = {}): Promise<BatchResult> {
+    return this.batchFs('/fs/move', sources, destDir, o);
+  }
+
+  private async batchFs(path: string, sources: string[], destDir: string, o: { duplicate?: boolean; overwrite?: boolean }): Promise<BatchResult> {
+    const d = await this.call('POST', path, { json: { sources, destDir, duplicate: o.duplicate ?? false, overwrite: o.overwrite ?? false } });
     return parseBatchResult(d as Record<string, unknown>);
   }
 
-  async move(sources: string[], destDir: string, o: { duplicate?: boolean; overwrite?: boolean } = {}): Promise<BatchResult> {
-    const d = await this.call('POST', '/fs/move', { json: { sources, destDir, duplicate: o.duplicate ?? false, overwrite: o.overwrite ?? false } });
-    return parseBatchResult(d as Record<string, unknown>);
-  }
-
-  /** Reversible (agent trash) unless `permanent`. */
+  /**
+   * Reversible (agent trash) unless `permanent`. An apiVersion 3 agent reports a path that no longer exists as a failed
+   * item with code `ERR_PATH_NOT_FOUND`; the wish of a delete is that the path is gone, so such an item counts as done (an
+   * apiVersion 2 agent never reports it, so the result is the same on both). Other failures stay failures.
+   */
   async delete(paths: string[], o: { permanent?: boolean } = {}): Promise<BatchResult> {
     const d = await this.call('DELETE', '/fs', { query: o.permanent ? { permanent: 'true' } : undefined, json: { paths } });
-    return parseBatchResult(d as Record<string, unknown>);
+    const raw = parseBatchResult(d as Record<string, unknown>);
+    const results = raw.results.map((r) => (!r.ok && r.errorCode === ERR_PATH_NOT_FOUND ? { path: r.path, ok: true } : r));
+    return { results, failed: results.filter((r) => !r.ok) };
   }
 
   async listTrash(): Promise<TrashEntry[]> {
@@ -535,6 +697,8 @@ export class AgentClient {
     q: string;
     root?: string;
     limit?: number;
+    /** Search inside file contents (an apiVersion 3 agent); an older agent ignores it and searches names. */
+    content?: boolean;
     types?: string[];
     ext?: string[];
     minSize?: number;
@@ -546,7 +710,8 @@ export class AgentClient {
       query: {
         q: o.q,
         root: o.root,
-        limit: o.limit ?? 100,
+        limit: o.limit ?? DEFAULT_RESULT_LIMIT,
+        content: o.content ? 'true' : undefined,
         types: o.types?.length ? o.types.join(',') : undefined,
         ext: o.ext?.length ? o.ext.join(',') : undefined,
         minSize: o.minSize,
@@ -560,8 +725,14 @@ export class AgentClient {
 
   /** Most recently modified files (never folders), newest first. */
   async recent(o: { root?: string; limit?: number } = {}): Promise<SearchResult> {
-    const { body, headers } = await this.callFull('GET', '/fs/recent', { query: { root: o.root, limit: o.limit ?? 100 } });
+    const { body, headers } = await this.callFull('GET', '/fs/recent', { query: { root: o.root, limit: o.limit ?? DEFAULT_RESULT_LIMIT } });
     return parseSearchResult(body, headers);
+  }
+
+  /** What takes the space under a folder: its children with their total sizes, largest first. */
+  async usage(path: string): Promise<UsageResult> {
+    const { body, headers } = await this.callFull('GET', '/fs/usage', { query: { path } });
+    return parseUsage(body, headers);
   }
 
   // ---------------------------------------------------------------------------
@@ -569,7 +740,7 @@ export class AgentClient {
   // ---------------------------------------------------------------------------
 
   /** One-time unauthenticated download link. 403 when the agent has sharing disabled, 413 above 500 MiB. */
-  async mintShareLink(path: string, expiresInSeconds = 900): Promise<ShareLink> {
+  async mintShareLink(path: string, expiresInSeconds = DEFAULT_SHARE_SECONDS): Promise<ShareLink> {
     return parseShareLink((await this.call('POST', '/share/mint', { json: { path, expiresInSeconds } })) as Record<string, unknown>);
   }
 

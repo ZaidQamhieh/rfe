@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Keyring — trust and access first, files inside each key</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d13{--bg:#0d1017;--sf:#131722;--rz:#1b2030;--t1:#e9ecf3;--t2:#a2a9ba;--t3:#7b8397;--line:rgba(233,236,243,.08);--line2:rgba(233,236,243,.14);--ac:#e5b454;--on-ac:#0d1017;--ac-ink:#e5b454;--ac-soft:rgba(229,180,84,.12);--pos:#4cc38a;--neg:#e5484d;--warn:#e5b454;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;--shadow:0 12px 32px rgba(0,0,0,.45);display:grid;grid-template-columns:288px 1fr}
+.d13 .k-chip.on{background:#e9ecf3;color:#0d1017}.d13 .k-qr{background:#e9ecf3}
+.d13 .ring{border-right:1px solid var(--line);padding:20px 16px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.d13 .ring h4{font:500 12px var(--font);color:var(--t3);margin:4px 4px 0;display:flex;justify-content:space-between;align-items:center}
+.d13 .key{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;padding:12px;border-radius:12px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);text-align:left;width:100%}
+.d13 .key.on{box-shadow:inset 0 0 0 1px var(--ac)}
+.d13 .key .bow{width:40px;height:40px;border-radius:20px;display:grid;place-items:center;background:var(--rz);color:var(--t2)}
+.d13 .key.on .bow{background:color-mix(in srgb,var(--ac) 30%,transparent);box-shadow:inset 0 0 0 1.5px var(--ac)}
+.d13 .key b{font-weight:500;display:flex;gap:8px;align-items:center} .d13 .key code{font:13px var(--mono);color:var(--ac);letter-spacing:.04em}
+.d13 .key small{display:block;color:var(--t3);font-size:12px}
+.d13 .key.bad code{color:var(--neg)} .d13 .key.off code{color:var(--t3)}
+.d13 .ring .gap{flex:1}
+.d13 .main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.d13 .top{height:56px;flex:none;display:flex;align-items:center;gap:4px;padding:0 20px;border-bottom:1px solid var(--line)}
+.d13 .top .k-tabs{margin:0;border:0} .d13 .top .k-tabs button{height:56px}
+.d13 .top .r{margin-left:auto;display:flex;gap:4px}
+.d13 .stage{flex:1;overflow:auto;padding:24px 28px;min-height:0}
+.d13 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d13 .k-files{flex:1}
+.d13 .fp{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:24px;border-radius:16px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);margin-bottom:24px}
+.d13 .fp .g{display:grid;grid-template-columns:repeat(8,auto);gap:6px 14px;font:500 20px var(--mono);letter-spacing:.04em;justify-content:start;margin-top:12px}
+.d13 .fp .g span:nth-child(-n+2){color:var(--ac)} .d13 .fp .g span{color:var(--t2)}
+.d13 .fp p{margin:0;color:var(--t2);font-size:13px}
+.d13 .fp .act{display:flex;flex-direction:column;gap:8px}
+.d13 table{width:100%;border-collapse:collapse;font-size:13px}
+.d13 th{font:500 12px var(--font);color:var(--t3);text-align:center;padding:8px 4px;border-bottom:1px solid var(--line)} .d13 th:first-child{text-align:left}
+.d13 td{padding:0 4px;height:52px;border-bottom:1px solid var(--line);text-align:center} .d13 td:first-child{text-align:left}
+.d13 td b{font-weight:500;display:block} .d13 td small{color:var(--t3);font-size:12px}
+.d13 .tg{width:28px;height:28px;border-radius:7px;display:inline-grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line2);color:transparent}
+.d13 .tg.on{background:var(--ac-soft);box-shadow:inset 0 0 0 1px rgba(229,180,84,.4);color:var(--ac)}
+.d13 tr.rv td{opacity:.5}
+.d13 h2{font:500 15px var(--font);margin:0 0 12px;display:flex;gap:12px;align-items:center}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d13">
+ <aside class="ring" id="ring"></aside>
+ <div class="main"><header class="top" id="top"></header><main class="stage" id="st"></main></div>
+</div>
+<script>
+window.IDEA='For people who care most about who can reach what. Each computer is a key on the ring, shown by its pinned fingerprint; opening a key shows its full fingerprint and which phones and laptops may do what, as a grid of toggles. Files, transfers and the rest are tabs inside the key.';
+window.MAP=[['Navigation','Keys on the left; tabs across the top for the open key',1],['Switch computer','Click its key',1],['Connect and trust','Add a key at the foot of the ring; trust dialog compares fingerprints',1],['Servers and status','Key tab of the open computer',0],['Files and preview','Files tab; right-click for every action',1],['Upload and download','Files tab, Ctrl U, Ctrl D, drag',2],['Pair a phone','Pair a phone on the Key tab',1],['Pairing requests','Top of the Access tab with the match code',1],['Transfers','Transfers tab with the count',1],['Search','Search tab, or /',1],['Tools','Tools tab',1],['History and audit','Audit tab: account and device events',1],['Settings','Settings at the foot of the ring',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,D=K.D;
+document.getElementById('ring').innerHTML=`<h4>Keys you trust ${K.ib('plus','Add a computer','dlg:newconn')}</h4>`+D.servers.map(s=>`<button class="key ${s.id==='studio'?'on':s.dot==='bad'?'bad':s.dot==='off'?'off':''}" data-k="${s.dot==='bad'?'dlg:keychanged':s.dot==='off'?'menu:server':'go:key'}"><span class="bow">${K.mach(s,24)}</span><span><b>${s.name}${s.ms?`<small style="display:inline;font-family:var(--mono)">${s.ms} ms</small>`:''}</b><code>${s.tag}</code><small>${s.dot==='bad'?'Key changed: compare before use':s.dot==='off'?s.last:s.route+' · signed in by '+s.login.toLowerCase()}</small></span></button>`).join('')+`<span class="gap"></span><button class="k-navi" data-k="go:settings">${I('sliders',18)}<span>Settings</span></button><button class="k-navi" data-k="go:history">${I('history',18)}<span>This computer’s history</span></button>`;
+K.MENU.keymore=[['Run diagnostics','dlg:diag','radar'],['Allowed roots…','dlg:roots','drive'],['Edit connection','dlg:editconn','pencil'],'-',['Forget this computer','dlg:forget','trash']];
+const TB=[['key','Key'],['access','Access <em class="k-badge bad">2</em>'],['files','Files'],['transfers','Transfers <em class="k-badge">3</em>'],['search','Search'],['tools','Tools'],['audit','Audit']];
+function topbar(v){document.getElementById('top').innerHTML=`<div class="k-tabs">${TB.map(t=>`<button class="${v===t[0]?'on':''}" data-k="go:${t[0]}">${t[1]}</button>`).join('')}</div><div class="r">${K.C.actions({no:['refresh']})}</div>`;}
+const s=D.servers[0];
+const key=()=>`<div class="fp"><div><p>studio-pc · 192.168.1.20:8765 · Fedora 41 · agent 1.3.0 · up 6 days</p><div class="g">${s.fp.split(' ').map(x=>`<span>${x}</span>`).join('')}</div><p style="margin-top:12px">Pinned when you first connected. If this ever changes, RFE stops and asks you to compare.</p></div><div class="act">${K.btn('Pair a phone…',{i:'qr',k:'pri',a:'dlg:pairphone'})}<div class="k-row">${K.btn('Status and checks',{i:'activity',a:'dlg:status'})}${K.ib('more','Diagnostics, allowed roots, edit, forget','menu:keymore')}</div></div></div>${K.V.servers()}`;
+const G=['Browse','Download','Upload','Change','Delete','Share','Apps'];
+const has={'desk-linux':[1,1,1,1,1,1,1],'Pixel 8':[1,1,1,0,0,1,0],'Galaxy Tab S9':[1,0,0,0,0,0,1],'work-laptop':[1,1,1,1,0,0,0],'old-phone':[0,0,0,0,0,0,0]};
+const access=()=>`<h2>Asking to join</h2>${K.V.requests()}<h2 style="margin-top:28px">Who may do what on studio-pc<span class="sp" style="flex:1"></span>${K.btn('Sign out all others…',{k:'sm ghost',a:'dlg:signoutall'})}</h2><table><tr><th>Device</th>${G.map(g=>`<th>${g}</th>`).join('')}<th>Limited to</th><th></th></tr>${D.devices.map(d=>`<tr class="${d.revoked?'rv':''}"><td><b>${d.n}${d.me?' · this computer':''}</b><small>${d.how} · seen ${d.seen}</small></td>${has[d.n].map(x=>`<td><span class="tg${x?' on':''}" data-k="dlg:perms">${I('check',14)}</span></td>`).join('')}<td><small class="mono">${d.lim||'everywhere'}</small></td><td>${K.ib('more','Rename, revoke, remove','menu:device')}</td></tr>`).join('')}</table>`;
+K.mount({stage:document.getElementById('st'),state:{view:'key'},views:{key,access,servers:key,devices:access,audit:()=>K.V.history('Security')},onGo:topbar});
+</script></body></html>

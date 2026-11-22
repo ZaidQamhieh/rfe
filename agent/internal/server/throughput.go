@@ -1,9 +1,12 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/ZaidQamhieh/rfe/agent/internal/transfer"
 )
 
 // rxBytesTotal/txBytesTotal are process-lifetime cumulative counters for
@@ -21,16 +24,26 @@ type metricsResponse struct {
 	CPUPercent float64 `json:"cpuPercent"`
 	RAMPercent float64 `json:"ramPercent"`
 	TsMs       int64   `json:"tsMs"`
+	// Transfers holds the upload failure-mode counters and open-session gauges (numbers only, no labels).
+	Transfers transfer.Metrics `json:"transfers"`
 }
 
-func metricsHandler() http.HandlerFunc {
+// metricsHandler serves the host metrics, including the upload counters read from tm.
+func metricsHandler(tm *transfer.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		tr, err := tm.Metrics(now)
+		if err != nil {
+			// The counters are still valid; only the open-session gauges are missing.
+			log.Printf("metrics: open-session gauges unavailable: %v", err)
+		}
 		writeJSON(w, http.StatusOK, metricsResponse{
 			RxBytes:    rxBytesTotal.Load(),
 			TxBytes:    txBytesTotal.Load(),
 			CPUPercent: cpuPercent(),
 			RAMPercent: ramPercent(),
-			TsMs:       time.Now().UnixMilli(),
+			TsMs:       now.UnixMilli(),
+			Transfers:  tr,
 		})
 	}
 }

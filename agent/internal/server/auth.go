@@ -3,7 +3,7 @@ package server
 
 import (
 	"context"
-	"net"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -101,12 +101,11 @@ func authMiddleware(db *store.DB) func(http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or revoked token")
 				return
 			}
-			addr := r.RemoteAddr
-			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-				addr = host
-			}
+			addr := clientIP(r)
 			ver := r.Header.Get("X-RFE-Client-Version")
-			_ = db.TouchDevice(device.ID, addr, ver)
+			if err := db.TouchDevice(device.ID, addr, ver); err != nil {
+				log.Printf("touch device %s: %v", device.ID, err)
+			}
 
 			ctx := context.WithValue(r.Context(), deviceCtxKey, device)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -154,7 +153,13 @@ const (
 	capModify   fileCapability = "modify"
 	capDelete   fileCapability = "delete"
 	capShare    fileCapability = "share"
+	// capWake is not a file permission: it gates Wake-on-LAN, but is listed and
+	// enforced with the file grants so clients and the admin editors see one set.
+	capWake fileCapability = "wake"
 )
+
+// allFileCapabilities is every per-device file grant, in the order clients list them.
+var allFileCapabilities = []fileCapability{capBrowse, capDownload, capUpload, capModify, capDelete, capShare, capWake}
 
 // requireFileCapabilities enforces per-device file-action grants after auth.
 // Login/register devices are the owner and retain full file access; the
@@ -208,6 +213,8 @@ func deviceHasCapability(device *store.Device, capability fileCapability) bool {
 		return device.CanDelete
 	case capShare:
 		return device.CanShare
+	case capWake:
+		return device.CanWake
 	default:
 		return false
 	}

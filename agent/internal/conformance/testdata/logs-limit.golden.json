@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": [
+    {
+      "message": "No entries --",
+      "ts": "<ts>"
+    }
+  ]
+}

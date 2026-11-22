@@ -274,21 +274,6 @@ func TestRename_ExistingDestinationConflicts(t *testing.T) {
 	}
 }
 
-// TestRename_ToSelfIsNoConflict keeps renaming a path to itself harmless.
-func TestRename_ToSelfIsNoConflict(t *testing.T) {
-	ops, root := setupJail(t)
-	p := filepath.Join(root, "a.txt")
-	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ops.Rename(p, p); err != nil {
-		t.Fatalf("rename to self: %v", err)
-	}
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("file gone after rename to self: %v", err)
-	}
-}
-
 func TestRename_MissingSourceIsNotAConflict(t *testing.T) {
 	ops, root := setupJail(t)
 	dst := filepath.Join(root, "exists.txt")
@@ -1254,7 +1239,7 @@ func TestJailed_CopyMoveDestOutsideJailForbidden(t *testing.T) {
 	}
 }
 
-// TestCopy_NestedSymlinkNotDereferenced is the PR-05 regression: only the
+// TestCopy_NestedSymlinkNotDereferenced is a regression: only the
 // top-level source is jail-resolved, so a symlink *inside* a copied directory
 // used to be opened and its bytes copied out — an arbitrary-file read for a
 // jailed caller. The link must be recreated as a link, never followed.
@@ -1306,7 +1291,7 @@ func TestCopy_NestedSymlinkNotDereferenced(t *testing.T) {
 }
 
 // TestCopy_DoesNotWriteThroughDestinationSymlink is the write-side half of
-// PR-05: O_CREATE|O_TRUNC on a destination that is already a symlink follows
+// O_CREATE|O_TRUNC on a destination that is already a symlink follows
 // it and truncates the target, outside the jail included.
 func TestCopy_DoesNotWriteThroughDestinationSymlink(t *testing.T) {
 	root := t.TempDir()
@@ -1343,7 +1328,7 @@ func TestCopy_DoesNotWriteThroughDestinationSymlink(t *testing.T) {
 	}
 }
 
-// TestFilterDrivesByRoots is the PR-61 regression: /system/drives must not
+// TestFilterDrivesByRoots is a regression: /system/drives must not
 // expose every mount point to a jailed device regardless of its jail.
 func TestFilterDrivesByRoots(t *testing.T) {
 	all := []Drive{

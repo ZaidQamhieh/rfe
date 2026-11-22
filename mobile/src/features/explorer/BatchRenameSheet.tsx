@@ -41,7 +41,7 @@ export function BatchRenameSheet({ visible, names, onClose, onApply }: { visible
               <TextField label={t('replaceWithLabel')} value={replace} onChangeText={setReplace} autoCapitalize="none" autoCorrect={false} />
             </>
           )}
-          <View style={{ backgroundColor: c.surfaceContainerHigh, borderRadius: Radii.card, padding: Spacing.md, gap: 2 }} accessibilityLabel="Preview">
+          <View style={{ backgroundColor: c.surfaceContainerHigh, borderRadius: Radii.card, padding: Spacing.md, gap: 2 }} accessibilityLabel={t('previewButton')}>
             {names.slice(0, shown).map((n, i) => (
               <Text key={i} style={LumenType.meta} numberOfLines={1}>{`${n}  →  ${preview[i]}`}</Text>
             ))}

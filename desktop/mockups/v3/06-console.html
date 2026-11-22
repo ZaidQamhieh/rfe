@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Console — a command line at the foot of every page</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d06{--bg:#0d0f0c;--sf:#131611;--rz:#1c2019;--t1:#e8e6dc;--t2:#a9a796;--t3:#86846f;--line:rgba(232,230,220,.08);--line2:rgba(232,230,220,.15);--ac:#f0b429;--on-ac:#0d0f0c;--ac-ink:#f5c451;--ac-soft:rgba(240,180,41,.1);--pos:#7cc47f;--neg:#ef6b5b;--warn:#f0b429;--font:"Inter",system-ui,sans-serif;--mono:"JetBrains Mono",monospace;--shadow:0 16px 40px rgba(0,0,0,.5)}
+.d06 .k-qr{background:#e8e6dc}
+.d06 .bot{flex:none;border-top:1px solid var(--line2);background:var(--sf)}
+.d06 .cl{display:flex;align-items:center;gap:10px;height:48px;padding:0 20px;font:14px var(--mono)}.d06 .cl .p{color:var(--ac)}.d06 .cl input{flex:1;background:none;border:0;outline:0;color:var(--t1);font:inherit}
+.d06 .sl{display:flex;gap:16px;align-items:center;height:28px;padding:0 20px;font:12px var(--mono);color:var(--t3);border-top:1px solid var(--line)}.d06 .sl b{color:var(--t1);font-weight:500}.d06 .sl .m{background:var(--ac);color:var(--on-ac);padding:2px 8px;border-radius:3px;font-weight:700}
+.d06 .sl button{color:inherit;font:inherit}.d06 .sl .warn{color:var(--warn)}
+.d06 .sess{font:13px/1.9 var(--mono);color:var(--t2);margin:0 0 24px;white-space:pre-wrap}.d06 .sess b{color:var(--ac);font-weight:500}.d06 .sess i{color:var(--t1);font-style:normal}
+.d06 h1.c{font:700 15px var(--mono);margin:0 0 12px;color:var(--t1)}
+.d06 .cmds{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 32px}.d06 .cmds button{display:grid;grid-template-columns:200px 1fr;gap:12px;height:32px;align-items:center;text-align:left;font:13px var(--mono);border-radius:4px;padding:0 8px}.d06 .cmds button:hover{background:var(--rz)}.d06 .cmds b{color:var(--ac);font-weight:500}.d06 .cmds span{color:var(--t3);font-family:var(--font)}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d06">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="No top bar. A command line sits at the foot of every page with a status line under it; typing filters files and suggests commands, Enter runs the first. The Overview is the session so far and what you can type.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Commands", "Command line at the foot; Ctrl K focuses it", 1], ["Transfers", "Status line; Transfers page", 1], ["Requests", "Status line; Devices page", 1], ["Notifications", "Status line bell", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('bot').innerHTML=`<label class="cl"><span class="p">rfe ›</span><input placeholder="${EM?'add 192.168.1.20   or   find   or   help':'type a file name, or: send, get, share, pair, accept, status'}" aria-label="Command line"><kbd>Ctrl K</kbd></label><div class="sl"><span class="m">RFE</span>${EM?'<span>no computers</span><span class="sp" style="flex:1"></span><button data-k="menu:account">sam</button>':`<button data-k="menu:browse">${K.dot('ok')} <b>studio-pc</b> 12 ms LAN</button><span>${K.tag('studio')}</span><button data-k="go:transfers">↑ 71% walkthrough-full.mov · 52.4 MB/s</button><button class="warn" data-k="go:transfers">3 need you</button><button class="warn" data-k="go:devices">Pixel 9 asks to pair</button><span class="sp" style="flex:1"></span><button data-k="menu:notes">3 notes</button><button data-k="menu:account">sam</button>`}</div>`;
+const cmds=EM?[['add <address>','Add a computer by its address','dlg:newconn'],['find','Look for computers on this network','dlg:newconn:Find on network'],['code <code>','Add a computer with a pairing code','dlg:newconn:Pairing code'],['help','Every command and key','set:Help']]:[['send <file> <computer>','Upload, or copy between computers','dlg:upload'],['get <file>','Download to ~/Downloads/RFE Desktop','close'],['share <file> [1h]','Make a share link','dlg:share'],['pair','Code and QR for a phone','dlg:pairphone'],['accept <device>','Accept a pairing request','dlg:accept'],['status <computer>','Agent, disk, load','dlg:status'],['pause all','Pause every transfer','close'],['trash','Open Trash','tool:trash'],['add <address>','Add a computer','dlg:newconn'],['help','Every command and key','set:Help']];
+const home=()=>(EM?`<pre class="sess"><b>10:40</b> RFE Desktop 1.1.0 started. No computers yet.\n<b>10:40</b> Set up a PC with <i>rfe setup</i>, then type <i>add</i> and its address below.</pre>`:`<pre class="sess"><b>10:46</b> <i>Pixel 9</i> asks to pair with studio-pc · match 4829 1307 · type <i>accept pixel</i>\n<b>10:44</b> send walkthrough-full.mov studio-pc · 71%\n<b>10:41</b> get north-bed-before.jpg · checksum verified\n<b>10:02</b> bed-layout.pdf exists on work-laptop · type <i>keep both</i>, <i>replace</i> or <i>skip</i>\n<b>08:58</b> nas presented a different key · type <i>compare nas</i></pre>`)+`<h1 class="c">${EM?'Start with':'You can type'}</h1><div class="cmds">${cmds.map(c=>`<button data-k="${c[2]}"><b>${K.esc(c[0])}</b><span>${c[1]}</span></button>`).join('')}</div>`;
+B.mount({views:{home}});
+
+</script></body></html>

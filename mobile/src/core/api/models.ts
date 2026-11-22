@@ -1,6 +1,8 @@
 // Response models ported from app/lib/core/models/*.dart. Parsers are total:
 // missing fields take the same defaults the Dart fromJson used.
 
+import { t } from '../../i18n';
+
 type Json = Record<string, unknown>;
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
@@ -24,6 +26,8 @@ export type Health = {
   apiVersion: number;
   /** Optional capabilities the agent advertises (e.g. "pairRequest"); absent on older agents. */
   features: string[];
+  /** Present only when this agent is an account server and the caller is authorized (`health.accountServer`). */
+  accountServer?: { name: string; keyFingerprint: string };
 };
 
 /** Any parser input may be null, an array or a scalar when a proxy or odd agent answers; never throw on shape. */
@@ -39,7 +43,7 @@ const objectOnly =
   <T>(f: (j: Json) => T) =>
   (v: Json): T => {
     if (typeof v !== "object" || v === null || Array.isArray(v))
-      throw new Error("unexpected response shape");
+      throw new Error(t("unexpectedResponseShape"));
     return f(v);
   };
 
@@ -65,7 +69,35 @@ export const parseHealth = objectOnly((j: Json): Health => {
           ),
         ]
       : [],
+    accountServer: parseAccountServerHint(j.accountServer),
   };
+});
+
+function parseAccountServerHint(v: unknown): Health["accountServer"] {
+  const o = obj(v as Json);
+  const fp = str(o.keyFingerprint);
+  return fp && /^[0-9a-f]{64}$/i.test(fp) ? { name: str(o.name) ?? "", keyFingerprint: fp.toLowerCase() } : undefined;
+}
+
+/** `GET /accounts/key`. */
+export type AccountKey = { name: string; publicKey: string; keyFingerprint: string };
+
+export const parseAccountKey = objectOnly((j: Json): AccountKey => {
+  const publicKey = nonEmpty(j.publicKey);
+  const fp = str(j.keyFingerprint);
+  if (!publicKey || !fp || !/^[0-9a-f]{64}$/i.test(fp) || j.algorithm !== "Ed25519")
+    throw new Error(t("unexpectedResponseShape"));
+  return { name: str(j.name) ?? "", publicKey, keyFingerprint: fp.toLowerCase() };
+});
+
+/** `POST /accounts/assertion`: a bearer credential for its short lifetime; never logged or stored. */
+export type AccountAssertion = { assertion: string; exp: number };
+
+export const parseAccountAssertion = objectOnly((j: Json): AccountAssertion => {
+  const assertion = nonEmpty(j.assertion);
+  const exp = num(j.exp);
+  if (!assertion || exp === undefined) throw new Error(t("unexpectedResponseShape"));
+  return { assertion, exp };
 });
 
 export type PairResponse = {
@@ -109,6 +141,21 @@ export type Entry = {
   symlinkTarget?: string;
   /** Items directly inside a folder, capped at 1000 by the agent; only present in listings. */
   childCount?: number;
+  /** First matching line of a content-search hit; `start`/`length` index `text` in UTF-16 units. */
+  snippet?: Snippet;
+};
+
+export type Snippet = { text: string; start: number; length: number };
+
+const parseSnippet = (v: unknown): Snippet | undefined => {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const j = v as Json;
+  const text = str(j.text);
+  const start = num(j.start);
+  const length = num(j.length);
+  if (text === undefined || start === undefined || length === undefined) return undefined;
+  if (start < 0 || length < 0 || start + length > text.length) return undefined;
+  return { text, start, length };
 };
 
 export const parseEntry = objectOnly((j: Json): Entry => ({
@@ -123,6 +170,7 @@ export const parseEntry = objectOnly((j: Json): Entry => ({
   isSymlink: bool(j.isSymlink, false),
   symlinkTarget: str(j.symlinkTarget),
   childCount: num(j.childCount),
+  snippet: parseSnippet(j.snippet),
 }));
 
 export type Listing = { path: string; entries: Entry[]; nextCursor?: string };
@@ -149,20 +197,21 @@ export type AgentStatus = {
   photoBackupConfigured: boolean;
   photoBackupAvailable?: boolean;
   /** What this device may do with files; absent on older agents (then nothing is hidden and the agent enforces). */
-  fileCapabilities?: Record<FileCapability, boolean>;
+  fileCapabilities?: DeviceGrants;
   effectiveScope: 'global' | 'device';
   /** True when the device's jail is outside all host roots: no filesystem access at all. */
   accessDenied: boolean;
 };
 
-function parseFileCapabilities(v: unknown): Record<FileCapability, boolean> | undefined {
+function parseFileCapabilities(v: unknown): DeviceGrants | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
   const o = v as Record<string, unknown>;
-  return Object.fromEntries(FILE_CAPABILITIES.map((c) => [c, o[c] === true])) as Record<FileCapability, boolean>;
+  const grants = Object.fromEntries(FILE_CAPABILITIES.map((c) => [c, o[c] === true])) as Record<FileCapability, boolean>;
+  return typeof o.wake === 'boolean' ? { ...grants, wake: o.wake } : grants;
 }
 
 /** Whether an action is offered: unknown capabilities (older agent, not loaded yet) never hide anything. */
-export const can = (caps: Record<FileCapability, boolean> | undefined, c: FileCapability): boolean => caps === undefined || caps[c];
+export const can = (caps: DeviceGrants | undefined, c: DeviceGrant): boolean => caps === undefined || (caps[c] ?? c === 'wake');
 
 export const parseStatus = objectOnly((j: Json): AgentStatus => ({
   agentName: str(j.agentName) ?? "",
@@ -236,6 +285,23 @@ export const parseSearchResult = (body: unknown, headers: Record<string, string>
   timeBudgetHit: flagSet(headers, 'x-search-time-budget'),
 });
 
+/** One child of a scanned folder with the size of everything under it. */
+export type UsageEntry = { name: string; isDir: boolean; bytes: number };
+/** Answer of GET /fs/usage: per-child sizes, largest first. `partial` means the scan hit its time budget. */
+export type UsageResult = { path: string; totalBytes: number; partial: boolean; entries: UsageEntry[] };
+
+export const parseUsage = (body: unknown, headers: Record<string, string>): UsageResult => {
+  const j = obj(body);
+  return {
+    path: str(j.path) ?? '',
+    totalBytes: num(j.totalBytes) ?? 0,
+    partial: j.partial === true || flagSet(headers, 'x-search-time-budget'),
+    entries: Array.isArray(j.entries)
+      ? (j.entries as Json[]).map((e) => ({ name: str(e.name) ?? '', isDir: e.isDir === true, bytes: num(e.bytes) ?? 0 }))
+      : [],
+  };
+};
+
 /** A one-time share link. `token` and `url` exist only in the mint response; list entries carry `tokenHash` and `path`. */
 export type ShareLink = { token: string; tokenHash: string; path: string; expiresAt: number; url: string };
 
@@ -247,11 +313,68 @@ export const parseShareLink = total((j: Json): ShareLink => ({
   url: str(j.url) ?? "",
 }));
 
+/** A phone asking to be let in, waiting for the owner to allow or refuse it (`GET /pair/requests`). */
+export type PairRequest = {
+  id: string;
+  /** The name the phone gave itself. */
+  label: string;
+  /** The short number both the computer and the phone show, as the agent sends it. */
+  matchCode: string;
+  remoteIp: string;
+  /** Label of the already paired phone this approval would take over; empty for a new phone. */
+  replaces: string;
+  /** Unix ms; 0 when the agent sent no readable time. */
+  expiresAt: number;
+};
+
+/** Reads one waiting pairing request; a missing or unreadable field becomes an empty string or 0. */
+export const parsePairRequest = total((j: Json): PairRequest => {
+  const at = typeof j.expiresAt === 'string' ? Date.parse(j.expiresAt) : NaN;
+  return {
+    id: str(j.id) ?? '',
+    label: str(j.label) ?? '',
+    matchCode: str(j.matchCode) ?? '',
+    remoteIp: str(j.remoteIp) ?? '',
+    replaces: str(j.replaces) ?? '',
+    expiresAt: Number.isNaN(at) ? 0 : at,
+  };
+});
+
+/** Photo or video details read from the file header; every field is absent when the file does not say. */
+export type MediaInfo = {
+  width?: number;
+  height?: number;
+  /** Capture time, unix ms. */
+  takenAt?: number;
+  durationMs?: number;
+};
+
+/** Reads `GET /fs/media-info`; a field of the wrong type or an unreadable date is left out, so `{}` is a valid answer. */
+export const parseMediaInfo = total((j: Json): MediaInfo => {
+  const out: MediaInfo = {};
+  const w = num(j.width);
+  const h = num(j.height);
+  const d = num(j.durationMs);
+  const at = typeof j.takenAt === 'string' ? Date.parse(j.takenAt) : NaN;
+  if (w !== undefined) out.width = w;
+  if (h !== undefined) out.height = h;
+  if (!Number.isNaN(at)) out.takenAt = at;
+  if (d !== undefined) out.durationMs = d;
+  return out;
+});
+
 /** Owners manage the host; devices paired by code manage only themselves. Older agents omit `isAdmin`, so unknown counts as owner. */
 export const canManageHost = (s: Pick<AgentStatus, 'isAdmin' | 'isAdminKnown'>) => s.isAdmin || !s.isAdminKnown;
 
 export type FileCapability = 'browse' | 'download' | 'upload' | 'modify' | 'delete' | 'share';
 export const FILE_CAPABILITIES: FileCapability[] = ['browse', 'download', 'upload', 'modify', 'delete', 'share'];
+
+/** A per-device grant: the six file permissions plus `wake` (Wake-on-LAN through the agent, POST /wol), which the agent lists with them but older agents do not send. */
+export type DeviceGrant = FileCapability | 'wake';
+export const DEVICE_GRANTS: DeviceGrant[] = [...FILE_CAPABILITIES, 'wake'];
+
+/** The grants a device holds: the six file permissions always, `wake` only when the agent reports it. */
+export type DeviceGrants = Record<FileCapability, boolean> & { wake?: boolean };
 
 /** A device paired with a host. Capability flags are absent on agents that predate them. */
 export type Device = {
@@ -274,6 +397,8 @@ export type Device = {
   modify?: boolean;
   delete?: boolean;
   share?: boolean;
+  /** Absent on agents that predate the Wake-on-LAN grant. */
+  wake?: boolean;
 };
 
 const optBool = (v: unknown) => (typeof v === 'boolean' ? v : undefined);
@@ -297,6 +422,7 @@ export const parseDevice = total((j: Json): Device => ({
   modify: optBool(j.modify),
   delete: optBool(j.delete),
   share: optBool(j.share),
+  wake: optBool(j.wake),
 }));
 
 export const hasAppCapabilities = (d: Device) => d.viewApps !== undefined && d.launchApps !== undefined;
@@ -338,12 +464,12 @@ export type HostAppCatalog = { platform: string; apps: HostApp[]; launchAllowed:
 export const parseHostAppCatalog = (raw: Json): HostAppCatalog => {
   const j = obj(raw);
   if (!Array.isArray(j.apps))
-    throw new Error("Invalid host app catalog response.");
+    throw new Error(t("invalidAppCatalogMessage"));
   const apps = (j.apps as Json[]).map((a0): HostApp => {
     const a = obj(a0);
     const id = str(a.id);
     const name = str(a.name);
-    if (!id || !name || name.trim() === '') throw new Error('Invalid host app catalog entry.');
+    if (!id || !name || name.trim() === '') throw new Error(t('invalidAppCatalogEntryMessage'));
     // Older agents listed only apps they could launch.
     return { id, name, launchable: bool(a.launchable, true), description: str(a.description), icon: str(a.icon), category: str(a.category) };
   });

@@ -8,6 +8,23 @@
   else root.Engine = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
+  const NOOP = () => {}; // the one empty handler for a failure that is safe to ignore
+  /* Search defaults: the row cap when a caller gives none, the size floor of the "big" filter, the work time per step the window gives a search. */
+  const SEARCH = { max: 200, bigMin: 100e6, slice: 7000 };
+  /* Folder listing: the agent returns a folder in pages of PAGE_LIMIT entries, and the window reads at most MAX_PAGES of them. */
+  const PAGE_LIMIT = 1000, MAX_PAGES = 60;
+  /* Latency per computer: the running average keeps LATENCY_KEEP of the old value and takes LATENCY_NEW of the new sample; LATENCY_HISTORY samples are kept. */
+  const LATENCY_KEEP = 0.7, LATENCY_NEW = 0.3, LATENCY_HISTORY = 40;
+  const BYTES_PER_GB = 1e9;
+  /* Seconds before the next reconnect attempt to a computer that was lost. */
+  const RETRY_SECONDS = 8;
+  /* The defaults of two settings a person can change: Trash keeps deleted items for this many days; a pairing code works for this many minutes. */
+  const TRASH_DAYS_DEFAULT = 30, PAIR_LIFE_DEFAULT = 10;
+  /* The codes of the window's own refusals (bad()), and the shapes of a core error text: the code in brackets at its end, and the "The agent says: " lead-in. */
+  const EINVAL = 'EINVAL', EEXIST = 'EEXIST';
+  const CODE_AT_END_RE = /\(([A-Z][A-Z_]+)\)$/, CODE_SUFFIX_RE = / \([A-Z][A-Z_]+\)$/, AGENT_SAYS_RE = /^The agent says: /;
+  /* The fallback limits until the core answers desktop_limits; the same numbers as the core's (src-tauri/src/fileops.rs desktop_limits). */
+  const DEFAULT_LIMITS = Object.freeze({ maxVideoBytes: 256 * 1024 * 1024, maxBatch: 1000, maxTextBytes: 1 << 20, maxName: 255, maxImageBytes: 8 << 20 });
 
   /* ---------- the bridge to the Rust core ---------- */
   let invokeImpl = null;
@@ -20,8 +37,8 @@
   /* The core answers failures with text. A refusal the agent worded itself ends in its code. */
   function toError(e) {
     const raw = typeof e === 'string' ? e : (e && e.message) || String(e);
-    const m = /\(([A-Z][A-Z_]+)\)$/.exec(raw);
-    const err = new Error(raw.replace(/^The agent says: /, '').replace(/ \([A-Z][A-Z_]+\)$/, ''));
+    const m = CODE_AT_END_RE.exec(raw);
+    const err = new Error(raw.replace(AGENT_SAYS_RE, '').replace(CODE_SUFFIX_RE, ''));
     err.code = m ? m[1] : /too old/i.test(raw) ? 'INCOMPATIBLE' : /not signed in|no longer accepts this login/i.test(raw) ? 'UNAUTHORIZED' : /certificate|fingerprint|pinned/i.test(raw) ? 'CERT' : /did not answer|timed out|could not connect|cannot connect|cannot reach|connection (?:refused|reset|closed|failed)|connect error|network|refused|unreachable|dns/i.test(raw) ? 'NETWORK' : 'ERROR';
     err.raw = raw;
     return err;
@@ -66,7 +83,6 @@
     return { root, sep, steps };
   }
   const build = (r) => r.root + r.steps.join(r.sep);
-  const isVirtualRoot = (p) => p === '' || p === '/' && false;
   const norm = (p) => build(parsePath(p));
   const segs = (p) => parsePath(p).steps;
   const join = (a, b) => { const r = parsePath(a); const add = String(b).split(r.sep === '\\' ? /[\\/]/ : /\//); return build(parsePath(r.root + r.steps.concat(add).join(r.sep))); };
@@ -75,7 +91,6 @@
   /* the path made of the first n steps, for breadcrumbs */
   const upTo = (p, n) => { const r = parsePath(p); r.steps = r.steps.slice(0, n); return build(r); };
   const isRoot = (p) => !parsePath(p).steps.length;
-  const sameRootStyle = (p) => parsePath(p).sep;
 
   /* ---------- file kinds ---------- */
   const EXT = { apk: 'pkg', aab: 'pkg', deb: 'pkg', appimage: 'pkg', rpm: 'pkg', msi: 'pkg', dmg: 'pkg', pkg: 'pkg', snap: 'pkg', flatpak: 'pkg', mp4: 'video', mov: 'video', mkv: 'video', avi: 'video', webm: 'video', m4v: 'video', mp3: 'audio', flac: 'audio', wav: 'audio', ogg: 'audio', m4a: 'audio', opus: 'audio', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', bmp: 'image', svg: 'image', exr: 'image', heic: 'image', tif: 'image', tiff: 'image', zip: 'archive', zst: 'archive', gz: 'archive', tgz: 'archive', tar: 'archive', xz: 'archive', bz2: 'archive', '7z': 'archive', rar: 'archive', md: 'text', txt: 'text', log: 'text', rtf: 'text', csv: 'text', json: 'code', yml: 'code', yaml: 'code', toml: 'code', xml: 'code', html: 'code', css: 'code', js: 'code', ts: 'code', go: 'code', rs: 'code', py: 'code', sh: 'code', java: 'code', kt: 'code', c: 'code', h: 'code', cpp: 'code', sql: 'code', pdf: 'doc', doc: 'doc', docx: 'doc', odt: 'doc', xls: 'doc', xlsx: 'doc', ppt: 'doc', pptx: 'doc', jks: 'key', keystore: 'key', pem: 'key', key: 'key', pub: 'key', gpg: 'key' };
@@ -84,18 +99,17 @@
   const kindOf = (n) => { if (n.t === 'dir') return 'dir'; const m = /\.([a-z0-9]+)$/i.exec(n.n); const k = m && EXT[m[1].toLowerCase()]; if (k) return k; return isExec(n) ? 'exec' : 'file'; };
   const FILTERS = {
     all: () => true, folders: (n) => n.t === 'dir', packages: (n) => kindOf(n) === 'pkg',
-    media: (n) => ['video', 'image', 'audio'].includes(kindOf(n)), archives: (n) => kindOf(n) === 'archive', big: (n) => n.t === 'file' && n.b >= 100e6
+    media: (n) => ['video', 'image', 'audio'].includes(kindOf(n)), archives: (n) => kindOf(n) === 'archive', big: (n) => n.t === 'file' && n.b >= SEARCH.bigMin
   };
   const permOctal = (p) => { p = p || ''; if (p.length < 10) return '0644'; const v = (s) => (s[0] === 'r' ? 4 : 0) + (s[1] === 'w' ? 2 : 0) + (s[2] === 'x' ? 1 : 0); return '0' + v(p.slice(1, 4)) + v(p.slice(4, 7)) + v(p.slice(7, 10)); };
   const sizeOf = (n) => (n.t === 'dir' ? 0 : n.b);
 
   /* ---------- state ---------- */
-  const settings = { parallel: 2, limit: 0, onConflict: 'ask', verify: true, autoReconnect: true, downloadDir: '', theme: 'system', density: 'comfortable', openMode: 'single', uiSize: 100, railWide: false, sideR: 21, sideHide: false, sheetR: 15.75, notifyDone: true, notifyErrors: true, requireApproval: true, trash: true, trashDays: 30, pairLife: 10 };
+  const settings = { parallel: 2, limit: 0, onConflict: 'ask', verify: true, autoReconnect: true, downloadDir: '', theme: 'system', density: 'comfortable', openMode: 'single', uiSize: 100, railWide: false, sideR: 21, sideHide: false, notifyDone: true, notifyErrors: true, requireApproval: true, trash: true, trashDays: TRASH_DAYS_DEFAULT, pairLife: PAIR_LIFE_DEFAULT };
   let servers = [], tasks = [], history = [], notes = [], listeners = [];
   const emit = (type, data) => { for (const l of listeners.slice()) { try { l(type, data); } catch (e) { if (typeof console !== 'undefined') console.error(e); } } };
   const note = (kind, text) => { const n = { id: nid('n'), at: now(), kind, text, read: false }; notes.unshift(n); if (notes.length > 60) notes.pop(); emit('notify', n); };
   const log = (kind, text, extra) => { history.unshift(Object.assign({ id: nid('h'), at: now(), kind, text }, extra)); if (history.length > 300) history.pop(); emit('history'); };
-  const later = (fn, ms) => setTimeout(fn, ms);
 
   /* ---------- folder cache ---------- */
   /* FS[host][dirPath] = { items: [node], state: 'loading'|'loaded'|'error', err, at } */
@@ -134,15 +148,17 @@
   /* the cached listing of a folder, or null while it is not here. Asking starts loading it. */
   function list(host, path) {
     const c = cached(host, path);
-    if (c && c.state === 'loaded') return c.items;
+    if (c && (c.state === 'loaded' || (c.state === 'loading' && c.keep))) return c.items; /* a folder being read again keeps showing what it had */
     /* A folder that failed is not asked again here: a failed load announces itself, and reading it again would loop. It is read again on Refresh, on opening it, or when the server is back. */
-    if (!c) load(host, path).catch(() => {});
+    if (!c) load(host, path).catch(NOOP);
     return null;
   }
   const listState = (host, path) => { const c = cached(host, path); return c ? c.state : 'none'; };
   const listError = (host, path) => { const c = cached(host, path); return c && c.state === 'error' ? c.err : null; };
   const exists = (host, dir, name) => !!(list(host, dir) || []).find((x) => x.n === name);
 
+  /* Whether the agent says this device may not wake computers (its wake grant is false); unknown or not yet read is not a refusal. */
+  const wakeDenied = (s) => !!(s && s.caps && s.caps.wake === false);
   function capsOf(host) { const s = host === LOCAL ? null : server(host); return (s && s.caps) || null; }
   const canRead = (n) => !(n.perm && n.perm.length >= 10 && n.perm.slice(1).indexOf('r') < 0);
   const canWrite = (d, host) => { const c = host ? capsOf(host) : null; return !(host && host !== LOCAL && ((server(host) || {}).readOnly || (c && c.modify === false))); };
@@ -153,7 +169,8 @@
     const dirs = dirsOf(host); const old = dirs[path];
     if (old && old.state === 'loading' && old.p) return old.p;
     if (old && old.state === 'loaded' && !force) return Promise.resolve(old.items);
-    const rec = { items: old && old.items ? old.items : [], state: 'loading', err: null, at: now() };
+    const keep = !!(old && old.state === 'loaded'); /* read again while its listing stays on show: no 'fs' unless the answer differs */
+    const rec = { items: old && old.items ? old.items : [], state: 'loading', err: null, at: now(), keep };
     dirs[path] = rec; /* before the work starts: a listing built without waiting must not be overwritten by 'loading' */
     const p = (async () => {
       let items; let more = false;
@@ -170,28 +187,37 @@
       } else {
         const s = server(host);
         /* "/" means the server's list of places or a real folder, depending on its roots: they are known before it is read. */
-        if (s && path === '/' && !s.roots.length) await loadRoots(s).catch(() => {});
+        if (s && path === '/' && !s.roots.length) await loadRoots(s).catch(NOOP);
         if (s && s.virtualRoot && path === s.virtualRoot) {
           items = (s.roots || []).map((r) => ({ n: r.label || baseOf(r.path), t: 'dir', b: 0, mod: 0, perm: 'drwxr-xr-x', own: '', path: r.path, mime: '', link: false, to: '', cc: null, root: true, total: r.totalBytes, free: r.freeBytes }));
         } else {
           items = []; let cursor = null; let guard = 0; more = false;
           do {
-            const page = await call('files_list', { host, path, cursor, limit: 1000 });
+            const page = await call('files_list', { host, path, cursor, limit: PAGE_LIMIT });
             for (const e of page.entries) items.push(entryNode(e));
             cursor = page.nextCursor; guard++;
-          } while (cursor && guard < 60);
-          more = !!cursor; /* the agent has more than the 60 pages read */
+          } while (cursor && guard < MAX_PAGES);
+          more = !!cursor; /* the agent has more than the MAX_PAGES pages read */
         }
       }
-      dirs[path] = { items, state: 'loaded', err: null, at: now(), more };
-      emit('fs', { host, dir: path });
-      return items;
+      const same = keep && sameListing(rec.items, items);
+      dirs[path] = { items: same ? rec.items : items, state: 'loaded', err: null, at: now(), more };
+      if (!same) emit('fs', { host, dir: path });
+      return dirs[path].items;
     })().catch((e) => { dirs[path] = { items: rec.items, state: 'error', err: e, at: now() }; emit('fs', { host, dir: path }); throw e; });
     rec.p = p;
-    if (dirs[path] === rec) emit('fs', { host, dir: path });
+    if (dirs[path] === rec && !keep) emit('fs', { host, dir: path });
     return p;
   }
-  const drop = (host, path) => { delete dirsOf(host)[norm(path)]; };
+  /* True when two folder listings hold the same entries in the same order. */
+  const sameListing = (a, b) => a.length === b.length && JSON.stringify(a) === JSON.stringify(b);
+  /* Forgets the cached listing of `path`; with `deep`, also those of every folder below it (matched at a path separator, so "/a/b" never takes "/a/bc"). */
+  const drop = (host, path, deep) => {
+    const dirs = dirsOf(host); const p = norm(path); delete dirs[p];
+    if (!deep) return;
+    const pre = p.endsWith(parsePath(p).sep) ? p : p + parsePath(p).sep;
+    for (const k of Object.keys(dirs)) if (k.startsWith(pre)) delete dirs[k];
+  };
   const dropHost = (host) => { delete FS[host]; };
   const refresh = (host, path) => load(host, path, true);
 
@@ -205,30 +231,30 @@
     for (const nm of names) { const i = c.items.findIndex((x) => x.n === nm); if (i >= 0) out.push(c.items.splice(i, 1)[0]); }
     emit('fs', { host, dir: norm(dir) }); return out;
   }
-  const bad = (msg, code) => Object.assign(new Error(msg), { code: code || 'EINVAL' });
-  const validName = (name) => { if (!name || !name.trim()) throw bad('Name can’t be empty'); if (/[\/\\\0]/.test(name)) throw bad('A name can’t contain / or \\'); if (name === '.' || name === '..') throw bad('“.” and “..” are taken; choose another name'); if (name.length > 255) throw bad('A name can be at most 255 characters'); if (name.trim() !== name) throw bad('A name can’t start or end with a space'); };
+  const bad = (msg, code) => Object.assign(new Error(msg), { code: code || EINVAL });
+  const validName = (name) => { if (!name || !name.trim()) throw bad('Name can’t be empty'); if (/[\/\\\0]/.test(name)) throw bad('A name can’t contain / or \\'); if (name === '.' || name === '..') throw bad('“.” and “..” are taken; choose another name'); if (name.length > api.limits.maxName) throw bad('A name can be at most ' + api.limits.maxName + ' characters'); if (name.trim() !== name) throw bad('A name can’t start or end with a space'); };
   const uniqueName = (host, dir, name) => {
     const m = /^(.*?)(\.[^.]*)?$/.exec(name); let i = 1, c;
     do { c = m[1] + ' (' + i + ')' + (m[2] || ''); i++; } while (exists(host, dir, c)); return c;
   };
 
   async function mkdir(host, dir, name) {
-    validName(name); if (exists(host, dir, name)) throw bad('“' + name + '” already exists', 'EEXIST');
+    validName(name); if (exists(host, dir, name)) throw bad('“' + name + '” already exists', EEXIST);
     const e = await call(host === LOCAL ? 'local_create_folder' : 'files_create_folder', host === LOCAL ? { parent: dir, name } : { host, parent: dir, name });
     insert(host, dir, entryNode(e)); return join(dir, name);
   }
   async function mkfile(host, dir, name) {
-    validName(name); if (exists(host, dir, name)) throw bad('“' + name + '” already exists', 'EEXIST');
-    if (host === LOCAL) throw bad('New files are made on servers; use a folder here.', 'EINVAL');
+    validName(name); if (exists(host, dir, name)) throw bad('“' + name + '” already exists', EEXIST);
+    if (host === LOCAL) throw bad('New files are made on computers; use a folder here.', EINVAL);
     await call('files_create_file', { host, parent: dir, name });
     await refresh(host, dir); return join(dir, name);
   }
   async function rename(host, dir, oldName, newName) {
-    validName(newName); if (newName !== oldName && exists(host, dir, newName)) throw bad('“' + newName + '” already exists', 'EEXIST');
+    validName(newName); if (newName !== oldName && exists(host, dir, newName)) throw bad('“' + newName + '” already exists', EEXIST);
     const old = (list(host, dir) || []).find((x) => x.n === oldName); const path = old && old.path ? old.path : join(dir, oldName);
     const e = await call(host === LOCAL ? 'local_rename' : 'files_rename', host === LOCAL ? { path, newName } : { host, path, newName });
     takeOut(host, dir, [oldName]); insert(host, dir, entryNode(e));
-    if (old && old.t === 'dir') drop(host, join(dir, oldName));
+    if (old && old.t === 'dir') drop(host, join(dir, oldName), true);
     return newName;
   }
   /* Moves items to the server's Trash (or deletes them from this computer). Returns the removed nodes. */
@@ -237,7 +263,7 @@
     for (const nm of names) {
       const it = items.find((x) => x.n === nm); if (!it) continue;
       if (host === LOCAL) await call('local_delete', { path: it.path }); else await call('files_trash', { host, path: it.path, permanent: settings.trash === false });
-      removed.push(takeOut(host, dir, [nm])[0]); if (it.t === 'dir') drop(host, join(dir, nm));
+      removed.push(takeOut(host, dir, [nm])[0]); if (it.t === 'dir') drop(host, join(dir, nm), true);
     }
     return removed;
   }
@@ -258,7 +284,7 @@
   }
   const info = (host, dir) => { const n = getNode(host, dir); return n ? { items: itemCount(n), node: n } : null; };
   const total = (n) => ({ bytes: n.t === 'dir' ? 0 : n.b, files: n.t === 'dir' ? 0 : 1, dirs: 0 });
-  const writableDir = (host, dir) => { if (!canWrite(null, host)) throw bad('This server is read-only for this device.', 'EACCES'); return getNode(host, dir); };
+  const writableDir = (host, dir) => { if (!canWrite(null, host)) throw bad('This computer is read-only for this device.', 'EACCES'); return getNode(host, dir); };
 
   /* sorting / filtering */
   function view(items, o) {
@@ -281,12 +307,12 @@
     for (const h of hostIds) {
       pending++;
       if (h === LOCAL) {
-        call('local_search', { query: q, limit: o.max || 200, types: types || [], minSize: o.minSize || (o.filter === 'big' ? 100e6 : null), root: o.root || null })
+        call('local_search', { query: q, limit: o.max || SEARCH.max, types: types || [], minSize: o.minSize || (o.filter === 'big' ? SEARCH.bigMin : null), root: o.root || null })
           .then((rows) => { for (const e of rows) { const node = entryNode(e); res.push({ host: h, dir: parentOf(e.path), node, path: e.path }); } scanned += rows.length; })
           .catch((e) => { err = e; }).then(() => { pending--; emit('search'); });
         continue;
       }
-      call('files_search', { host: h, options: { query: q, limit: o.max || 200, types: types || [], minSize: o.minSize || (o.filter === 'big' ? 100e6 : null), root: o.root || null } })
+      call('files_search', { host: h, options: { query: q, limit: o.max || SEARCH.max, types: types || [], minSize: o.minSize || (o.filter === 'big' ? SEARCH.bigMin : null), root: o.root || null } })
         .then((rows) => { for (const e of rows) { const node = entryNode(e); res.push({ host: h, dir: parentOf(e.path), node, path: e.path }); } scanned += rows.length; })
         .catch((e) => { err = e; }).then(() => { pending--; emit('search'); });
     }
@@ -296,15 +322,48 @@
   /* ---------- servers ---------- */
   const server = (id) => servers.find((s) => s.id === id);
   const connected = (id) => id === LOCAL || (server(id) && server(id).state === 'online');
-  const splitAddr = (a) => { const m = /^(.*):(\d+)$/.exec(a); return m ? [m[1], +m[2]] : [a, 8765]; };
+  const DEFAULT_PORT = 8765; /* the agent's port when a saved address names none; the window reads it as U.DEFAULT_PORT */
+  /* Splits a saved or typed address into [host, port]. An IPv6 host keeps its brackets ("[::1]:8765" and "[::1]" are read as written; a bare "::1" gets them); with no port in the text, `dp` (default 8765) is used. It does not check the pieces: see parseAddr. */
+  const splitAddr = (a, dp) => {
+    a = String(a); dp = dp || DEFAULT_PORT;
+    let m = /^(\[[^\]]*\])(?::(\d+))?$/.exec(a); if (m) return [m[1], m[2] ? +m[2] : dp];
+    if ((a.match(/:/g) || []).length > 1) return ['[' + a + ']', dp];
+    m = /^(.*):(\d+)$/.exec(a); return m ? [m[1], +m[2]] : [a, dp];
+  };
+  const ADDR_FORM = 'agent address must be host:port (put an IPv6 address in brackets, like [::1]:8765)';
+  const ADDR_ZONE = 'An address with a zone name (like %eth0) is not supported. Use the PC\u2019s address without the zone, or its host name.';
+  const ADDR_PORT = 'Use a port from 1 to 65535';
+  /* Reads an address a person typed (host name, IPv4 or IPv6, with or without a port) the way the core will: returns { host, port, addr } with an IPv6 host in brackets, or { error } in words for the person. `port` is used when the text names none. */
+  function parseAddr(text, port) {
+    const t = String(text == null ? '' : text).trim();
+    if (!t) return { error: 'Enter its address' };
+    if (/\s/.test(t)) return { error: 'An address has no spaces' };
+    if (t.includes('%')) return { error: ADDR_ZONE };
+    const [host, p] = splitAddr(t, port);
+    const v6 = host.startsWith('[');
+    if (v6) { const inner = host.slice(1, -1); let ok = host.endsWith(']') && /^[0-9a-fA-F:.]+$/.test(inner); if (ok) { try { new URL('http://[' + inner + ']/'); } catch (e) { ok = false; } } if (!ok) return { error: ADDR_FORM }; }
+    else if (/[:[\]]/.test(host)) return { error: ADDR_FORM };
+    if (!Number.isInteger(p) || p < 1 || p > 65535) return { error: ADDR_PORT };
+    return { host, port: p, addr: host + ':' + p };
+  }
   const viaOf = (addr) => { const h = splitAddr(addr)[0]; if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h) || /\.ts\.net$/i.test(h)) return 'Tailscale'; if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.)/.test(h) || /^localhost$/i.test(h) || /\.local$/i.test(h)) return 'LAN'; return 'Direct HTTPS'; };
   const fmtFp = (fp) => String(fp || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase().replace(/(..)(?=.)/g, '$1:');
   const rawFp = (fp) => String(fp || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
   const keyOf = (addr) => String(addr).trim().toLowerCase();
   function setState(s, st, msg) { if (s.state === st && !msg) return; const was = s.state; s.state = st; s.msg = msg || ''; if (st === 'online') { s.attempts = 0; s.error = null; } emit('servers', s); return was; }
+  /* The last disk use each computer reported, kept so an offline computer still shows it and a reconnect refreshes it. */
+  const DISK_KEY = 'rfe.diskUse';
+  const diskCache = () => { try { return JSON.parse(localStorage.getItem(DISK_KEY)) || {}; } catch (e) { return {}; } };
+  const lastDisk = (key) => { const d = diskCache()[key]; return Array.isArray(d) && d[1] > 0 ? d : [0, 0]; };
+  const keepDisk = (key, d) => { try { const all = diskCache(); all[key] = d; localStorage.setItem(DISK_KEY, JSON.stringify(all)); } catch (e) { /* storage unavailable */ } };
+  /* The MAC address of each computer, kept between sessions: a sleeping computer cannot be asked for it, and waking it needs it. */
+  const MAC_KEY = 'rfe.macAddress';
+  const macCache = () => { try { return JSON.parse(localStorage.getItem(MAC_KEY)) || {}; } catch (e) { return {}; } };
+  const lastMac = (key) => { const m = macCache()[key]; return typeof m === 'string' ? m : ''; };
+  const keepMac = (key, mac) => { try { const all = macCache(); if (mac) all[key] = mac; else delete all[key]; localStorage.setItem(MAC_KEY, JSON.stringify(all)); } catch (e) { /* storage unavailable */ } };
   function mkServer(h) {
     const [addr, port] = splitAddr(h.host);
-    return { id: h.key, key: h.key, name: h.name || h.host, host: addr, port, addr: h.host, via: viaOf(h.host), os: '', agent: '', pinned: !!h.fingerprint, fp: fmtFp(h.fingerprint), signedIn: !!h.signedIn, user: h.username || '', active: !!h.active, state: h.signedIn ? 'connecting' : 'disconnected', latency: 0, base: 0, disk: [0, 0], hist: [], reachable: true, retryIn: 0, attempts: 0, lostAt: 0, lastSeen: 0, routes: [], roots: [], caps: null, readOnly: false, saved: true, userOff: false, mac: '', version: '' };
+    return { id: h.key, key: h.key, name: h.name || h.host, host: addr, port, addr: h.host, via: viaOf(h.host), os: '', agent: '', pinned: !!h.fingerprint, fp: fmtFp(h.fingerprint), signedIn: !!h.signedIn, user: h.username || '', active: !!h.active, state: h.signedIn ? 'connecting' : 'disconnected', latency: 0, base: 0, disk: lastDisk(h.key), hist: [], reachable: true, retryIn: 0, attempts: 0, lostAt: 0, lastSeen: 0, routes: [], roots: [], caps: null, readOnly: false, saved: true, userOff: false, mac: lastMac(h.key), version: '' };
   }
   /* Brings the list in line with the saved hosts. Servers added in the window and not yet trusted stay. */
   async function loadServers() {
@@ -328,23 +387,23 @@
       const snap = await call('agent_health', { host: s.id });
       if (s.userOff) return; /* disconnected while the answer was on its way: it is not a reconnect */
       const ms = Math.max(1, Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
-      s.latency = ms; s.base = s.base ? Math.round(s.base * 0.7 + ms * 0.3) : ms; s.hist.push(ms); if (s.hist.length > 40) s.hist.shift();
-      const h = snap.health || {}; if (h.os) s.os = h.os; if (h.version) s.agent = h.version; if (h.name) s.agentName = h.name; if (h.macAddress) s.mac = h.macAddress;
+      s.latency = ms; s.base = s.base ? Math.round(s.base * LATENCY_KEEP + ms * LATENCY_NEW) : ms; s.hist.push(ms); if (s.hist.length > LATENCY_HISTORY) s.hist.shift();
+      const h = snap.health || {}; if (h.os) s.os = h.os; if (h.version) s.agent = h.version; if (h.name) s.agentName = h.name; if (h.macAddress) { s.mac = h.macAddress; keepMac(s.id, s.mac); }
       if (h.address) s.routeAddr = h.address; if (h.tailscaleAddress) s.tsAddr = h.tailscaleAddress; s.readOnly = !!h.readOnly;
-      if (snap.status && snap.status.totalBytes) { const t = snap.status.totalBytes / 1e9; const f = (snap.status.freeBytes || 0) / 1e9; s.disk = [Math.max(0, t - f), t]; }
+      if (snap.status && snap.status.totalBytes) { const t = snap.status.totalBytes / BYTES_PER_GB; const f = (snap.status.freeBytes || 0) / BYTES_PER_GB; s.disk = [Math.max(0, t - f), t]; keepDisk(s.id, s.disk); }
       if (snap.status) { s.uptime = snap.status.uptimeSeconds || 0; s.platform = snap.status.platform || ''; }
       s.metrics = snap.metrics || null; s.metricsForbidden = !!snap.metricsForbidden; s.statusNote = snap.statusNote || ''; s.metricsNote = snap.metricsNote || '';
       s.lastSeen = now(); s.reachable = true; s.signedIn = true;
       const was = s.state; s.incompatible = false; setState(s, 'online');
       if (was !== 'online') { const dirs = dirsOf(s.id); for (const k of Object.keys(dirs)) if (dirs[k].state === 'error') delete dirs[k]; } /* folders that failed while it was away are read again */
-      if (was !== 'online') { log('conn', 'Connected to ' + s.name + ' · ' + s.latency + ' ms'); if (settings.notifyDone && was !== 'connecting' ) note('ok', s.name + ' is back'); resumeHost(s.id); if (!s.roots.length) loadRoots(s).catch(() => {}); }
+      if (was !== 'online') { log('conn', 'Connected to ' + s.name + ' · ' + s.latency + ' ms'); if (settings.notifyDone && was !== 'connecting' ) note('ok', s.name + ' is back'); resumeHost(s.id); if (!s.roots.length) loadRoots(s).catch(NOOP); }
     } catch (e) {
       if (s.userOff) return;
       s.error = e.message; s.incompatible = e.code === 'INCOMPATIBLE'; /* an agent older than this app needs: shown as such, not as a dead address */
       if (e.code === 'UNAUTHORIZED') { s.signedIn = false; setState(s, 'login', e.message); }
-      else if (e.code === 'CERT') { await flagCert(s).catch(() => {}); }
+      else if (e.code === 'CERT') { await flagCert(s).catch(NOOP); }
       else if (s.state === 'online' || s.state === 'lost') {
-        if (s.state === 'online') { s.lostAt = now(); s.attempts = 0; s.retryIn = 8; setState(s, 'lost', e.message); note('error', s.name + ' connection lost'); log('conn', s.name + ' connection lost', { error: true }); suspendHost(s.id, 'Connection lost'); }
+        if (s.state === 'online') { s.lostAt = now(); s.attempts = 0; s.retryIn = RETRY_SECONDS; setState(s, 'lost', e.message); note('error', s.name + ' connection lost'); log('conn', s.name + ' connection lost', { error: true }); suspendHost(s.id, 'Connection lost'); }
       } else { s.reachable = false; setState(s, 'offline', e.message); if (!s.lastSeenLogged) { s.lastSeenLogged = true; log('conn', 'Could not reach ' + s.name, { error: true }); } }
     } finally { s.checking = false; }
   }
@@ -393,10 +452,12 @@
   function switchRoute(id, via) { const s = server(id); if (!s || !s.routes) return false; const r = s.routes.find((x) => x.via === via); if (!r) return false; s.via = r.via; emit('servers', s); return true; }
   function restoreServer(s) { if (!s || server(s.id)) return; servers.push(s); emit('servers', s); }
   function addServer(o) {
-    const addr = String(o.host || '').trim() + (o.port && !/:\d+$/.test(o.host) ? ':' + o.port : ''); const key = keyOf(addr);
+    /* The dialogs refuse an address that does not parse before they get here; one that still arrives (a saved one) is kept as written. */
+    const raw = String(o.host || '').trim(), p = parseAddr(raw, o.port);
+    const addr = p.error ? raw + (o.port && !/:\d+$/.test(raw) ? ':' + o.port : '') : p.addr; const key = keyOf(addr);
     const have = server(key); if (have) return have;
-    const [h, port] = splitAddr(addr);
-    const s = { id: key, key, name: o.name || h, host: h, port, addr, via: o.via || viaOf(addr), os: '', agent: '', pinned: false, fp: '', signedIn: false, user: '', active: false, state: 'disconnected', latency: 0, base: 0, disk: [0, 0], hist: [], reachable: true, retryIn: 0, attempts: 0, lostAt: 0, lastSeen: 0, routes: [], roots: [], caps: null, readOnly: false, saved: false, userOff: false, mac: '' };
+    const [h, port] = p.error ? splitAddr(addr) : [p.host, p.port];
+    const s = { id: key, key, name: o.name || h, host: h, port, addr, via: o.via || viaOf(addr), os: '', agent: '', pinned: false, fp: '', signedIn: false, user: '', active: false, state: 'disconnected', latency: 0, base: 0, disk: lastDisk(key), hist: [], reachable: true, retryIn: 0, attempts: 0, lostAt: 0, lastSeen: 0, routes: [], roots: [], caps: null, readOnly: false, saved: false, userOff: false, mac: '' };
     servers.push(s); emit('servers', s); return s;
   }
   async function updateServer(id, o) {
@@ -406,28 +467,29 @@
   }
   async function forget(id) {
     const s = server(id); if (!s) return;
-    for (const t of tasks.slice()) if (t.host === id && ACTIVE.includes(t.state)) await cancel(t.id).catch(() => {});
+    for (const t of tasks.slice()) if (t.host === id && ACTIVE.includes(t.state)) await cancel(t.id).catch(NOOP);
     if (s.saved) await call('remove_host', { key: s.id });
-    servers.splice(servers.indexOf(s), 1); dropHost(id); emit('servers'); emit('transfers');
+    const at = servers.indexOf(s); if (at >= 0) servers.splice(at, 1); /* a second forget that waited on the first finds it gone */
+    dropHost(id); keepMac(id, ''); emit('servers'); emit('transfers');
   }
 
   /* Sign-in: three ways, all ending with the server saved and trusted at the fingerprint the user compared. */
   async function afterSignIn(s, saved) {
     s.signedIn = true; s.pinned = true; s.saved = true; s.user = saved.username || s.user; s.fp = fmtFp(saved.fingerprint) || s.fp; s.pendingFp = null; s.error = null;
     log('conn', 'Signed in to ' + s.name + (s.user ? ' as ' + s.user : ''));
-    /* The core saves the host under its address; the name typed in New connection is the app's. */
-    const want = s.name; setState(s, 'connecting'); await loadServers().catch(() => {});
-    if (want && s.name !== want) { s.name = want; await call('rename_host', { key: s.id, name: want }).catch(() => {}); emit('servers', s); }
+    /* The core saves the host under its address; the name typed in Add a computer is the app's. */
+    const want = s.name; setState(s, 'connecting'); await loadServers().catch(NOOP);
+    if (want && s.name !== want) { s.name = want; await call('rename_host', { key: s.id, name: want }).catch(NOOP); emit('servers', s); }
     await check(s);
     return s;
   }
   async function signIn(id, username, password) {
-    const s = server(id); if (!s) throw bad('Unknown server', 'ENOENT');
+    const s = server(id); if (!s) throw bad('Unknown computer', 'ENOENT');
     const saved = await call('login', { host: s.addr, fingerprint: s.pendingFp || rawFp(s.fp), username, password });
     return afterSignIn(s, saved);
   }
   async function signInWithCode(id, code) {
-    const s = server(id); if (!s) throw bad('Unknown server', 'ENOENT');
+    const s = server(id); if (!s) throw bad('Unknown computer', 'ENOENT');
     const saved = await call('pair_with_code', { host: s.addr, fingerprint: s.pendingFp || rawFp(s.fp), code });
     return afterSignIn(s, saved);
   }
@@ -438,7 +500,7 @@
   async function signOut(id) {
     const s = server(id); if (!s) return null;
     const r = await call('switch_host', { key: s.id }).then(() => call('sign_out'));
-    s.signedIn = false; s.userOff = false; setState(s, 'disconnected'); suspendHost(id, 'Signed out of ' + s.name); await loadServers().catch(() => {});
+    s.signedIn = false; s.userOff = false; setState(s, 'disconnected'); suspendHost(id, 'Signed out of ' + s.name); await loadServers().catch(NOOP);
     return r;
   }
 
@@ -455,7 +517,7 @@
     const up = o.dir === 'up'; const srcHost = up ? LOCAL : remote; const out = [];
     for (const name of o.names) {
       const n = (list(srcHost, o.srcDir) || []).find((x) => x.n === name); if (!n) continue;
-      const t = { id: nid('t'), dir: o.dir, host: remote, name, isDir: n.t === 'dir', bytes: Math.max(1, n.b || 0), files: 1, srcHost, srcDir: norm(o.srcDir), dstHost: up ? remote : LOCAL, dstDir: up ? norm(o.dstDir) : (settings.downloadDir || ''), state: 'queued', done: 0, speed: 0, queuedAt: now(), startedAt: 0, finishedAt: 0, msg: '', resolution: o.resolution || null, askWhere: !!o.askWhere, kind: kindOf(n), rids: [], srcPath: n.path || join(o.srcDir, name), lastDone: 0, lastAt: 0 };
+      const t = { id: nid('t'), dir: o.dir, host: remote, name, isDir: n.t === 'dir', bytes: Math.max(1, n.b || 0), files: 1, srcHost, srcDir: norm(o.srcDir), dstHost: up ? remote : LOCAL, dstDir: up ? norm(o.dstDir) : ((api.destFor && api.destFor(remote)) || settings.downloadDir || ''), state: 'queued', done: 0, speed: 0, queuedAt: now(), startedAt: 0, finishedAt: 0, msg: '', resolution: o.resolution || null, askWhere: !!o.askWhere, kind: kindOf(n), rids: [], srcPath: n.path || join(o.srcDir, name), lastDone: 0, lastAt: 0 };
       tasks.push(t); out.push(t); startTask(t);
     }
     if (out.length) { log('queue', (up ? 'Queued upload: ' : 'Queued download: ') + out.map((t) => t.name).join(', ')); emit('transfers'); }
@@ -466,20 +528,21 @@
     try {
       const ids = t.dir === 'up'
         ? await call('transfer_upload_tree', { host: t.host, localPath: t.srcPath, remoteDir: t.dstDir })
-        : await call('transfer_download_tree', { host: t.host, remotePath: t.srcPath, isDir: t.isDir, askWhere: !!t.askWhere });
-      if (t.state === 'cancelled') { for (const id of ids) call('transfer_cancel', { id }).catch(() => {}); return; } /* cancelled while it was being set up */
+        : await call('transfer_download_tree', { host: t.host, remotePath: t.srcPath, isDir: t.isDir, askWhere: !!t.askWhere, destDir: (api.destFor && api.destFor(t.host)) || null });
+      if (t.state === 'cancelled') { for (const id of ids) call('transfer_cancel', { id }).catch(NOOP); return; } /* cancelled while it was being set up */
       if (!ids.length) { /* a folder with nothing in it: the folders were made, there is nothing to send */
         t.state = 'done'; t.done = t.bytes; t.speed = 0; t.finishedAt = now(); t.started = true; log('transfer', (t.dir === 'up' ? 'Uploaded ' : 'Downloaded ') + t.name + ' (empty folder)', { tid: t.id, ok: true, dir: t.dir, host: t.host }); emit('transfers'); return;
       }
       t.rids = ids; t.files = ids.length; for (const id of ids) byRemote[id] = t; t.started = true;
-      if (t.held) for (const id of ids) call('transfer_pause', { id }).catch(() => {}); /* the server went away while it was being set up */
+      if (t.held) for (const id of ids) call('transfer_pause', { id }).catch(NOOP); /* the server went away while it was being set up */
       pollTransfers();
     } catch (e) {
-      if (t.held && t.state === 'waiting') { t.msg = 'Waiting for ' + (server(t.host) ? server(t.host).name : 'the server'); emit('transfers'); } /* it starts again when the server is back */
+      if (t.held && t.state === 'waiting') { t.msg = 'Waiting for ' + (server(t.host) ? server(t.host).name : 'the computer'); emit('transfers'); } /* it starts again when the server is back */
       else failTask(t, e.message);
     } finally { t.starting = false; }
   }
-  function failTask(t, msg, fix) { t.state = 'failed'; t.msg = msg; t.fix = fix || null; t.speed = 0; t.finishedAt = now(); log('transfer', t.name + ' failed: ' + msg, { tid: t.id, error: true, dir: t.dir, host: t.host }); if (settings.notifyErrors) note('error', t.name + ': ' + msg); emit('transfers'); }
+  function failTask(t, msg, fix) { if (t.state === 'cancelled' || tasks.indexOf(t) < 0) return; /* cancelled or removed while it was being set up: nothing to fail */
+    t.state = 'failed'; t.msg = msg; t.fix = fix || null; t.speed = 0; t.finishedAt = now(); log('transfer', t.name + ' failed: ' + msg, { tid: t.id, error: true, dir: t.dir, host: t.host }); if (settings.notifyErrors) note('error', t.name + ': ' + msg); emit('transfers'); }
   let polling = false;
   async function pollTransfers() {
     if (polling) return; polling = true;
@@ -515,7 +578,7 @@
         }
         if (st === 'conflict') { const c = cv.conflict || {}; t.state = 'conflict'; t.speed = 0; t.conflict = { size: c.size || 0, mod: c.modifiedMs || Date.parse(c.modifiedText || '') || 0, dir: !!c.isDir, name: cv.name || '', mine: cv.total || 0, more: Math.max(0, vs.filter((v) => v.state === 'conflict').length - 1) }; t.msg = 'A ' + (c.isDir ? 'folder' : 'file') + ' with this name already exists'; }
         else if (st === 'failed') { const f = vs.find((v) => v.state === 'failed'); const nf = vs.filter((v) => v.state === 'failed').length; t.state = 'failed'; t.msg = (nf > 1 ? nf + ' of ' + vs.length + ' files failed. First: ' : '') + (f.error || 'Failed'); t.speed = 0; if (was !== 'failed') { t.finishedAt = nowMs; log('transfer', t.name + ' failed: ' + t.msg, { tid: t.id, error: true, dir: t.dir, host: t.host }); if (settings.notifyErrors) note('error', t.name + ': ' + t.msg); } }
-        else if (st === 'done') { t.state = 'done'; t.done = t.bytes; t.speed = 0; if (was !== 'done') { t.finishedAt = nowMs; t.savedAs = vs.length === 1 ? vs[0].name : t.name; if (t.dir === 'down') { const lp = (vs.find((v) => v.localPath) || {}).localPath; if (lp && vs.length === 1) { t.savedPath = lp; t.dstDir = parentOf(lp); } } log('transfer', (t.dir === 'up' ? 'Uploaded ' : 'Downloaded ') + t.name + ' · ' + fmtBytes(t.bytes) + ' in ' + fmtDur((t.finishedAt - (t.startedAt || t.queuedAt)) / 1000), { tid: t.id, ok: true, dir: t.dir, host: t.host }); if (settings.notifyDone) note('ok', t.name + ' ' + (t.dir === 'up' ? 'uploaded' : 'downloaded')); if (t.dir === 'up') refresh(t.host, t.dstDir).catch(() => {}); else refresh(LOCAL, t.dstDir).catch(() => {}); } }
+        else if (st === 'done') { t.state = 'done'; t.done = t.bytes; t.speed = 0; if (was !== 'done') { t.finishedAt = nowMs; t.savedAs = vs.length === 1 ? vs[0].name : t.name; if (t.dir === 'down') { const lp = (vs.find((v) => v.localPath) || {}).localPath; if (lp && vs.length === 1) { t.savedPath = lp; t.dstDir = parentOf(lp); } } log('transfer', (t.dir === 'up' ? 'Uploaded ' : 'Downloaded ') + t.name + ' · ' + fmtBytes(t.bytes) + ' in ' + fmtDur((t.finishedAt - (t.startedAt || t.queuedAt)) / 1000), { tid: t.id, ok: true, dir: t.dir, host: t.host }); if (settings.notifyDone) note('ok', t.name + ' ' + (t.dir === 'up' ? 'uploaded' : 'downloaded')); if (t.dir === 'up') refresh(t.host, t.dstDir).catch(NOOP); else refresh(LOCAL, t.dstDir).catch(NOOP); } }
         else if (st === 'cancelled') t.state = 'cancelled';
         else t.state = st;
         if (t.state !== was) changed = true; /* progress is drawn by the tick, not by a rebuild of the page on every poll */
@@ -530,7 +593,7 @@
       t.held = true; /* stopped in the core, so it is started again when the server is back */
       if (t.state !== 'conflict') { t.state = 'waiting'; t.speed = 0; t.msg = why + (t.done && t.bytes ? ' at ' + Math.floor(t.done / t.bytes * 100) + '%' : ''); any = true; }
       /* Stop sending, keep what is done. A folder in conflict may still have children running. */
-      for (const rid of t.rids) call('transfer_pause', { id: rid }).catch(() => {});
+      for (const rid of t.rids) call('transfer_pause', { id: rid }).catch(NOOP);
     }
     if (any) emit('transfers');
   }
@@ -542,7 +605,7 @@
   async function retryRust(t) { t.held = false; t.state = 'queued'; t.msg = ''; t.fix = null; emit('transfers'); await Promise.all(t.rids.map(async (id) => { try { await call('transfer_retry', { id }); } catch (e) { /* done or gone */ } })); pollTransfers(); }
   async function pause(id) {
     const t = taskById(id); if (!t || !['running', 'queued'].includes(t.state)) return;
-    if (!t.rids.length) throw bad('Wait until the transfer has started, then pause it.', 'EINVAL');
+    if (!t.rids.length) throw bad('Wait until the transfer has started, then pause it.', EINVAL);
     t.state = 'paused'; t.speed = 0; t.pauseAt = now(); emit('transfers');
     await Promise.all(t.rids.map(async (rid) => { try { await call('transfer_pause', { id: rid }); } catch (e) { /* finished meanwhile */ } })); /* all files at once, so the button does not flip while it waits */
     log('transfer', 'Paused ' + t.name, { tid: t.id, dir: t.dir, host: t.host }); pollTransfers();
@@ -557,11 +620,11 @@
     if (was !== 'failed') log('transfer', 'Cancelled ' + t.name, { tid: t.id, dir: t.dir, host: t.host });
   }
   function dismiss(id) { const i = tasks.findIndex((t) => t.id === id); if (i >= 0 && !ACTIVE.includes(tasks[i].state)) { for (const rid of tasks[i].rids) delete byRemote[rid]; tasks.splice(i, 1); emit('transfers'); } }
-  function retry(id) { const t = taskById(id); if (!t || (t.state !== 'failed' && t.state !== 'paused')) return; if (!t.rids.length) { t.state = 'queued'; t.msg = ''; startTask(t); emit('transfers'); } else retryRust(t); }
+  function retry(id) { const t = taskById(id); if (!t || (t.state !== 'failed' && t.state !== 'paused')) return; if (!t.rids.length) { t.held = false; t.state = 'queued'; t.msg = ''; if (!t.starting) startTask(t); emit('transfers'); } else retryRust(t); } /* a task the core is still setting up is not started a second time; it is no longer held, so it is not paused when the core answers */
   /* The answer to a name that is taken: how is 'replace', 'keep' or 'skip'. `all` answers every waiting transfer. */
   async function resolve(id, how, all) {
     const wait = all ? tasks.filter((x) => x.state === 'conflict') : [taskById(id)].filter(Boolean);
-    for (const t of wait) { if (t.state !== 'conflict') continue; if (!connected(t.host)) { note('error', 'Connect to ' + (server(t.host) ? server(t.host).name : 'the server') + ' first, then answer.'); continue; } t.state = 'queued'; t.msg = ''; for (const rid of t.conflictRids || []) { try { await call('transfer_resolve', { id: rid, how }); } catch (e) { /* answered or gone */ } } }
+    for (const t of wait) { if (t.state !== 'conflict') continue; if (!connected(t.host)) { note('error', 'Connect to ' + (server(t.host) ? server(t.host).name : 'the computer') + ' first, then answer.'); continue; } t.state = 'queued'; t.msg = ''; for (const rid of t.conflictRids || []) { try { await call('transfer_resolve', { id: rid, how }); } catch (e) { /* answered or gone */ } } }
     emit('transfers'); pollTransfers();
   }
   /* Tells the core the settings that change how transfers run. */
@@ -576,6 +639,11 @@
   let accHealth = 0, accXfer = 0, ticking = false;
   function tick(dt) {
     accXfer += dt; accHealth += dt;
+    /* The reconnect countdown the pages show runs on the clock itself, so "Retrying in 8 s" really is 8 s. */
+    for (const s of servers) {
+      if (s.userOff || !s.signedIn || s.state !== 'lost' || !settings.autoReconnect) continue;
+      s.retryIn -= dt / 1000; if (s.retryIn <= 0) { s.attempts++; s.retryIn = RETRY_SECONDS; check(s); }
+    }
     const active = tasks.some((t) => ACTIVE.includes(t.state) && t.started);
     if (accXfer >= (active ? 700 : 4000)) { accXfer = 0; if (tasks.length) pollTransfers(); }
     if (accHealth >= 6000) {
@@ -583,7 +651,6 @@
       for (const s of servers) {
         if (s.userOff || !s.signedIn) continue;
         if (s.state === 'online' || s.state === 'connecting') check(s);
-        else if (s.state === 'lost' && settings.autoReconnect) { s.retryIn -= 6; if (s.retryIn <= 0) { s.attempts++; s.retryIn = 8; check(s); } }
         else if (s.state === 'offline' && settings.autoReconnect) check(s);
       }
       emit('latency');
@@ -593,25 +660,125 @@
 
   async function init() {
     pushPrefs();
+    try { const l = await call('desktop_limits'); for (const k of Object.keys(api.limits)) if (Number.isFinite(l && l[k])) api.limits[k] = l[k]; } catch (e) { /* the defaults stay */ }
     try { const f = await call('transfer_folder'); settings.downloadDir = f; } catch (e) { /* the core says why when a transfer starts */ }
     try { const pl = await call('local_places'); const home = pl.find((p) => p.kind === 'home') || pl[0]; LOCAL_START.path = (pl.find((p) => /Downloads$/.test(p.path)) || home || { path: '/' }).path; LOCAL_START.home = home && home.path; LOCAL_START.places = pl; } catch (e) { LOCAL_START.path = '/'; }
     await loadServers();
-    for (const s of servers) if (s.signedIn) check(s);
+    /* A signed-in computer is read at once, unless the window's hook says it must not connect on start: that one stays "disconnected" until the user connects it. */
+    for (const s of servers) if (s.signedIn) { if (api.hooks.autoConnect(s) !== false) check(s); else { s.userOff = true; setState(s, 'disconnected'); } }
     return servers;
+  }
+
+  /* ---------- the refresh schedule ---------- */
+  /* What the window re-reads while a page is open: the pages that show it, and how often (ms) when idle and while a transfer is active (omitted: the same). */
+  const LIVE_JOBS = {
+    transfers: { views: ['transfers', 'home'], ms: 5000, activeMs: 1000 },
+    history: { views: ['history'], ms: 5000, activeMs: 2000, pushMs: 60000 },
+    devices: { views: ['devices', 'servers'], ms: 5000, pushMs: 60000 },
+    files: { views: ['files'], ms: 5000, pushMs: 60000 },
+    tools: { views: ['tools'], ms: 10000 }
+  };
+  /* The jobs one pushed event kind (from a computer's /v1/events stream) refreshes, and on which pages. "hello" is not listed: a fresh stream refreshes every job the open page has. */
+  const LIVE_EVENTS = {
+    audit: { history: ['history', 'devices', 'servers'] },
+    devices: { devices: ['devices', 'servers'] },
+    files: { files: ['files'] },
+    settings: { tools: ['tools'] }
+  };
+  /* How often a job runs: the pushed interval while every computer's stream is connected (push) and the job has one, else the shorter interval while a transfer is active, if it has one. */
+  function liveMs(job, active, push) { const j = LIVE_JOBS[job]; return push && j.pushMs ? j.pushMs : active && j.activeMs ? j.activeMs : j.ms; }
+  /* Pure: the jobs to run now for an event of `kind` while page `view` is open: only jobs that page shows, never the window's own transfer list. */
+  function liveEventJobs(kind, view) {
+    if (kind === 'hello') {
+      const out = new Set(Object.keys(LIVE_JOBS).filter((k) => k !== 'transfers' && LIVE_JOBS[k].views.includes(view)));
+      for (const m of Object.values(LIVE_EVENTS)) for (const k of Object.keys(m)) if (m[k].includes(view)) out.add(k);
+      return [...out];
+    }
+    const m = LIVE_EVENTS[kind]; if (!m) return [];
+    return Object.keys(m).filter((k) => m[k].includes(view));
+  }
+  /* Pure: given {view, visible, active, push, now, last} (push: every computer's stream is connected; last maps a job to the time it last ran) it names the jobs that are due now. A hidden window has none; a job that never ran is due; only jobs of the open page are considered. */
+  function liveDue(s) {
+    if (!s.visible) return [];
+    return Object.keys(LIVE_JOBS).filter((k) => LIVE_JOBS[k].views.includes(s.view) && (s.last[k] === undefined || s.now - s.last[k] >= liveMs(k, s.active, s.push)));
+  }
+
+  /* One CSV cell as text in double quotes. A value that starts with = + - @ tab or CR gets a single quote in front, so a spreadsheet shows it as text instead of running it as a formula. */
+  function csvCell(v) {
+    let s = String(v == null ? '' : v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  /* True when `text` holds the whole device `name` (not a piece of a longer word) at least once outside a longer device name from `names`, so "Pixel" does not match a line about "Pixel 7". An empty name matches nothing. */
+  function mentionsDevice(text, name, names) {
+    const t = String(text == null ? '' : text), n = String(name == null ? '' : name).trim();
+    if (!n) return false;
+    const wordCh = /[\p{L}\p{N}_]/u;
+    const longer = (names || []).map(String).filter((m) => m.length > n.length && m.includes(n));
+    const insideLonger = (at) => longer.some((m) => { for (let s = m.indexOf(n); s !== -1; s = m.indexOf(n, s + 1)) if (at - s >= 0 && t.startsWith(m, at - s)) return true; return false; });
+    for (let i = t.indexOf(n); i !== -1; i = t.indexOf(n, i + 1)) {
+      const end = i + n.length;
+      if ((i > 0 && wordCh.test(t[i - 1])) || (end < t.length && wordCh.test(t[end]))) continue;
+      if (!insideLonger(i)) return true;
+    }
+    return false;
+  }
+
+  /* ---------- recent files and per-computer scoping ---------- */
+
+  /* True for a path nobody wants in a "recent files" list: a hidden dotfile or dot-folder anywhere in it, an operating-system
+     folder (/proc, /sys, /dev, the Windows folder), a user's AppData, or a node_modules folder. Both slash styles work. */
+  const SYSTEM_TOP = new Set(['proc', 'sys', 'dev']);
+  function isNoisePath(p) {
+    const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    if (parts.length && /^[a-z]:$/i.test(parts[0])) parts.shift();
+    else if (parts.length && SYSTEM_TOP.has(parts[0].toLowerCase())) return true;
+    if (parts.length && parts[0].toLowerCase() === 'windows' && /^[a-z]:/i.test(String(p))) return true;
+    return parts.some((s) => (s[0] === '.' && s !== '.' && s !== '..') || /^(appdata|node_modules)$/i.test(s));
+  }
+
+  /* The files moved with one computer, newest first, built only from finished transfers (so a file made on this PC, or moved
+     with another computer, never shows). An upload sits in the folder it was sent to; a download is where it is on that
+     computer. Each file appears once (its latest transfer); hidden and system paths are left out. o.limit caps the list. */
+  function recentFromTasks(list, hostId, o) {
+    const limit = (o && o.limit) || 50, seen = new Map();
+    for (const t of list || []) {
+      if (!t || t.state !== 'done' || t.host !== hostId || !t.name) continue;
+      const path = t.dir === 'up' ? (t.dstDir ? join(t.dstDir, t.name) : '') : (t.srcPath || '');
+      if (!path || isNoisePath(path)) continue;
+      const at = t.finishedAt || 0, prev = seen.get(path);
+      if (!prev || at > prev.at) seen.set(path, { at, e: { host: hostId, path, name: t.name, isDir: !!t.isDir, dir: t.dir, modified: new Date(at).toISOString() } });
+    }
+    return [...seen.values()].sort((a, b) => b.at - a.at).slice(0, limit).map((x) => x.e);
+  }
+
+  /* The computer a Tools page shows: the remembered one while it is still connected, else the one open in Files, else the
+     first connected one; '' when none is connected. */
+  function pickToolHost(onlineIds, remembered, filesHost) {
+    if (onlineIds.includes(remembered)) return remembered;
+    if (onlineIds.includes(filesHost)) return filesHost;
+    return onlineIds[0] || '';
+  }
+
+  /* The items of one computer (hostOf gives an item's computer), or a copy of all of them when showAll is on or no computer is selected. */
+  function scopeToHost(items, hostOf, hostId, showAll) {
+    return showAll || !hostId ? items.slice() : items.filter((x) => hostOf(x) === hostId);
   }
 
   /* ---------- public ---------- */
   const api = {
-    USER: '', settings, now, tick, init, call, setInvoke(fn) { invokeImpl = fn; }, on(fn) { listeners.push(fn); return () => { listeners.splice(listeners.indexOf(fn), 1); }; },
+    recentFiles: (hostId, o) => recentFromTasks(tasks, hostId, o),
+    liveDue, liveMs, liveEventJobs, csvCell, mentionsDevice,
+    USER: '', limits: Object.assign({}, DEFAULT_LIMITS) /* the defaults until the core answers desktop_limits */, settings, TRASH_DAYS_DEFAULT, PAIR_LIFE_DEFAULT, now, ONLINE_MS: 120000, isOnline: (d) => !d.revoked && d.last && api.now() - d.last < api.ONLINE_MS, tick, init, hooks: { autoConnect: () => true }, call, setInvoke(fn) { invokeImpl = fn; }, on(fn) { listeners.push(fn); let live = true; return () => { if (!live) return; live = false; const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
     get servers() { return servers; }, get tasks() { return tasks; }, get history() { return history; }, get notes() { return notes; },
-    server, connected, connect, trust, cancelConnect, disconnect, retryNow, addServer, updateServer, forget, reverify, switchRoute, restoreServer, start, loadServers, check, loadRoots,
+    server, connected, connect, trust, cancelConnect, disconnect, retryNow, addServer, updateServer, forget, reverify, switchRoute, restoreServer, start, loadServers, check, loadRoots, wakeDenied,
     signIn, signInWithCode, requestApproval, pollApproval, cancelApproval, signOut,
     local: LOCAL_START,
     fs: { setDotsHidden: (f) => { dotsHidden = f; }, itemsLabel, add: insert, copy, mkfile, get: getNode, list, state: listState, error: listError, load, refresh, drop, exists, mkdir, rename, remove, restore, info, total, view, uniqueName, writableDir, canRead, canWrite, kidsOf, itemCount, cached },
-    makeSearch, enqueue, pause, resumeTask, cancel, dismiss, retry, resolve, pushPrefs, pauseAll, resumeAll, clearDone, retryFailed, task: taskById, eta, ACTIVE, pollTransfers,
+    makeSearch, SEARCH, noop: NOOP, enqueue, pause, resumeTask, cancel, dismiss, retry, resolve, pushPrefs, pauseAll, resumeAll, clearDone, retryFailed, task: taskById, eta, ACTIVE, pollTransfers,
     totalSpeed: () => running().reduce((a, t) => a + t.speed, 0),
     note, log, emit,
-    util: { fmtBytes, lang, fmtDate, fmtTime, fmtDur, fmtSpeed, norm, join, parentOf, baseOf, segs, upTo, isRoot, kindOf, KINDS, permOctal, sizeOf, fmtFp, viaOf, splitAddr, parsePath }
+    util: { isNoisePath, recentFromTasks, pickToolHost, scopeToHost, fmtBytes, lang, fmtDate, fmtTime, fmtDur, fmtSpeed, norm, join, parentOf, baseOf, segs, upTo, isRoot, kindOf, KINDS, permOctal, sizeOf, fmtFp, viaOf, splitAddr, parseAddr, parsePath, DEFAULT_PORT }
   };
   return api;
 });

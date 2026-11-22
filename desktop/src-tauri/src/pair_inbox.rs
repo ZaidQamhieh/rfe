@@ -8,9 +8,10 @@
 //! list. The window never sees the token and cannot name a URL: it passes a request id, which is
 //! checked before it enters the path.
 
-use crate::agent_client::{AgentClient, AgentError, WaitingPairRequest};
+use crate::agent_client::{AgentError, WaitingPairRequest, STATUS_FORBIDDEN};
 use crate::applog;
-use crate::flows::{self, MIN_AGENT_FOR_APPROVAL};
+use crate::files::{drop_dead_token, session};
+use crate::flows::MIN_AGENT_FOR_APPROVAL;
 use crate::secrets::Offloaded;
 use serde::Serialize;
 use std::path::Path;
@@ -127,53 +128,6 @@ fn inbox_of(list: &[WaitingPairRequest], now: i64) -> Inbox {
     }
 }
 
-/// The pinned client and the saved token, as the device list gets them. A pin that was forgotten
-/// ends the session here.
-async fn session(dir: &Path, store: &Offloaded) -> Result<(AgentClient, String), AgentError> {
-    let s = {
-        let dir = dir.to_path_buf();
-        store
-            .run(move |s| flows::load_saved(&dir, s))
-            .await
-            .map_err(AgentError::Local)?
-    };
-    if s.token.is_empty() || s.host.is_empty() {
-        return Err(AgentError::Local("not signed in".into()));
-    }
-    let key = flows::pin_key(&s.host);
-    let pinned = flows::list_pins(dir)
-        .map_err(AgentError::Local)?
-        .into_iter()
-        .find(|p| p.host == key)
-        .map(|p| p.fingerprint)
-        .ok_or_else(|| {
-            AgentError::Local(format!(
-                "{} is no longer a trusted agent; connect and compare its fingerprint again",
-                s.host
-            ))
-        })?;
-    Ok((AgentClient::pinned(&s.host, &pinned)?, s.token))
-}
-
-/// The agent refused the token (revoked or removed there): drop the dead token so the window goes
-/// back to sign-in, and keep the pin, the account name and the device key.
-async fn forget_dead_token<T>(
-    dir: &Path,
-    store: &Offloaded,
-    token: &str,
-    r: Result<T, AgentError>,
-) -> Result<T, AgentError> {
-    if let Err(AgentError::Server { status: 401, .. }) = &r {
-        let dir = dir.to_path_buf();
-        let token = token.to_string();
-        store
-            .run(move |st| flows::drop_refused_token(&dir, st, &token))
-            .await
-            .map_err(AgentError::Local)?;
-    }
-    r
-}
-
 /// An agent without these routes answers a bare-text 404, not the JSON error body.
 fn too_old(e: AgentError) -> AgentError {
     match e {
@@ -203,13 +157,19 @@ async fn load_inner(dir: &Path, store: &Offloaded) -> Result<Inbox, AgentError> 
     let listed = client.waiting_pair_requests(&token).await;
     match listed {
         Ok(list) => Ok(inbox_of(&list, now_unix())),
-        Err(AgentError::Server { status: 403, .. }) => Ok(Inbox {
+        Err(AgentError::Server {
+            status: STATUS_FORBIDDEN,
+            ..
+        }) => Ok(Inbox {
             forbidden: true,
             requests: Vec::new(),
             limit: LIMIT,
             ttl_seconds: TTL_SECONDS,
         }),
-        Err(e) => forget_dead_token(dir, store, &token, Err(too_old(e))).await,
+        Err(e) => {
+            drop_dead_token(dir, store, &token, &e).await?;
+            Err(too_old(e))
+        }
     }
 }
 
@@ -248,7 +208,10 @@ async fn answer_inner(
         Err(AgentError::Server {
             status: 404, code, ..
         }) if code == "NOT_FOUND" => Ok(Answer::Gone),
-        Err(e) => forget_dead_token(dir, store, &token, Err(too_old(e))).await,
+        Err(e) => {
+            drop_dead_token(dir, store, &token, &e).await?;
+            Err(too_old(e))
+        }
     }
 }
 

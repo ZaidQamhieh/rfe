@@ -44,7 +44,7 @@ test("no Secret Service: the window opens and sign-in says what is missing", { s
   await app.go("settings");
   await waitFor("settings", () => app.has(/Appearance/, "#stage"));
   await app.clickLabel("Troubleshooting", ".setn");
-  await waitFor("the troubleshooting section", () => app.has(/Check the keystore/, "#stage"));
+  await waitFor("the troubleshooting section", () => app.has(/Check secure storage/, "#stage"));
   await app.clickLabel("Check", "#stage");
   await waitFor("the answer", async () => /keystore is not working/.test(await app.snacks()));
   assert.match(await app.snacks(), /Secret Service/i);

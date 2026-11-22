@@ -1,51 +1,57 @@
-import { Battery, CalendarClock, Clock, Image as ImageIcon, Images, Monitor, RotateCcw, Smartphone, Wifi } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Battery, CalendarClock, CircleCheck, CirclePause, Clock, Image as ImageIcon, Images, LoaderCircle, Monitor, RotateCcw, Smartphone, TriangleAlert, Wifi, type LucideIcon } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, View } from 'react-native';
 
 import { Button, Text, useDialogs, useToast } from '../../design/components';
 import { LumenType } from '../../design/lumen';
 import { Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { transfers } from '../../core/native';
-import { humanizeError } from '../../features/pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { AlbumPickerSheet } from '../../features/photoBackup/AlbumPickerSheet';
-import type { PhotoBackupPrefs } from '../../features/photoBackup/photoBackupLogic';
-import { listAlbums, photoBackupStore, requestPhotoAccess, runPhotoBackup, type AlbumInfo, type BackupResult } from '../../features/photoBackup/photoBackupService';
+import { assetIdFromTransferId, defaultBackupHostId, nextSetupStep, soleHostId, type PhotoBackupPrefs } from '../../features/photoBackup/photoBackupLogic';
+import { listAlbums, photoBackupStore, requestPhotoAccess, resetPhotoBackupRecord, runPhotoBackup, type AlbumInfo, type BackupResult } from '../../features/photoBackup/photoBackupService';
+import { backupStatus, type BackupStatus, type StatusAction, type StatusState } from '../../features/photoBackup/photoBackupStatus';
+import { useBackupHostStates } from '../../features/photoBackup/useBackupHostStates';
 import { useHosts } from '../../features/hosts/useHosts';
-import { InfoRow, NavRow, SettingsPage, SettingsSection, ToggleRow, ValueRow } from '../../features/settings/parts';
+import { InfoRow, SettingsPage, SettingsSection, ToggleRow, ValueRow } from '../../features/settings/parts';
 
-const none: PhotoBackupPrefs = { enabled: false, hostId: null, deviceName: null, wifiOnly: true, chargingOnly: false, albumIds: [], scheduled: false };
+/** Delay before the backed-up count is re-read after an upload finishes. */
+const COUNT_REFRESH_DELAY_MS = 400;
+const none: PhotoBackupPrefs ={ enabled: false, hostId: null, deviceName: null, wifiOnly: true, chargingOnly: false, albumIds: [], scheduled: false };
 
-/** A backup run's result as the one line a person can act on. */
-function describe(r: BackupResult): { ok: boolean; text: string } {
-  switch (r.kind) {
-    case 'enqueued': return { ok: true, text: t('backingUpPhotos', { count: r.count }) };
-    case 'upToDate': return { ok: true, text: t('alreadyUpToDate') };
-    case 'incomplete': return { ok: false, text: t('backupIncomplete', { count: r.count }) };
-    case 'disabled': return { ok: false, text: t('enableBackupFirst') };
-    case 'notConfigured': return { ok: false, text: t('pickPcFirst') };
-    case 'permissionDenied': return { ok: false, text: t('photoAccessDenied') };
-    case 'serverNotConfigured': return { ok: false, text: t('serverDestNotConfigured') };
-    case 'skipped':
-      if (r.reason === 'wifi') return { ok: false, text: t('backupWaitingWifi') };
-      if (r.reason === 'charging') return { ok: false, text: t('backupWaitingCharging') };
-      if (r.reason === 'unreachable') return { ok: false, text: t('backupHostUnreachable', { host: r.host ?? '' }) };
-      return { ok: false, text: t('backupPolicyBlocked', { host: r.host ?? '' }) };
-  }
+/** The status icon: words carry the state, the icon repeats it so colour is never the only signal. */
+function statusIcon(state: StatusState): LucideIcon {
+  if (state === 'running' || state === 'stillUploading') return LoaderCircle;
+  if (state === 'pausedWifi' || state === 'pausedCharging') return CirclePause;
+  if (state === 'upToDate') return CircleCheck;
+  return ATTENTION_STATES.has(state) ? TriangleAlert : Clock;
 }
+
+const ATTENTION_STATES: ReadonlySet<StatusState> = new Set<StatusState>(['chooseComputer', 'unreachable', 'notAccepted', 'couldNotPrepare', 'noDestination', 'permissionDenied', 'phoneRemoved', 'albumsGone', 'policyBlocked']);
+const FINISHED_UPLOAD_STATES: ReadonlySet<string> = new Set(['DONE', 'FAILED', 'CANCELLED']);
 
 export default function PhotoBackup() {
   const toast = useToast();
   const dialogs = useDialogs();
   const hosts = useHosts();
+  const router = useRouter();
+  const [settingUp, setSettingUp] = useState(false);
   const [prefs, setPrefs] = useState<PhotoBackupPrefs>(none);
   const [loaded, setLoaded] = useState(false);
   const [backedUp, setBackedUp] = useState(0);
   const [busy, setBusy] = useState(false);
   const [albums, setAlbums] = useState<AlbumInfo[] | null>(null);
   const [picking, setPicking] = useState(false);
+  // What the latest run or permission request ended with, and how many of its photos are still uploading: the status row reads both.
+  const [last, setLast] = useState<BackupResult | null>(null);
+  const [pending, setPending] = useState(0);
 
-  const refreshCount = useCallback(() => void photoBackupStore.doneIds().then((s) => setBackedUp(s.size)), []);
+  // The count belongs to the chosen computer: picking another one shows what reached that one (nothing yet).
+  const hostId = prefs.hostId;
+  const refreshCount = useCallback(() => void photoBackupStore.doneCountFor(hostId).then(setBackedUp), [hostId]);
+  useEffect(refreshCount, [refreshCount]);
   useEffect(() => {
     let live = true;
     void photoBackupStore
@@ -57,19 +63,30 @@ export default function PhotoBackup() {
       .then(() => {
         if (live) setLoaded(true);
       });
-    refreshCount();
     return () => {
       live = false;
     };
-  }, [refreshCount]);
+  }, []);
+
+  // Once the computers have been checked, "Back up to" names a connected one rather than a stale saved choice.
+  const hostStates = useBackupHostStates(hosts);
+  const settledHost = useRef(false);
+  useEffect(() => {
+    if (!loaded || !hostStates || settledHost.current) return;
+    settledHost.current = true;
+    const id = defaultBackupHostId(prefs.hostId, hostStates);
+    if (id && id !== prefs.hostId) update({ hostId: id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, on the first complete check
+  }, [loaded, hostStates]);
 
   // Uploads finish after the run returns, so keep the count in step with them.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const off = transfers.subscribe((r) => {
+      if (assetIdFromTransferId(r.id) !== null && FINISHED_UPLOAD_STATES.has(r.state)) setPending((n) => Math.max(0, n - 1));
       if (r.state !== 'DONE') return;
       clearTimeout(timer);
-      timer = setTimeout(refreshCount, 400);
+      timer = setTimeout(refreshCount, COUNT_REFRESH_DELAY_MS);
     });
     return () => {
       clearTimeout(timer);
@@ -77,24 +94,73 @@ export default function PhotoBackup() {
     };
   }, [refreshCount]);
 
-  function update(patch: Partial<PhotoBackupPrefs>) {
-    const next = { ...prefs, ...patch };
+  function update(patch: Partial<PhotoBackupPrefs>, base: PhotoBackupPrefs = prefs) {
+    const next = { ...base, ...patch };
     setPrefs(next);
     void photoBackupStore.save(next);
   }
 
+  /** Records that photo access was refused: the status row shows it with an Open settings action, and a toast echoes it. */
+  function photoAccessRefused() {
+    setLast({ kind: 'permissionDenied' });
+    toast.error(t('backupStatusPhotoAccessOff'));
+  }
+
+  /** Photo access is allowed now, so a refusal shown earlier no longer applies. */
+  function photoAccessGranted() {
+    setLast((l) => (l?.kind === 'permissionDenied' ? null : l));
+  }
+
   async function toggleEnabled(on: boolean) {
-    if (on && !(await requestPhotoAccess())) {
-      toast.error(t('photoAccessDenied'));
-      return;
+    if (on) {
+      if (!(await requestPhotoAccess())) return photoAccessRefused();
+      photoAccessGranted();
     }
     update({ enabled: on });
   }
 
+  /** Asks which paired computer to back up to; null when there is none or the question is dismissed. */
+  async function pickHost(): Promise<string | null> {
+    if (!hosts || hosts.length === 0) {
+      toast.info(t('noPairedPcs'));      return null;
+    }
+    return (await dialogs.choose<string>({ title: t('choosePc'), options: hosts.map((h) => ({ value: h.id, label: h.label })) })) || null;
+  }
+
   async function chooseHost() {
-    if (!hosts || hosts.length === 0) return void toast.info(t('noPairedPcs'));
-    const id = await dialogs.choose<string>({ title: t('choosePc'), options: hosts.map((h) => ({ value: h.id, label: h.label })) });
+    const id = await pickHost();
     if (id) update({ hostId: id });
+  }
+
+  /**
+   * Walks through whatever set-up is missing: add a computer (opens the pairing screen), choose one (skipped when only one
+   * is paired), allow photo access and switch backup on, then open the album picker. Stops quietly if a step is declined.
+   */
+  async function startSetup() {
+    const ids = (hosts ?? []).map((h) => h.id);
+    setSettingUp(true);
+    try {
+      let cur = prefs;
+      for (let step = nextSetupStep(cur, ids); step !== 'done'; step = nextSetupStep(cur, ids)) {
+        if (step === 'pairComputer') return void router.push('/pair');
+        if (step === 'chooseComputer') {
+          const id = soleHostId(ids) ?? (await pickHost());
+          if (!id) return;
+          cur = { ...cur, hostId: id };
+        } else {
+          if (!(await requestPhotoAccess())) return photoAccessRefused();
+          photoAccessGranted();
+          cur = { ...cur, enabled: true };
+        }
+      }
+      setPrefs(cur);
+      void photoBackupStore.save(cur);
+      await openAlbums(cur);
+    } catch (e) {
+      toast.error(t('backupFailed', { error: humanizeError(e) }));
+    } finally {
+      setSettingUp(false);
+    }
   }
 
   async function editNickname() {
@@ -102,10 +168,16 @@ export default function PhotoBackup() {
     if (v !== null) update({ deviceName: v.trim() === '' ? null : v.trim() });
   }
 
-  async function openAlbums() {
+  async function openAlbums(base: PhotoBackupPrefs = prefs) {
     try {
-      if (!(await requestPhotoAccess())) return void toast.error(t('photoAccessDenied'));
-      setAlbums(await listAlbums());
+      if (!(await requestPhotoAccess())) return photoAccessRefused();
+      photoAccessGranted();
+      const list = await listAlbums();
+      setAlbums(list);
+      // An album deleted on the phone must not stay in the count.
+      const live = new Set(list.map((a) => a.id));
+      const kept = base.albumIds.filter((id) => live.has(id));
+      if (kept.length !== base.albumIds.length) update({ albumIds: kept }, base);
       setPicking(true);
     } catch (e) {
       toast.error(t('backupFailed', { error: humanizeError(e) }));
@@ -121,9 +193,15 @@ export default function PhotoBackup() {
   async function backUpNow() {
     setBusy(true);
     try {
-      const r = describe(await runPhotoBackup());
-      if (r.ok) toast.success(r.text);
-      else toast.error(r.text);
+      const result = await runPhotoBackup();
+      const inFlight = result.kind === 'enqueued' || result.kind === 'waiting' ? result.count : 0;
+      setLast(result);
+      setPending(inFlight);
+      // The toast is a short echo of the status row's headline.
+      const s = statusFor(result, inFlight);
+      const text = result.kind === 'upToDate' ? t('alreadyUpToDate') : t(s.headline.key, s.headline.params);
+      if (s.tone === 'attention') toast.error(text);
+      else toast.success(text);
     } catch (e) {
       toast.error(t('backupFailed', { error: humanizeError(e) }));
     } finally {
@@ -132,12 +210,55 @@ export default function PhotoBackup() {
     }
   }
 
+  /** The status for a given run result and in-flight count, using the current settings and backed-up count. */
+  function statusFor(result: BackupResult | null, inFlight: number): BackupStatus {
+    const computer = hosts?.find((h) => h.id === prefs.hostId)?.label ?? '';
+    return backupStatus({ hostChosen: prefs.hostId !== null, enabled: prefs.enabled, computer, backedUp, pending: inFlight, last: result });
+  }
+
+  /** Runs the status row's action: try the backup again, reset the record, or open the system settings for photo access. */
+  function runStatusAction(a: StatusAction) {
+    if (a === 'tryAgain') void backUpNow();
+    else if (a === 'resetRecord') void resetRecord();
+    else if (a === 'openSettings') Linking.openSettings().catch((e: unknown) => toast.error(t('backupFailed', { error: humanizeError(e) })));
+  }
+
+  async function resetRecord() {
+    const ok = await dialogs.confirm({ title: t('resetBackupConfirmTitle'), description: t('resetBackupConfirmBody'), confirmLabel: t('resetButton'), cancelLabel: t('cancelButton'), destructive: true });
+    if (!ok) return;
+    await resetPhotoBackupRecord();
+    refreshCount();
+    toast.info(t('backupRecordCleared'));
+  }
+
   if (!loaded) return null;
   const host = hosts?.find((h) => h.id === prefs.hostId);
   const off = !prefs.enabled;
+  const status = statusFor(last, pending);
+  const showStatus = status.state !== 'notSetUp' && status.state !== 'off';
+  const actionLabel = status.action === 'tryAgain' ? t('tryAgainButton') : status.action === 'resetRecord' ? t('resetBackupRecord') : status.action === 'openSettings' ? t('openSettingsButton') : null;
+  // Until the computers are known there is nothing to decide, so no set-up card is drawn.
+  const setupStep = hosts ? nextSetupStep(prefs, hosts.map((h) => h.id)) : 'done';
   return (
     <SettingsPage>
-      <SettingsSection title={t('photoBackupSection')}>
+      {setupStep !== 'done' && (
+        <View style={{ gap: Spacing.sm }}>
+          <Text style={LumenType.sectionLabel}>{t('photoBackupSetupTitle')}</Text>
+          <Text muted style={LumenType.meta}>{t('photoBackupSetupBody')}</Text>
+          <Button size="lg" label={setupStep === 'pairComputer' ? t('photoBackupSetupAddComputer') : t('photoBackupSetupButton')} busy={settingUp} onPress={() => void startSetup()} />
+        </View>
+      )}
+      {showStatus && (
+        <SettingsSection>
+          <InfoRow icon={statusIcon(status.state)} title={t(status.headline.key, status.headline.params)} subtitle={status.detail ? t(status.detail.key, status.detail.params) : undefined} />
+          {actionLabel && (
+            <View style={{ paddingHorizontal: Spacing.md }}>
+              <Button label={actionLabel} onPress={() => runStatusAction(status.action)} />
+            </View>
+          )}
+        </SettingsSection>
+      )}
+      <SettingsSection>
         <ToggleRow icon={Images} title={t('enablePhotoBackup')} subtitle={t('photoBackupSubtitle')} value={prefs.enabled} onChange={(v) => void toggleEnabled(v)} />
         <ValueRow icon={Monitor} title={t('backUpTo')} value={host?.label ?? t('choosePc')} onPress={() => void chooseHost()} />
         <ValueRow icon={Smartphone} title={t('deviceNicknameLabel')} value={prefs.deviceName ?? ''} onPress={() => void editNickname()} />
@@ -146,18 +267,17 @@ export default function PhotoBackup() {
         <ToggleRow icon={Battery} title={t('onlyWhileCharging')} value={prefs.chargingOnly} onChange={(v) => update({ chargingOnly: v })} />
         <ToggleRow icon={CalendarClock} title={t('backUpAutomatically')} subtitle={t('backUpAutomaticallyHint')} value={prefs.scheduled} disabled={off} onChange={(v) => update({ scheduled: v })} />
       </SettingsSection>
-      <SettingsSection title={t('backUpNow')}>
-        <InfoRow icon={Clock} title={t('photosBackedUp', { count: backedUp })} />
-        <NavRow
-          icon={RotateCcw}
-          title={t('resetBackupRecord')}
-          subtitle={t('resetBackupHint')}
-          onPress={() => void photoBackupStore.clearDone().then(() => { refreshCount(); toast.info(t('backupRecordCleared')); })}
-        />
-      </SettingsSection>
       <View style={{ gap: Spacing.sm }}>
         {off && <Text muted style={[LumenType.meta, { textAlign: 'center' }]}>{t('enableBackupFirst')}</Text>}
         <Button size="lg" label={t('backUpNow')} disabled={off} busy={busy} onPress={() => void backUpNow()} />
+      </View>
+      <SettingsSection title={t('photoBackupHistory')}>
+        <InfoRow icon={Clock} title={backedUp === 0 ? t('noPhotosBackedUp') : t('photosBackedUp', { count: backedUp })} />
+      </SettingsSection>
+      {/* Set well apart from "Back up now" and drawn in the stop colour, so a stray tap at the fold cannot land on it. */}
+      <View style={{ gap: Spacing.sm, marginTop: Spacing.xl }}>
+        <Text muted style={LumenType.meta}>{t('resetBackupHint')}</Text>
+        <Button kind="outlined" destructive label={t('resetBackupRecord')} renderIcon={(k) => <RotateCcw size={18} color={k} />} onPress={() => void resetRecord()} />
       </View>
       <AlbumPickerSheet visible={picking} albums={albums ?? []} selected={new Set(prefs.albumIds)} onToggle={toggleAlbum} onClear={() => update({ albumIds: [] })} onClose={() => setPicking(false)} />
     </SettingsPage>

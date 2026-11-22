@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Daybook — the Overview is today’s log, a Now rail on the right</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d03{--bg:#f8f5ef;--sf:#fdfbf7;--rz:#efe9df;--t1:#1f1b16;--t2:#5e554a;--t3:#7b7266;--line:rgba(31,27,22,.08);--line2:rgba(31,27,22,.15);--ac:#8a4b1f;--ac-ink:#7a3f17;--ac-soft:rgba(138,75,31,.09);--font:"Instrument Sans",system-ui,sans-serif;--display:"Newsreader",Georgia,serif;--mono:"JetBrains Mono",monospace}
+.d03 .rail{width:300px;flex:none;border-left:1px solid var(--line);padding:16px 20px;overflow:auto;background:var(--sf)}
+.d03 .body:has(.ol) .rail{display:none}
+.d03 .rail .r{display:flex;gap:4px;align-items:center;margin-bottom:16px}.d03 .rail .k-sbox{width:100%;margin-bottom:12px}
+.d03 .rail h3{font:500 18px var(--display);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+.d03 .rail .x{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:13px;margin-bottom:12px}.d03 .rail .x small{color:var(--t3);font:11px var(--mono)}.d03 .rail .x .k-bar{grid-column:1/-1;margin:0}
+.d03 .rail .rq{background:var(--rz);border-radius:10px;padding:12px;font-size:13px;display:grid;gap:6px;margin-bottom:8px}.d03 .rail .rq b{font:500 18px var(--mono);letter-spacing:.04em}
+.d03 .day{font:400 34px var(--display);margin:0}.d03 .sub{color:var(--t3);margin:4px 0 20px}
+.d03 .e{display:grid;grid-template-columns:56px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.d03 .e time{font:12px var(--mono);color:var(--t3);padding-top:2px}.d03 .e>div{position:relative;padding-left:30px}.d03 .e .ek{position:absolute;left:0;top:1px}
+.d03 .e p{margin:0}.d03 .e p small{display:block;color:var(--t3);font-size:12px}
+.d03 .e .acts{display:flex;gap:8px;margin-top:10px;align-items:center}
+.d03 .e.open{background:var(--sf);margin:0 -16px;padding:14px 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);border-top-color:transparent}.d03 .e.open+.e{border-top-color:transparent}
+.d03 .e .code{font:500 20px var(--mono);letter-spacing:.04em;margin-right:auto}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d03">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The Overview reads like a diary of today: each event with its time, and open ones carry their buttons. A Now rail on the right of every page except Files holds search, what is moving and who is asking.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Overview", "Today\u2019s log; open entries carry their actions", 0], ["Transfers", "Now rail on every page; Transfers page", 0], ["Requests", "Now rail and the log", 0], ["Search", "Now rail field or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+const ent=(t,em,body,cls='')=>`<div class="e ${cls}"><time>${t}</time><div><span class="ek">${E(em,18)}</span>${body}</div></div>`;
+const rail=()=>`<div class="r">${K.C.actions()}</div>${K.C.searchBox('Search files')}`+(EM?`<h3>Now</h3><p class="mut" style="font-size:13px">Nothing is moving. Transfers and pairing requests show up here while they last.</p>`:`<h3>Now <span class="sp" style="flex:1"></span>${K.ib('pause','Pause all transfers')}</h3><div class="x"><span>walkthrough-full.mov</span><small>71%</small>${K.bar(71)}<small>to studio-pc · 52.4 MB/s</small></div><div class="x"><span>tax-2025.pdf</span><small>checking</small>${K.bar(100)}</div><div class="x"><span>seed-order.xlsx</span><small>queued</small></div><h3>${E('phone',18)}Asking</h3><div class="rq">Pixel 9 · studio-pc<b>4829 1307</b><div class="k-row">${K.btn('Reject',{k:'sm ghost'})}${K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})}</div></div><div class="rq">sam-thinkpad · work-laptop<b>0316 8842</b><div class="k-row">${K.btn('Review…',{k:'sm',a:'dlg:accept'})}</div></div>`);
+const home=()=>EM?`<h1 class="day">Sunday, 1 November</h1><p class="sub">1 entry</p>${ent('10:40','sunrise',`<p>RFE Desktop started for the first time<small>Version 1.1.0 · nothing added yet</small></p><div class="acts">${K.btn('Add a computer',{i:'plus',k:'pri sm',a:'dlg:newconn'})}${K.btn('Find on network',{k:'sm',a:'dlg:newconn:Find on network'})}</div>`,'open')}<p class="mut" style="margin-top:24px">Each connection, transfer and request becomes an entry here, newest first.</p>`
+:`<h1 class="day">Sunday, 1 November</h1><p class="sub">8 entries · 3 still open</p>
+${ent('10:46','phone',`<p>Pixel 9 asks to pair with studio-pc<small>from 192.168.1.40 · accept only if the phone shows the same code · 1:42 left</small></p><div class="acts"><span class="code">4829 1307</span>${K.btn('Reject',{k:'sm ghost'})}${K.btn('Accept…',{k:'pri sm',a:'dlg:accept'})}</div>`,'open')}
+${ent('10:44','outbox_tray',`<p>Uploading walkthrough-full.mov to studio-pc<small>4.1 GB · 71% · 23 s left</small></p>`)}
+${ent('10:41','inbox_tray',`<p>Downloaded north-bed-before.jpg, checksum verified<small>~/Downloads/RFE Desktop · 4.1 MB</small></p><div class="acts">${K.btn('Show in folder',{k:'sm',i:'folder'})}${K.btn('Open',{k:'sm ghost',a:'dlg:preview'})}</div>`)}
+${ent('10:02','warning',`<p>bed-layout.pdf already exists on work-laptop<small>the upload waits for your answer</small></p><div class="acts">${K.btn('Replace',{k:'sm'})}${K.btn('Keep both',{k:'pri sm'})}${K.btn('Skip',{k:'sm ghost'})}</div>`,'open')}
+${ent('09:01','locked',`<p>Signed in to studio-pc as sam<small>account · this computer, desk-linux</small></p>`)}
+${ent('08:58','key',`<p>nas presented a different key than the one you trusted<small>pinned 41DE 0B93 · RFE will not connect until you compare</small></p><div class="acts">${K.btn('Compare keys…',{k:'sm',a:'dlg:keychanged'})}</div>`,'open')}
+${ent('08:14','antenna_bars',`<p>media-mini stopped answering; album-2019.zip paused at 33%<small>it continues when the computer is back</small></p>`)}`;
+B.mount({views:{home},onGo:()=>{document.getElementById('rail').innerHTML=rail()}});
+
+</script></body></html>

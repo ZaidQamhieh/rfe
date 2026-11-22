@@ -1,0 +1,26 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "cpuPercent": "<cpuPercent>",
+    "ramPercent": "<ramPercent>",
+    "rxBytes": "<rxBytes>",
+    "transfers": {
+      "completeOnTerminalSession": 0,
+      "enospcPublish": 0,
+      "enospcWriteChunk": 0,
+      "hashMismatchAllChunksReceived": 0,
+      "oldestOpenSessionAgeSeconds": 0,
+      "openSessions": 0,
+      "publishTempFoundInDest": 0,
+      "sessionsResetByReconcile": 0
+    },
+    "tsMs": "<tsMs>",
+    "txBytes": "<txBytes>"
+  }
+}

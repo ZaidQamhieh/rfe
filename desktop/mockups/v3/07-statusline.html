@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Status line — no top bar; one line at the foot holds the live state</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d07{--bg:#fff;--sf:#fafafa;--rz:#f0f0f1;--t1:#18181b;--t2:#52525b;--t3:#71717a;--line:rgba(24,24,27,.08);--line2:rgba(24,24,27,.14);--ac:#16a34a;--ac-ink:#15803d;--ac-soft:rgba(22,163,74,.08);--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",monospace}
+.d07 .bot{height:40px;flex:none;display:flex;align-items:stretch;border-top:1px solid var(--line2);background:var(--sf);font-size:13px}
+.d07 .seg{display:flex;align-items:center;gap:8px;padding:0 14px;border-right:1px solid var(--line);color:var(--t2);white-space:nowrap}.d07 .seg:hover{background:var(--rz);color:var(--t1)}.d07 .seg b{color:var(--t1);font-weight:500}.d07 .seg small{font:12px var(--mono);color:var(--t3)}
+.d07 .seg.warn small{color:var(--neg)}.d07 .seg.fill{flex:1;min-width:0;border-right:1px solid var(--line)}.d07 .seg.fill .k-sbox{min-width:0}.d07 .seg.fill .k-sbox{width:100%;height:28px;background:none;box-shadow:none}
+.d07 .pop{position:absolute;bottom:48px;width:420px;background:var(--sf);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.16),inset 0 0 0 1px var(--line2);padding:14px 16px;z-index:40;display:none;max-height:440px;overflow:auto}
+.d07 .pop h4{display:flex;align-items:center;margin:0 0 10px;font:500 13px var(--font)}.d07 .pop h4 .k-btn{margin-left:auto}
+.d07 .ln{display:grid;grid-template-columns:200px 1fr 160px;gap:20px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+.d07 .ln .nm{display:flex;gap:10px;align-items:center}.d07 .ln .nm b{font-weight:500}.d07 .ln .nm small{display:block;color:var(--t3);font:12px var(--mono)}
+.d07 .ln .tk{display:flex;gap:6px;flex-wrap:wrap}.d07 .ln .tk span{font-size:12px;padding:4px 8px;border-radius:6px;background:var(--rz);color:var(--t2)}.d07 .ln .tk span.w{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.d07 .ln.ghost{color:var(--t3)}.d07 h1.o{font:500 22px var(--font);margin:0 0 4px}.d07 .os{color:var(--t3);margin:0 0 12px}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d07">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The window has no top bar. One status line at the foot shows the live state: the computer, its key, search, transfers, phones asking, notifications and the account. Each part opens a small panel. The Overview shows each computer as a lane.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Search", "Status line field, Ctrl K", 1], ["Transfers", "Status line opens a panel; Transfers page", 1], ["Requests", "Status line opens a panel with Accept", 1], ["Overview", "A lane per computer: state, disk, what moves", 0]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+const pop=document.getElementById('pop');
+document.getElementById('bot').innerHTML=EM?`<span class="seg">${E('laptop',16)}<b>This computer</b><small>no computers yet</small></span><button class="seg" data-k="dlg:newconn">${I('plus',14)}Add a computer</button><label class="seg fill">${K.C.searchBox('Search, once a computer is added')}</label><button class="seg" data-k="menu:notes" data-tip="Notifications">${I('bell',14)}</button><button class="seg" data-k="menu:account">sam</button>`
+:`<button class="seg" data-k="menu:browse">${K.dot('ok')}<b>studio-pc</b><small>12 ms LAN</small>${I('chevd',12)}</button><button class="seg" data-k="dlg:pins" data-tip="Pinned key">${E('key',14)}<small>9F3A 1EC4</small></button><label class="seg fill">${K.C.searchBox('Search all connected computers')}</label><button class="seg" data-k="pop:x">${K.C.ring(71)}<b>2</b> moving <small>52.4 MB/s</small></button><button class="seg warn" data-k="pop:r">${E('phone',14)}<b>2</b> asking <small>1:42</small></button><button class="seg" data-k="menu:notes" data-tip="Notifications">${I('bell',14)}</button><button class="seg" data-k="menu:account">sam</button>`;
+const lane=s=>`<div class="ln"><div class="nm">${K.mach(s,28)}<span><b>${K.dot(s.dot)} ${s.name}</b><small>${s.ms?s.ms+' ms '+s.route:s.state}</small></span></div><div class="tk">${s.id==='studio'?'<span>↑ walkthrough-full.mov 71%</span><span class="w">Pixel 9 asks to join</span>':s.id==='work'?'<span>↓ tax-2025.pdf checking</span><span class="w">bed-layout.pdf: name exists</span>':s.id==='nas'?'<span class="w">Key changed: compare before use</span>':'<span>album-2019.zip paused at 33%</span>'}</div><div>${K.bar(s.used/s.total*100)}<small class="mut mono">${s.used} of ${s.total} GB</small></div></div>`;
+const home=()=>`<h1 class="o">Computers</h1><p class="os">${EM?'None yet. Each one you add gets a lane with its state, disk and what is moving.':'Each lane: state, what is happening on it, disk'}</p>`+(EM?`<div class="ln ghost"><div class="nm">${E('desktop_computer',28)}<span><b>Your first PC</b><small>after rfe setup</small></span></div><div class="tk"><span>transfers and requests show here</span></div><div>${K.btn('Add a computer',{i:'plus',k:'sm pri',a:'dlg:newconn'})}</div></div>`:D.servers.map(lane).join(''));
+B.mount({views:{home},on:(a,b)=>{if(a==='pop'){const open=pop.style.display==='block'&&pop.dataset.w===b;pop.dataset.w=b;pop.style.display=open?'none':'block';pop.style.left=(b==='x'?560:740)+'px';pop.innerHTML=b==='x'?`<h4>Transfers${K.btn('Open Transfers',{k:'sm ghost',a:'go:transfers'})}</h4>`+K.V.xgroups(['attention','active']):`<h4>Pairing requests${K.btn('Pair a phone…',{k:'sm ghost',a:'dlg:pairphone'})}</h4>`+K.V.requests();}},onGo:()=>{pop.style.display='none'}});
+
+</script></body></html>

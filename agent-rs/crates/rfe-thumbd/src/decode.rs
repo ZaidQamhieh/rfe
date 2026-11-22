@@ -1,8 +1,15 @@
 //! Decoding into 8-bit RGB with hard limits. Transparency is flattened onto black, which is what the Go renderer's
 //! JPEG encoder does with alpha, so thumbnails match.
 
+use crate::endian::{le_u16, le_u32};
 use crate::exif;
 use std::io::Cursor;
+
+/// The largest 8-bit alpha, and half of it for rounding to nearest when dividing by it.
+const ALPHA_MAX: u32 = 255;
+const ALPHA_ROUND: u32 = 127;
+/// A JPEG is decoded at this multiple of the final size: the DCT scale only ever halves, and Lanczos does the rest.
+const DCT_OVERSAMPLE: f64 = 2.0;
 
 /// Largest decoded image, in pixels (the Go renderer's budget).
 pub const MAX_PIXELS: u64 = 40_000_000;
@@ -104,12 +111,17 @@ pub fn decode(data: &[u8], want: u32) -> Result<Decoded, DecodeError> {
     }
 }
 
+fn jpeg_info(
+    dec: &jpeg_decoder::Decoder<Cursor<&[u8]>>,
+) -> Result<jpeg_decoder::ImageInfo, DecodeError> {
+    dec.info()
+        .ok_or_else(|| DecodeError::Unsupported("no image info".into()))
+}
+
 fn jpeg(data: &[u8], want: u32) -> Result<Decoded, DecodeError> {
     let mut dec = jpeg_decoder::Decoder::new(Cursor::new(data));
     dec.read_info().map_err(DecodeError::unsupported)?;
-    let info = dec
-        .info()
-        .ok_or_else(|| DecodeError::Unsupported("no image info".into()))?;
+    let info = jpeg_info(&dec)?;
     let (sw, sh) = (info.width as u32, info.height as u32);
     check_pixels(sw as u64, sh as u64)?;
     let orientation = dec.exif_data().map(exif::orientation).unwrap_or(1);
@@ -117,20 +129,18 @@ fn jpeg(data: &[u8], want: u32) -> Result<Decoded, DecodeError> {
     // Ask for twice the final size: the DCT scale only ever halves, and Lanczos does the rest.
     let long = sw.max(sh);
     if want > 0 && long > want {
-        let f = (want as f64 * 2.0 / long as f64).min(1.0);
+        let f = (want as f64 * DCT_OVERSAMPLE / long as f64).min(1.0);
         let rw = ((sw as f64 * f).ceil() as u32).clamp(1, u16::MAX as u32) as u16;
         let rh = ((sh as f64 * f).ceil() as u32).clamp(1, u16::MAX as u32) as u16;
         dec.scale(rw, rh).map_err(DecodeError::unsupported)?;
     }
     let pixels = dec.decode().map_err(DecodeError::unsupported)?;
-    let info = dec
-        .info()
-        .ok_or_else(|| DecodeError::Unsupported("no image info".into()))?;
+    let info = jpeg_info(&dec)?;
     let (w, h) = (info.width as u32, info.height as u32);
     let n = (w as usize) * (h as usize);
     let rgb = match info.pixel_format {
         jpeg_decoder::PixelFormat::RGB24 => pixels,
-        jpeg_decoder::PixelFormat::L8 => pixels.iter().flat_map(|&g| [g, g, g]).collect(),
+        jpeg_decoder::PixelFormat::L8 => gray_to_rgb(&pixels),
         jpeg_decoder::PixelFormat::L16 => pixels
             .as_chunks::<2>()
             .0
@@ -171,12 +181,34 @@ fn flatten_rgba(rgba: &[u8]) -> Vec<u8> {
     for p in rgba.as_chunks::<4>().0 {
         let a = p[3] as u32;
         out.extend_from_slice(&[
-            ((p[0] as u32 * a + 127) / 255) as u8,
-            ((p[1] as u32 * a + 127) / 255) as u8,
-            ((p[2] as u32 * a + 127) / 255) as u8,
+            premultiply(p[0], a),
+            premultiply(p[1], a),
+            premultiply(p[2], a),
         ]);
     }
     out
+}
+
+/// One 8-bit sample times an 8-bit alpha (0 to 255), rounded: the sample premultiplied over black.
+fn premultiply(sample: u8, alpha: u32) -> u8 {
+    ((sample as u32 * alpha + ALPHA_ROUND) / ALPHA_MAX) as u8
+}
+
+/// Gray samples to RGB, each gray repeated three times.
+fn gray_to_rgb(gray: &[u8]) -> Vec<u8> {
+    gray.iter().flat_map(|&g| [g, g, g]).collect()
+}
+
+/// Gray + alpha samples to RGB, the gray premultiplied by its alpha (over black).
+fn gray_alpha_to_rgb(ga: &[u8]) -> Vec<u8> {
+    ga.as_chunks::<2>()
+        .0
+        .iter()
+        .flat_map(|c| {
+            let v = premultiply(c[0], c[1] as u32);
+            [v, v, v]
+        })
+        .collect()
 }
 
 fn png(data: &[u8]) -> Result<Decoded, DecodeError> {
@@ -192,20 +224,13 @@ fn png(data: &[u8]) -> Result<Decoded, DecodeError> {
     let frame = reader
         .next_frame(&mut buf)
         .map_err(DecodeError::unsupported)?;
-    let buf = &buf[..frame.buffer_size()];
+    // Keep the owned buffer: an RGB frame is the output as it is, with no second copy of the whole image.
+    buf.truncate(frame.buffer_size());
     let rgb = match frame.color_type {
-        png::ColorType::Rgb => buf.to_vec(),
-        png::ColorType::Rgba => flatten_rgba(buf),
-        png::ColorType::Grayscale => buf.iter().flat_map(|&g| [g, g, g]).collect(),
-        png::ColorType::GrayscaleAlpha => buf
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .flat_map(|c| {
-                let v = ((c[0] as u32 * c[1] as u32 + 127) / 255) as u8;
-                [v, v, v]
-            })
-            .collect(),
+        png::ColorType::Rgb => buf,
+        png::ColorType::Rgba => flatten_rgba(&buf),
+        png::ColorType::Grayscale => gray_to_rgb(&buf),
+        png::ColorType::GrayscaleAlpha => gray_alpha_to_rgb(&buf),
         png::ColorType::Indexed => {
             return Err(DecodeError::Unsupported("unexpanded palette".into()))
         }
@@ -306,16 +331,8 @@ fn tiff(data: &[u8]) -> Result<Decoded, DecodeError> {
         _ => return Err(DecodeError::Unsupported("tiff sample type".into())),
     };
     let rgb = match color {
-        ColorType::Gray(8) | ColorType::Gray(16) => eight.iter().flat_map(|&g| [g, g, g]).collect(),
-        ColorType::GrayA(8) | ColorType::GrayA(16) => eight
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .flat_map(|c| {
-                let v = ((c[0] as u32 * c[1] as u32 + 127) / 255) as u8;
-                [v, v, v]
-            })
-            .collect(),
+        ColorType::Gray(8) | ColorType::Gray(16) => gray_to_rgb(&eight),
+        ColorType::GrayA(8) | ColorType::GrayA(16) => gray_alpha_to_rgb(&eight),
         ColorType::RGB(8) | ColorType::RGB(16) => eight,
         ColorType::RGBA(8) | ColorType::RGBA(16) => flatten_rgba(&eight),
         other => {
@@ -336,14 +353,6 @@ fn tiff(data: &[u8]) -> Result<Decoded, DecodeError> {
         rgb,
         orientation: 1,
     })
-}
-
-fn le_u16(d: &[u8], at: usize) -> Option<u16> {
-    Some(u16::from_le_bytes(d.get(at..at + 2)?.try_into().ok()?))
-}
-
-fn le_u32(d: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(d.get(at..at + 4)?.try_into().ok()?))
 }
 
 /// Uncompressed Windows bitmaps (1, 4, 8, 24 and 32 bits per pixel), like Go's x/image/bmp: no RLE, no bit masks,
@@ -425,6 +434,91 @@ fn bmp(data: &[u8]) -> Result<Decoded, DecodeError> {
         rgb,
         orientation: 1,
     })
+}
+
+#[cfg(test)]
+mod png_rgb_tests {
+    use super::*;
+
+    fn encode(
+        color: png::ColorType,
+        depth: png::BitDepth,
+        w: u32,
+        h: u32,
+        samples: &[u8],
+    ) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut enc = png::Encoder::new(&mut out, w, h);
+        enc.set_color(color);
+        enc.set_depth(depth);
+        let mut writer = enc.write_header().unwrap();
+        writer.write_image_data(samples).unwrap();
+        writer.finish().unwrap();
+        out
+    }
+
+    /// Every colour type ends up as exactly the RGB samples the Go decoder produces: an RGB PNG is returned
+    /// as it was decoded (no copy), the others are converted.
+    #[test]
+    fn png_colour_types_decode_to_the_expected_rgb_bytes() {
+        let rgb = [
+            10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180,
+        ];
+        let d = decode(
+            &encode(png::ColorType::Rgb, png::BitDepth::Eight, 3, 2, &rgb),
+            96,
+        )
+        .unwrap();
+        assert_eq!((d.width, d.height), (3, 2));
+        assert_eq!(d.rgb, rgb);
+
+        let rgba = [200, 100, 50, 255, 200, 100, 50, 0];
+        let d = decode(
+            &encode(png::ColorType::Rgba, png::BitDepth::Eight, 2, 1, &rgba),
+            96,
+        )
+        .unwrap();
+        assert_eq!(d.rgb, [200, 100, 50, 0, 0, 0]);
+
+        let d = decode(
+            &encode(
+                png::ColorType::Grayscale,
+                png::BitDepth::Eight,
+                2,
+                1,
+                &[7, 9],
+            ),
+            96,
+        )
+        .unwrap();
+        assert_eq!(d.rgb, [7, 7, 7, 9, 9, 9]);
+
+        let ga = [200, 255, 200, 0];
+        let d = decode(
+            &encode(
+                png::ColorType::GrayscaleAlpha,
+                png::BitDepth::Eight,
+                2,
+                1,
+                &ga,
+            ),
+            96,
+        )
+        .unwrap();
+        assert_eq!(d.rgb, [200, 200, 200, 0, 0, 0]);
+    }
+
+    /// 16-bit samples are reduced to 8 bits (the high byte) before they reach the RGB output.
+    #[test]
+    fn a_sixteen_bit_rgb_png_keeps_only_the_high_bytes() {
+        let samples = [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc];
+        let d = decode(
+            &encode(png::ColorType::Rgb, png::BitDepth::Sixteen, 1, 1, &samples),
+            96,
+        )
+        .unwrap();
+        assert_eq!(d.rgb, [0x12, 0x56, 0x9a]);
+    }
 }
 
 #[cfg(test)]

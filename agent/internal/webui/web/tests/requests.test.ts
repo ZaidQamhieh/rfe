@@ -3,13 +3,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { mintBody, renameBody, restoreFailure, searchParams, trashIdsBody, wolBody } from '../src/lib/requests.ts';
+import { canWake, mintBody, renameBody, restoreFailure, searchParams, trashIdsBody } from '../src/lib/requests.ts';
 
 test('rename sends src and the full destination path, not path and newName', () => {
   assert.deepEqual(renameBody('/home/x/a.txt', 'b.txt'), { src: '/home/x/a.txt', dst: '/home/x/b.txt' });
   assert.deepEqual(renameBody('/a.txt', 'b.txt'), { src: '/a.txt', dst: '/b.txt' });
   assert.deepEqual(renameBody('C:\\docs\\a.txt', 'b.txt'), { src: 'C:\\docs\\a.txt', dst: 'C:\\docs\\b.txt' });
   assert.deepEqual(renameBody('C:\\a.txt', 'b.txt'), { src: 'C:\\a.txt', dst: 'C:\\b.txt' });
+});
+
+test('rename keeps / for a POSIX path whose folder or file name contains a backslash', () => {
+  assert.deepEqual(renameBody('/x/a\\b.txt', 'c.txt'), { src: '/x/a\\b.txt', dst: '/x/c.txt' });
+  assert.deepEqual(renameBody('/x/a\\b/f.txt', 'c.txt'), { src: '/x/a\\b/f.txt', dst: '/x/a\\b/c.txt' });
+  assert.deepEqual(renameBody('\\\\srv\\share\\f.txt', 'g.txt'), { src: '\\\\srv\\share\\f.txt', dst: '\\\\srv\\share\\g.txt' });
 });
 
 test('trash calls name ids as an array, never a bare id', () => {
@@ -30,8 +36,12 @@ test('share mint uses expiresInSeconds and omits it when unset', () => {
   assert.deepEqual(mintBody('/a.txt'), { path: '/a.txt' });
 });
 
-test('wake-on-LAN sends mac', () => {
-  assert.deepEqual(wolBody('aa:bb:cc:dd:ee:ff'), { mac: 'aa:bb:cc:dd:ee:ff' });
+test('Wake is offered unless the agent says this device lacks the wake grant', () => {
+  assert.equal(canWake({ fileCapabilities: { wake: false } }), false);
+  assert.equal(canWake({ fileCapabilities: { wake: true } }), true);
+  // An older agent (no field) or a status not loaded yet hides nothing; the agent still enforces.
+  assert.equal(canWake({}), true);
+  assert.equal(canWake(undefined), true);
 });
 
 test('restoreFailure reports the first item the agent could not restore, and null when all worked', () => {

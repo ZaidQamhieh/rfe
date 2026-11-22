@@ -2,33 +2,20 @@ import { useEffect, useState } from 'react';
 import { Command } from 'cmdk';
 import { useNavigate } from 'react-router-dom';
 import {
-  LayoutGrid,
-  Folder,
-  Activity,
-  Monitor,
-  Users,
-  ScrollText,
-  Settings,
   QrCode,
+  Search,
   Upload,
   Link as LinkIcon,
 } from 'lucide-react';
 import { useToast } from '@/lib/toast-context';
+import { PAGES, pagePath } from '@/lib/routes';
 
-const NAV_ITEMS = [
-  { label: 'Overview', to: '/app/overview', icon: LayoutGrid },
-  { label: 'Files', to: '/app/files', icon: Folder },
-  { label: 'Transfers', to: '/app/transfers', icon: Activity },
-  { label: 'Devices', to: '/app/devices', icon: Monitor },
-  { label: 'Users', to: '/app/users', icon: Users },
-  { label: 'Logs', to: '/app/logs', icon: ScrollText },
-  { label: 'Settings', to: '/app/settings', icon: Settings },
-];
+const NAV_ITEMS = PAGES.map((page) => ({ label: page.title, to: pagePath(page.id), icon: page.icon }));
 
 const ACTION_ITEMS = [
-  { label: 'Pair a new device', to: '/app/devices', icon: QrCode },
-  { label: 'Upload a file', to: '/app/files', icon: Upload },
-  { label: 'Generate a share link', to: '/app/files', icon: LinkIcon },
+  { label: 'Pair a new device', to: pagePath('devices'), icon: QrCode },
+  { label: 'Upload a file', to: pagePath('files'), icon: Upload },
+  { label: 'Generate a share link', to: pagePath('files'), icon: LinkIcon },
 ];
 
 export function CommandPalette() {
@@ -64,10 +51,7 @@ export function CommandPalette() {
         label="Command palette"
       >
         <div className="cmdk-input">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+          <Search />
           <Command.Input autoFocus placeholder="Jump to a page or run a command…" />
         </div>
         <Command.List className="cmdk-list">

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
-import { ApiError } from '@/lib/api';
+import { APP_HOME } from '@/lib/routes';
 
 export function Login() {
   const { login } = useAuth();
@@ -17,9 +17,9 @@ export function Login() {
     setBusy(true);
     try {
       await login(username, password);
-      navigate('/app/overview');
+      navigate(APP_HOME);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Sign in failed');
+      setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {
       setBusy(false);
     }
@@ -30,15 +30,8 @@ export function Login() {
       <div style={{ width: 340 }}>
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
           <div
-            style={{
-              width: 48,
-              height: 48,
-              margin: '0 auto 12px',
-              borderRadius: 'var(--r-lg)',
-              background: 'linear-gradient(135deg,var(--primary),var(--violet))',
-              display: 'grid',
-              placeItems: 'center',
-            }}
+            className="auth-mark"
+            style={{ background: 'linear-gradient(135deg,var(--primary),var(--violet))' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 22, height: 22 }}>
               <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />

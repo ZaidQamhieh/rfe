@@ -1,7 +1,7 @@
 package security
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 
 	"golang.org/x/crypto/bcrypt"
@@ -13,7 +13,7 @@ import (
 const MaxPasswordBytes = 72
 
 // ErrPasswordTooLong means the password exceeds MaxPasswordBytes.
-var ErrPasswordTooLong = errors.New("password is longer than 72 bytes")
+var ErrPasswordTooLong = fmt.Errorf("password is longer than %d bytes", MaxPasswordBytes)
 
 // HashPassword salts and hashes a user-chosen password with bcrypt — unlike
 // the SHA-256 used for high-entropy bearer tokens elsewhere in this package,
@@ -39,7 +39,8 @@ func VerifyPassword(hash, password string) bool {
 var decoyHash = sync.OnceValue(func() string {
 	h, err := HashPassword("decoy-password-for-timing")
 	if err != nil {
-		return ""
+		// A constant short password cannot fail; an empty hash would make the timing defence a no-op.
+		panic("security: decoy hash: " + err.Error())
 	}
 	return h
 })

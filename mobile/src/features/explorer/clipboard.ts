@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ClipboardMode = 'copy' | 'cut';
+type ClipboardMode = 'copy' | 'cut';
 export type FileClipboard = { paths: string[]; mode: ClipboardMode; hostId: string };
 
 /** In-app file clipboard (never the system clipboard): copy or cut a set of remote paths on one host. */

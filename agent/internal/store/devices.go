@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ type Device struct {
 	CanModify   bool
 	CanDelete   bool
 	CanShare    bool
+	// CanWake lets the device ask this PC to send a Wake-on-LAN packet. It is
+	// off for a newly code-paired device and on for an owner (login) device.
+	CanWake bool
 }
 
 // CreateDevice inserts a new device row. token is the raw bearer token —
@@ -98,13 +102,19 @@ func (s *DB) ResetDeviceAccess(id string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.Exec(`UPDATE devices SET can_browse=1,can_download=0,can_upload=0,can_modify=0,can_delete=0,can_share=0,view_apps=0,launch_apps=0 WHERE id=?`, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id=?`, id); err != nil {
+	if err := resetDeviceAccessTx(tx, id); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// resetDeviceAccessTx is ResetDeviceAccess's body, run inside the caller's transaction.
+func resetDeviceAccessTx(tx *sql.Tx, id string) error {
+	if _, err := tx.Exec(`UPDATE devices SET can_browse=1,can_download=0,can_upload=0,can_modify=0,can_delete=0,can_share=0,can_wake=0,view_apps=0,launch_apps=0 WHERE id=?`, id); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id=?`, id)
+	return err
 }
 
 // UpsertDevice pairs a device, deduplicating by the hardware-stable clientID.
@@ -137,18 +147,15 @@ func (s *DB) UpsertDevice(clientID, label, token, publicKey string, viaLogin boo
 
 // upsertDeviceTx is UpsertDevice's body, factored out so the account
 // workflows can run it inside their own transaction rather than as a separate
-// one (PR-45).
+// one.
 //
-// PR-44: the find-or-create is one transaction so two concurrent pairings of
+// the find-or-create is one transaction so two concurrent pairings of
 // the same client_id can't both insert (the partial unique index is the
 // DB-level backstop).
 func upsertDeviceTx(tx *sql.Tx, clientID, label, token, publicKey string, viaLogin bool) (string, error) {
 	hash := hashToken(token)
 	now := time.Now().Unix()
-	viaLoginInt := 0
-	if viaLogin {
-		viaLoginInt = 1
-	}
+	viaLoginInt := boolInt(viaLogin)
 
 	if clientID != "" {
 		var existingID string
@@ -158,16 +165,17 @@ func upsertDeviceTx(tx *sql.Tx, clientID, label, token, publicKey string, viaLog
 		if err == nil {
 			// Same phone re-pairing: rotate token, clear revoked, refresh label.
 			if _, err := tx.Exec(
-				`UPDATE devices SET token_hash=?, label=?, last_seen=?, revoked=0, public_key=?, via_login=?,
-can_browse=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 1 ELSE can_browse END,
-can_download=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 0 ELSE can_download END,
-can_upload=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 0 ELSE can_upload END,
-can_modify=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 0 ELSE can_modify END,
-can_delete=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 0 ELSE can_delete END,
-can_share=CASE WHEN ?=1 THEN 1 WHEN via_login=1 THEN 0 ELSE can_share END
+				`UPDATE devices SET token_hash=?, label=?, last_seen=?, revoked=0, revoked_by_owner=0, public_key=?, via_login=?, login_issuer='',
+can_browse=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 1 ELSE can_browse END,
+can_download=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_download END,
+can_upload=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_upload END,
+can_modify=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_modify END,
+can_delete=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_delete END,
+can_share=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_share END,
+can_wake=CASE WHEN ?=1 THEN 1 WHEN via_login=1 OR revoked=1 THEN 0 ELSE can_wake END
 WHERE id=?`,
 				hash, label, now, publicKey, viaLoginInt,
-				viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, existingID,
+				viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, viaLoginInt, existingID,
 			); err != nil {
 				return "", err
 			}
@@ -179,14 +187,14 @@ WHERE id=?`,
 	}
 
 	id := uuid.New().String()
-	browse, download, upload, modify, del, share := 1, 0, 0, 0, 0, 0
+	browse, download, upload, modify, del, share, wake := 1, 0, 0, 0, 0, 0, 0
 	if viaLogin {
-		download, upload, modify, del, share = 1, 1, 1, 1, 1
+		download, upload, modify, del, share, wake = 1, 1, 1, 1, 1, 1
 	}
 	if _, err := tx.Exec(
 		`INSERT INTO devices (id,label,token_hash,created,last_seen,revoked,client_id,public_key,via_login,
-can_browse,can_download,can_upload,can_modify,can_delete,can_share) VALUES (?,?,?,?,?,0,?,?,?,?,?,?,?,?,?)`,
-		id, label, hash, now, now, clientID, publicKey, viaLoginInt, browse, download, upload, modify, del, share,
+can_browse,can_download,can_upload,can_modify,can_delete,can_share,can_wake) VALUES (?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?)`,
+		id, label, hash, now, now, clientID, publicKey, viaLoginInt, browse, download, upload, modify, del, share, wake,
 	); err != nil {
 		return "", err
 	}
@@ -197,8 +205,21 @@ can_browse,can_download,can_upload,can_modify,can_delete,can_share) VALUES (?,?,
 // has a login account. RFE allows exactly one.
 var ErrAccountExists = errors.New("an account already exists")
 
+// upsertAccountDeviceTx upserts the device row and stamps it with the account
+// username, inside the caller's transaction (RegisterAccount, LoginDevice).
+func upsertAccountDeviceTx(tx *sql.Tx, clientID, label, token, publicKey, username string) (string, error) {
+	deviceID, err := upsertDeviceTx(tx, clientID, label, token, publicKey, true)
+	if err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(`UPDATE devices SET username=?, login_issuer='' WHERE id=?`, username, deviceID); err != nil {
+		return "", err
+	}
+	return deviceID, nil
+}
+
 // RegisterAccount creates the computer's single login account and the
-// registering device together, in one transaction (PR-45).
+// registering device together, in one transaction.
 //
 // Split across separate calls, as this used to be, the "exactly one account"
 // rule was decided by a SELECT that another registration could invalidate
@@ -218,17 +239,11 @@ func (s *DB) RegisterAccount(clientID, label, token, publicKey, username, passwo
 	if users > 0 {
 		return "", ErrAccountExists
 	}
-	if _, err := tx.Exec(
-		`INSERT INTO users (username,password_hash,created) VALUES (?,?,?)`,
-		username, passwordHash, time.Now().Unix(),
-	); err != nil {
+	if err := insertUserTx(tx, username, passwordHash); err != nil {
 		return "", err
 	}
-	deviceID, err := upsertDeviceTx(tx, clientID, label, token, publicKey, true)
+	deviceID, err := upsertAccountDeviceTx(tx, clientID, label, token, publicKey, username)
 	if err != nil {
-		return "", err
-	}
-	if _, err := tx.Exec(`UPDATE devices SET username=? WHERE id=?`, username, deviceID); err != nil {
 		return "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -239,7 +254,7 @@ func (s *DB) RegisterAccount(clientID, label, token, publicKey, username, passwo
 
 // LoginDevice records a successful password login: the device row and the
 // account that authenticated it land together, so a failure can't leave a
-// usable token stamped with no username (PR-45).
+// usable token stamped with no username.
 func (s *DB) LoginDevice(clientID, label, token, publicKey, username, passwordHash string) (string, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -260,11 +275,8 @@ func (s *DB) LoginDevice(clientID, label, token, publicKey, username, passwordHa
 		return "", ErrLoginAccountChanged
 	}
 
-	deviceID, err := upsertDeviceTx(tx, clientID, label, token, publicKey, true)
+	deviceID, err := upsertAccountDeviceTx(tx, clientID, label, token, publicKey, username)
 	if err != nil {
-		return "", err
-	}
-	if _, err := tx.Exec(`UPDATE devices SET username=? WHERE id=?`, username, deviceID); err != nil {
 		return "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -274,18 +286,25 @@ func (s *DB) LoginDevice(clientID, label, token, publicKey, username, passwordHa
 }
 
 // DeviceByToken returns the device whose token matches the given raw token,
-// or (nil,nil) if not found.
+// or (nil,nil) if not found. A session an account server vouched for is found only while its login is
+// younger than FederatedSessionTTL and not older than the highest account epoch seen from its issuer; the first lookup after that revokes it and writes one audit row.
 func (s *DB) DeviceByToken(token string) (*Device, error) {
 	hash := hashToken(token)
+	cutoff := s.federatedSessionCutoff()
 	row := s.db.QueryRow(
 		`SELECT id,label,token_hash,created,last_seen,revoked,last_address,last_version,jail_root,read_only,public_key,
-	via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share FROM devices
-WHERE token_hash=? AND (via_login=0 OR (via_login=1 AND username<>'' AND EXISTS(
-    SELECT 1 FROM users WHERE users.username=devices.username
-)))`, hash,
+	via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share,can_wake FROM devices
+WHERE token_hash=? AND (
+    (login_issuer<>'' AND username<>'' AND federated_login_at>? AND EXISTS(
+        SELECT 1 FROM trusted_account_server t WHERE t.fingerprint=devices.login_issuer AND devices.federated_epoch>=t.highest_epoch))
+    OR (login_issuer='' AND (via_login=0 OR (username<>'' AND EXISTS(SELECT 1 FROM users WHERE users.username=devices.username))))
+)`, hash, cutoff,
 	)
-	d, err := scanDevice(row)
+	d, err := scanDeviceFrom(row)
 	if err == sql.ErrNoRows {
+		if err := s.expireFederatedSession(hash, cutoff); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	return d, err
@@ -295,7 +314,7 @@ WHERE token_hash=? AND (via_login=0 OR (via_login=1 AND username<>'' AND EXISTS(
 // id. Called on every authenticated request to record the caller's most
 // recent network address and reported app version.
 func (s *DB) TouchDevice(id, address, version string) error {
-	// PR-41: skip the write if this device was touched within touchInterval.
+	// skip the write if this device was touched within touchInterval.
 	now := time.Now()
 	s.touchMu.Lock()
 	if last, ok := s.lastTouch[id]; ok && now.Sub(last) < touchInterval {
@@ -312,24 +331,12 @@ func (s *DB) TouchDevice(id, address, version string) error {
 	return err
 }
 
-func scanDevice(row *sql.Row) (*Device, error) {
-	var d Device
-	var created, lastSeen int64
-	var revoked, readOnly, viaLogin, viewApps, launchApps, browse, download, upload, modify, del, share int
-	err := row.Scan(&d.ID, &d.Label, &d.TokenHash, &created, &lastSeen, &revoked, &d.LastAddress, &d.LastVersion, &d.JailRoot, &readOnly, &d.PublicKey, &viaLogin, &viewApps, &launchApps, &browse, &download, &upload, &modify, &del, &share)
-	if err != nil {
-		return nil, err
+// boolInt maps a flag to the 0/1 integer the schema stores.
+func boolInt(b bool) int {
+	if b {
+		return 1
 	}
-	d.Created = time.Unix(created, 0)
-	d.LastSeen = time.Unix(lastSeen, 0)
-	d.Revoked = revoked != 0
-	d.ReadOnly = readOnly != 0
-	d.ViaLogin = viaLogin != 0
-	d.ViewApps = viewApps != 0
-	d.LaunchApps = launchApps != 0
-	d.CanBrowse, d.CanDownload, d.CanUpload = browse != 0, download != 0, upload != 0
-	d.CanModify, d.CanDelete, d.CanShare = modify != 0, del != 0, share != 0
-	return &d, nil
+	return 0
 }
 
 // rowScanner is satisfied by both *sql.Row and *sql.Rows.
@@ -340,8 +347,8 @@ type rowScanner interface {
 func scanDeviceFrom(sc rowScanner) (*Device, error) {
 	var d Device
 	var created, lastSeen int64
-	var revoked, readOnly, viaLogin, viewApps, launchApps, browse, download, upload, modify, del, share int
-	if err := sc.Scan(&d.ID, &d.Label, &d.TokenHash, &created, &lastSeen, &revoked, &d.LastAddress, &d.LastVersion, &d.JailRoot, &readOnly, &d.PublicKey, &viaLogin, &viewApps, &launchApps, &browse, &download, &upload, &modify, &del, &share); err != nil {
+	var revoked, readOnly, viaLogin, viewApps, launchApps, browse, download, upload, modify, del, share, wake int
+	if err := sc.Scan(&d.ID, &d.Label, &d.TokenHash, &created, &lastSeen, &revoked, &d.LastAddress, &d.LastVersion, &d.JailRoot, &readOnly, &d.PublicKey, &viaLogin, &viewApps, &launchApps, &browse, &download, &upload, &modify, &del, &share, &wake); err != nil {
 		return nil, err
 	}
 	d.Created = time.Unix(created, 0)
@@ -353,13 +360,14 @@ func scanDeviceFrom(sc rowScanner) (*Device, error) {
 	d.LaunchApps = launchApps != 0
 	d.CanBrowse, d.CanDownload, d.CanUpload = browse != 0, download != 0, upload != 0
 	d.CanModify, d.CanDelete, d.CanShare = modify != 0, del != 0, share != 0
+	d.CanWake = wake != 0
 	return &d, nil
 }
 
 // ListDevices returns all paired devices (including revoked), oldest first.
 func (s *DB) ListDevices() ([]Device, error) {
 	rows, err := s.db.Query(
-		`SELECT id,label,token_hash,created,last_seen,revoked,last_address,last_version,jail_root,read_only,public_key,via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share FROM devices ORDER BY created`)
+		`SELECT id,label,token_hash,created,last_seen,revoked,last_address,last_version,jail_root,read_only,public_key,via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share,can_wake FROM devices ORDER BY created`)
 	if err != nil {
 		return nil, err
 	}
@@ -406,41 +414,75 @@ func (s *DB) ResolveDeviceID(prefix string) (string, error) {
 	}
 }
 
-// RevokeDevice marks a device revoked; its token is rejected by authMiddleware.
+// RevokeDevice is the owner revoking a device (API or CLI): the token is rejected by authMiddleware and the row
+// is marked revoked_by_owner, so an account-server assertion cannot bring it back.
 func (s *DB) RevokeDevice(id string) error {
-	return s.execWithShareTokenPurge(id, `UPDATE devices SET revoked=1 WHERE id=?`)
+	return s.endDevice(id, `UPDATE devices SET revoked=1, revoked_by_owner=1 WHERE id=?`, RevocationRevoke)
+}
+
+// RevokeDeviceSession ends a device's session at its own request (logout): the token is rejected like
+// RevokeDevice, but the row is not marked revoked_by_owner, so the same device may log in again.
+func (s *DB) RevokeDeviceSession(id string) error {
+	return s.endDevice(id, `UPDATE devices SET revoked=1 WHERE id=?`, RevocationRevoke)
 }
 
 // DeleteDevice permanently removes a device row. Used to clear out revoked
 // devices so the paired-devices list doesn't accumulate stale entries.
 func (s *DB) DeleteDevice(id string) error {
-	return s.execWithShareTokenPurge(id, `DELETE FROM devices WHERE id=?`)
+	return s.endDevice(id, `DELETE FROM devices WHERE id=?`, RevocationRemove)
 }
 
-// execWithShareTokenPurge runs a device-ending statement and drops the
-// device's outstanding share links in the same transaction, so a revoked or
-// deleted device cannot leave a working link behind.
-func (s *DB) execWithShareTokenPurge(id, stmt string) error {
+// endDevice runs a device-ending statement and drops the device's outstanding share links in the same
+// transaction, so a revoked or deleted device cannot leave a working link behind. A non-empty kind also
+// appends the device to the revocation log once the transaction has committed and changed a row.
+func (s *DB) endDevice(id, stmt, kind string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.Exec(stmt, id); err != nil {
+	// Ending a live device that holds a local account is a revocation members of an account server must
+	// learn about, so it raises the account epoch in the same transaction.
+	var accountDevice int
+	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM devices WHERE id=? AND revoked=0 AND username<>'' AND login_issuer='')`, id).Scan(&accountDevice); err != nil {
+		return err
+	}
+	res, err := tx.Exec(stmt, id)
+	if err != nil {
+		return err
+	}
+	changed, err := res.RowsAffected()
+	if err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id=?`, id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	var epoch int64
+	if accountDevice == 1 {
+		var err error
+		if epoch, err = bumpAccountEpochTx(tx); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if accountDevice == 1 {
+		s.auditEpochBump(epoch, "device with an account revoked or removed")
+	}
+	if kind != "" && changed > 0 {
+		s.logRevocations(kind, id)
+	}
+	return nil
 }
 
 // GetDeviceByID returns the device with the given id, or (nil,nil) if not found.
 func (s *DB) GetDeviceByID(id string) (*Device, error) {
 	row := s.db.QueryRow(
-		`SELECT id,label,token_hash,created,last_seen,revoked,last_address,last_version,jail_root,read_only,public_key,via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share FROM devices WHERE id=?`, id,
+		`SELECT id,label,token_hash,created,last_seen,revoked,last_address,last_version,jail_root,read_only,public_key,via_login,view_apps,launch_apps,can_browse,can_download,can_upload,can_modify,can_delete,can_share,can_wake FROM devices WHERE id=?`, id,
 	)
-	d, err := scanDevice(row)
+	d, err := scanDeviceFrom(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -459,11 +501,7 @@ func (s *DB) SetDeviceJail(id, jailRoot string) error {
 // flag for device id (#8). A read-only device may browse/download but every
 // filesystem write is rejected with READ_ONLY.
 func (s *DB) SetDeviceReadOnly(id string, ro bool) error {
-	v := 0
-	if ro {
-		v = 1
-	}
-	_, err := s.db.Exec(`UPDATE devices SET read_only=? WHERE id=?`, v, id)
+	_, err := s.db.Exec(`UPDATE devices SET read_only=? WHERE id=?`, boolInt(ro), id)
 	return err
 }
 
@@ -471,35 +509,41 @@ func (s *DB) SetDeviceReadOnly(id string, ro bool) error {
 // permissions together. The server validates the implication that launching
 // also requires app visibility before calling this method.
 func (s *DB) SetDeviceAppPermissions(id string, viewApps, launchApps bool) error {
-	view := 0
-	if viewApps {
-		view = 1
-	}
-	launch := 0
-	if launchApps {
-		launch = 1
-	}
-	_, err := s.db.Exec(`UPDATE devices SET view_apps=?, launch_apps=? WHERE id=?`, view, launch, id)
+	_, err := s.db.Exec(`UPDATE devices SET view_apps=?, launch_apps=? WHERE id=?`, boolInt(viewApps), boolInt(launchApps), id)
 	return err
 }
 
 // SetDeviceFilePermissions atomically updates the independent filesystem
 // capabilities managed by the admin device settings endpoint.
+// It leaves the Wake-on-LAN grant alone; SetDeviceGrants sets all seven.
 func (s *DB) SetDeviceFilePermissions(id string, browse, download, upload, modify, del, share bool) error {
-	values := []int{0, 0, 0, 0, 0, 0}
-	for i, enabled := range []bool{browse, download, upload, modify, del, share} {
-		if enabled {
-			values[i] = 1
-		}
-	}
+	return s.setGrants(id, browse, download, upload, modify, del, share, nil)
+}
+
+// SetDeviceGrants atomically sets the six filesystem capabilities and the
+// Wake-on-LAN grant of one device, so a partial failure cannot leave them
+// disagreeing with what the admin asked for.
+func (s *DB) SetDeviceGrants(id string, browse, download, upload, modify, del, share, wake bool) error {
+	return s.setGrants(id, browse, download, upload, modify, del, share, &wake)
+}
+
+// setGrants writes the file capabilities and, when wake is non-nil, the
+// Wake-on-LAN grant in one transaction. Dropping share also deletes the
+// device's active share links.
+func (s *DB) setGrants(id string, browse, download, upload, modify, del, share bool, wake *bool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`UPDATE devices SET can_browse=?,can_download=?,can_upload=?,can_modify=?,can_delete=?,can_share=? WHERE id=?`,
-		values[0], values[1], values[2], values[3], values[4], values[5], id); err != nil {
+		boolInt(browse), boolInt(download), boolInt(upload), boolInt(modify), boolInt(del), boolInt(share), id); err != nil {
 		return err
+	}
+	if wake != nil {
+		if _, err := tx.Exec(`UPDATE devices SET can_wake=? WHERE id=?`, boolInt(*wake), id); err != nil {
+			return err
+		}
 	}
 	if !share {
 		if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id=?`, id); err != nil {
@@ -511,30 +555,20 @@ func (s *DB) SetDeviceFilePermissions(id string, browse, download, upload, modif
 
 // --------- pairing codes ---------
 
-// CreatePairingCode stores a one-time pairing code valid until expires. Stored
+// CreatePairingCodeFor stores a one-time pairing code valid until expires. Stored
 // in the DB (not daemon memory) so the `rfe pair` CLI can mint a code the
 // running daemon will accept, without a restart. Opportunistically clears
 // already-expired codes. jailRoot/readOnly are guest-mode defaults applied to
 // the device created when this code is redeemed; pass "", false for a normal
-// (non-guest) code.
-func (s *DB) CreatePairingCode(code string, expires time.Time, jailRoot string, readOnly bool) error {
-	return s.CreatePairingCodeFor(code, expires, jailRoot, readOnly, false)
-}
-
-// CreatePairingCodeFor is CreatePairingCode with canRegister: whether the code
-// may also create the owner account.
+// (non-guest) code. canRegister: whether the code may also create the owner
+// account.
 func (s *DB) CreatePairingCodeFor(code string, expires time.Time, jailRoot string, readOnly, canRegister bool) error {
-	_, _ = s.db.Exec(`DELETE FROM pairing_codes WHERE expires < ?`, time.Now().Unix())
-	ro, reg := 0, 0
-	if readOnly {
-		ro = 1
-	}
-	if canRegister {
-		reg = 1
+	if _, err := s.db.Exec(`DELETE FROM pairing_codes WHERE expires < ?`, time.Now().Unix()); err != nil {
+		log.Printf("store: pruning expired pairing codes failed: %v", err)
 	}
 	_, err := s.db.Exec(
 		`INSERT OR REPLACE INTO pairing_codes (code, expires, jail_root, read_only, can_register) VALUES (?, ?, ?, ?, ?)`,
-		code, expires.Unix(), jailRoot, ro, reg,
+		code, expires.Unix(), jailRoot, boolInt(readOnly), boolInt(canRegister),
 	)
 	return err
 }
@@ -555,16 +589,9 @@ func (s *DB) PeekPairingCode(code string) PairingCodeInfo {
 	if code == "" {
 		return PairingCodeInfo{}
 	}
-	var expires int64
-	var jailRoot string
-	var readOnly, canRegister int
-	err := s.db.QueryRow(
+	return s.lookupPairingCode(
 		`SELECT expires, jail_root, read_only, can_register FROM pairing_codes WHERE code=?`, code,
-	).Scan(&expires, &jailRoot, &readOnly, &canRegister)
-	if err != nil || time.Now().Unix() > expires {
-		return PairingCodeInfo{}
-	}
-	return PairingCodeInfo{Valid: true, JailRoot: jailRoot, ReadOnly: readOnly != 0, CanRegister: canRegister != 0}
+	)
 }
 
 // ConsumePairingCode validates code and removes it (single-use).
@@ -572,19 +599,22 @@ func (s *DB) ConsumePairingCode(code string) PairingCodeInfo {
 	if code == "" {
 		return PairingCodeInfo{}
 	}
+	// consume the code atomically. DELETE ... RETURNING guarantees only
+	// one concurrent caller can claim a single-use code — a SELECT-then-DELETE
+	// race let two requests both validate before either deleted.
+	return s.lookupPairingCode(
+		`DELETE FROM pairing_codes WHERE code=? RETURNING expires, jail_root, read_only, can_register`, code,
+	)
+}
+
+// lookupPairingCode runs a query that returns the pairing-code columns for
+// code and reports the code as valid only if the row exists and has not expired.
+func (s *DB) lookupPairingCode(query, code string) PairingCodeInfo {
 	var expires int64
 	var jailRoot string
 	var readOnly, canRegister int
-	// PR-10: consume the code atomically. DELETE ... RETURNING guarantees only
-	// one concurrent caller can claim a single-use code — a SELECT-then-DELETE
-	// race let two requests both validate before either deleted.
-	err := s.db.QueryRow(
-		`DELETE FROM pairing_codes WHERE code=? RETURNING expires, jail_root, read_only, can_register`, code,
-	).Scan(&expires, &jailRoot, &readOnly, &canRegister)
-	if err != nil {
-		return PairingCodeInfo{}
-	}
-	if time.Now().Unix() > expires {
+	err := s.db.QueryRow(query, code).Scan(&expires, &jailRoot, &readOnly, &canRegister)
+	if err != nil || time.Now().Unix() > expires {
 		return PairingCodeInfo{}
 	}
 	return PairingCodeInfo{Valid: true, JailRoot: jailRoot, ReadOnly: readOnly != 0, CanRegister: canRegister != 0}

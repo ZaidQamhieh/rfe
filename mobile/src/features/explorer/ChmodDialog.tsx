@@ -5,18 +5,22 @@ import { Modal, Pressable as RNPressable, View } from 'react-native';
 import type { AgentClient } from '../../core/api/agentClient';
 import type { Entry } from '../../core/api/models';
 import { Button, SheetHero, Text, useToast } from '../../design/components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { insetPadding } from '../../design/safeInsets';
 import { useScheme } from '../../design/theme';
-import { FontFamily, Radii, Spacing } from '../../design/tokens';
+import { FontFamily, Radii, SCRIM, Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { bitsToOctal, bitsToSymbolic, parseModeBits } from './metaLogic';
 
-const ROWS = ['Owner', 'Group', 'Other'];
-const COLS = ['R', 'W', 'X'];
+const ROWS = [t('chmodRowOwner'), t('chmodRowGroup'), t('chmodRowOther')];
+const COLS = [t('chmodColRead'), t('chmodColWrite'), t('chmodColExecute')];
 
 /** 3x3 rwx grid for POSIX permissions; Apply sends the octal mode and hands back the updated entry. */
 export function ChmodDialog({ visible, entry, client, onClose, onApplied }: { visible: boolean; entry: Entry; client: AgentClient; onClose: () => void; onApplied: (e: Entry) => void }) {
   const c = useScheme();
+  const insets = useSafeAreaInsets();
   const toast = useToast();
   const [bits, setBits] = useState(() => parseModeBits(entry.mode));
   const [applying, setApplying] = useState(false);
@@ -32,7 +36,7 @@ export function ChmodDialog({ visible, entry, client, onClose, onApplied }: { vi
     try {
       onApplied(await client.chmod(entry.path, bitsToOctal(bits)));
     } catch (e) {
-      toast.error(`chmod failed: ${humanizeError(e)}`);
+      toast.error(t('chmodFailed', { error: humanizeError(e) }));
     } finally {
       setApplying(false);
     }
@@ -40,11 +44,11 @@ export function ChmodDialog({ visible, entry, client, onClose, onApplied }: { vi
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }} onPress={onClose} accessibilityLabel={t('cancelButton')}>
-        <RNPressable accessibilityViewIsModal style={{ backgroundColor: c.surfaceContainer, borderRadius: Radii.lg, overflow: 'hidden' }}>
+      <RNPressable style={{ flex: 1, backgroundColor: SCRIM, justifyContent: 'center', ...insetPadding(insets, Spacing.lg) }} onPress={onClose} accessibilityLabel={t('cancelButton')}>
+        <RNPressable accessibilityViewIsModal style={{ backgroundColor: c.surfaceContainer, borderRadius: Radii.lg, overflow: 'hidden', maxHeight: '100%' }}>
           <SheetHero showGrabber={false} badge={<Lock size={24} color={c.primary} />} title={t('metaPermissions')} />
-          <View style={{ paddingHorizontal: Spacing.lg, gap: 4 }}>
-            <Text variant="headlineSmall" style={{ fontFamily: FontFamily.mono }} accessibilityLabel={`Permissions ${bitsToSymbolic(bits)}`}>{bitsToSymbolic(bits)}</Text>
+          <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs }}>
+            <Text variant="headlineSmall" style={{ fontFamily: FontFamily.mono }} accessibilityLabel={t('chmodPermissionsLabel', { symbolic: bitsToSymbolic(bits) })}>{bitsToSymbolic(bits)}</Text>
             <Text variant="bodySmall" muted style={{ fontFamily: FontFamily.mono }}>{bitsToOctal(bits)}</Text>
             <View style={{ marginTop: Spacing.md, gap: Spacing.xs }}>
               {ROWS.map((row, r) => (
@@ -58,7 +62,7 @@ export function ChmodDialog({ visible, entry, client, onClose, onApplied }: { vi
                         disabled={applying}
                         onPress={() => setBits((b) => b.map((v, j) => (j === i ? !v : v)))}
                         accessibilityRole="checkbox"
-                        accessibilityLabel={`${row} ${col}`}
+                        accessibilityLabel={t('chmodCellLabel', { row, col })}
                         accessibilityState={{ checked: bits[i], disabled: applying }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 6, width: 72, minHeight: 44 }}
                       >
@@ -75,7 +79,7 @@ export function ChmodDialog({ visible, entry, client, onClose, onApplied }: { vi
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, padding: Spacing.md }}>
             <Button kind="text" label={t('cancelButton')} disabled={applying} onPress={onClose} />
-            <Button kind="filled" label="Apply" busy={applying} onPress={apply} />
+            <Button kind="filled" label={t('applyButton')} busy={applying} onPress={apply} />
           </View>
         </RNPressable>
       </RNPressable>

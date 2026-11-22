@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Timeline — everything that happened, act in place</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.tl{background:#fffdf8;color:#232019;font-family:"Inter",system-ui,sans-serif;font-size:13.5px}
+.tl .tb{background:#fffdf8;color:#c8bfae}
+.tl .wrap{flex:1;display:grid;grid-template-columns:220px 1fr 300px;min-height:0}
+.tl aside{padding:10px 18px;border-right:1px solid #f0e9da;display:flex;flex-direction:column;gap:4px}
+.tl aside h5{font:700 10.5px system-ui;letter-spacing:.1em;text-transform:uppercase;color:#b5aa94;margin:14px 0 6px}
+.tl .flt{padding:7px 10px;border-radius:8px;display:flex;justify-content:space-between;cursor:pointer}
+.tl .flt.on{background:#232019;color:#fffdf8}.tl .flt span{opacity:.6}
+.tl .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:11px;text-align:center;color:#b5aa94}
+.tl .cal b{display:block;height:22px;line-height:22px;border-radius:6px;color:#6d6453;font-weight:500}
+.tl .cal b.h{background:#f6e7c1}.tl .cal b.hh{background:#ecc66b;color:#232019}.tl .cal b.t{outline:2px solid #232019}
+.tl .feed{overflow:auto;padding:16px 34px}
+.tl .day{font:600 22px Georgia,serif;margin:14px 0 6px;display:flex;align-items:baseline;gap:10px}.tl .day small{font:400 12px system-ui;color:#b5aa94}
+.tl .ev{display:grid;grid-template-columns:54px 22px 1fr;gap:10px;padding:10px 0;position:relative}
+.tl .ev time{color:#b5aa94;font-size:12px;padding-top:2px;text-align:right}
+.tl .ev .dot{width:12px;height:12px;border-radius:50%;margin-top:4px;background:#d6ccb6;box-shadow:0 0 0 4px #fffdf8;position:relative;z-index:1}
+.tl .ev::before{content:"";position:absolute;left:69px;top:0;bottom:0;width:2px;background:#f0e9da}
+.tl .ev.up .dot{background:#3b82f6}.tl .ev.down .dot{background:#10b981}.tl .ev.sec .dot{background:#ef4444}.tl .ev.pair .dot{background:#f59e0b}
+.tl .ev .body b{font-weight:600}.tl .ev .body p{margin:3px 0 0;color:#8a806d;font-size:12.5px}
+.tl .ev .acts{display:flex;gap:6px;margin-top:8px}
+.tl .ev .acts button{border:1px solid #e8dfcb;background:#fff;border-radius:7px;padding:5px 10px;font:500 12px system-ui;cursor:pointer;color:#3f3a2f}
+.tl .ev .acts button.p{background:#232019;color:#fff;border-color:#232019}
+.tl .card{margin-top:8px;border:1px solid #f0e9da;border-radius:10px;padding:10px;display:flex;gap:10px;align-items:center;background:#fff}
+.tl .card .th{width:52px;height:38px;border-radius:6px;background:linear-gradient(135deg,#fbbf24,#f97316)}
+.tl .pb{height:5px;background:#f0e9da;border-radius:3px;overflow:hidden;margin-top:6px;width:280px}.tl .pb i{display:block;height:100%;width:67%;background:#3b82f6}
+.tl .now{background:#fff8e6;border-radius:12px;margin:0 -12px;padding:10px 12px}
+.tl .right{border-left:1px solid #f0e9da;padding:18px;display:flex;flex-direction:column;gap:12px}
+.tl .right h4{margin:0;font:600 14px system-ui}
+.tl .drop{border:2px dashed #e8dfcb;border-radius:14px;height:120px;display:grid;place-items:center;text-align:center;color:#8a806d;font-size:12.5px}
+.tl .drop b{display:block;color:#232019;font-size:14px}
+.tl .go{display:flex;flex-direction:column;gap:4px}
+.tl .go div{padding:9px 12px;border-radius:9px;background:#faf6ec;display:flex;justify-content:space-between;cursor:pointer}
+.tl .go div small{color:#b5aa94}
+.tl .srch{border:1px solid #e8dfcb;border-radius:10px;padding:9px 12px;color:#b5aa94;background:#fff}
+</style></head><body class="mk">
+<div class="win tl">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="wrap">
+  <aside><h5>Show</h5><div class="flt on">Everything <span>48</span></div><div class="flt">Transfers <span>31</span></div><div class="flt">Files changed <span>9</span></div><div class="flt">Security <span>8</span></div>
+   <h5>Computers</h5><div class="flt">● studio-pc</div><div class="flt">● work-laptop</div><div class="flt" style="opacity:.5">○ media-mini</div>
+   <h5>November</h5><div class="cal"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+    <b class="h">27</b><b class="hh">28</b><b>29</b><b class="h">30</b><b class="hh">31</b><b class="t hh">1</b><b>2</b></div></aside>
+  <div class="feed">
+   <div class="day">Today <small>Saturday, Nov 1</small></div>
+   <div class="ev pair now"><time>now</time><i class="dot"></i><div class="body"><b>“Sam's Pixel 9” asks to pair with studio-pc</b><p>From 192.168.1.40 · code <b>482 913</b> · 1:42 left. Accept only if the phone shows the same code.</p><div class="acts"><button class="p">Codes match — accept</button><button>Reject</button></div></div></div>
+   <div class="ev up"><time>10:41</time><i class="dot"></i><div class="body"><b>Uploading raw-footage-day3.mov → studio-pc / Video</b><div class="pb"><i></i></div><p>3.1 of 4.6 GB · 52 MB/s · 30 s left</p><div class="acts"><button>Pause</button><button>Cancel</button></div></div></div>
+   <div class="ev down"><time>09:12</time><i class="dot"></i><div class="body"><b>Downloaded hero-final.png from studio-pc</b> · checksum verified<div class="card"><i class="th"></i><div>hero-final.png<p>~/Downloads/RFE Desktop · 4.2 MB</p></div></div><div class="acts"><button>Open</button><button>Show in folder</button><button>Share link…</button></div></div></div>
+   <div class="ev sec"><time>07:55</time><i class="dot"></i><div class="body"><b>Failed sign-in on nas-box</b><p>from 10.0.0.9 · 3 attempts</p><div class="acts"><button>See audit log</button></div></div></div>
+   <div class="day">Yesterday <small>Friday, Oct 31</small></div>
+   <div class="ev"><time>18:20</time><i class="dot"></i><div class="body"><b>Moved 12 items to Trash</b> on work-laptop<p>old-exports/ and 11 more</p><div class="acts"><button>Restore all</button></div></div></div>
+   <div class="ev up"><time>16:03</time><i class="dot"></i><div class="body"><b>Uploaded thesis-v12.docx → work-laptop</b></div></div>
+  </div>
+  <div class="right"><div class="srch">⌕ Search files or events</div>
+   <div class="drop"><div><b>Drop files here</b>to send to studio-pc / Inbox<br>or onto any event to send to that place</div></div>
+   <h4>Go to</h4><div class="go"><div>Browse studio-pc <small>Ctrl 1</small></div><div>Browse work-laptop <small>Ctrl 2</small></div><div>Devices &amp; pairing <small>1 waiting</small></div><div>Trash · Share links · Apps <small>Tools</small></div><div>Settings <small>Ctrl ,</small></div></div></div>
+ </div>
+</div></body></html>

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 
+import { ignoreError } from '../../core/log';
 import { networkTransports } from '../../core/native';
 import { checkForUpdate, downloadUpdate, isApkReady } from './updateService';
 import type { AppRelease } from './updateLogic';
 
+const UPDATE_CHECK_LABEL = 'update check';
+
 let session: Promise<AppRelease | null> | undefined;
 
 /**
- * The once-per-launch update check. Any failure counts as "no update", so a failed check never nags. When a release is
+ * The once-per-launch update check. Any failure counts as "no update", so a failed check never nags; the cause (an unsigned manifest, no network) is logged. When a release is
  * found and the phone is on Wi-Fi or ethernet, its APK is fetched quietly so tapping Update is instant.
  */
 export function sessionUpdateCheck(): Promise<AppRelease | null> {
@@ -15,19 +18,15 @@ export function sessionUpdateCheck(): Promise<AppRelease | null> {
     .then(async (release) => {
       if (release && !(await isApkReady(release))) {
         const nets = await networkTransports().catch(() => [] as string[]);
-        if (nets.includes('wifi') || nets.includes('ethernet')) void downloadUpdate(release).catch(() => {});
+        if (nets.includes('wifi') || nets.includes('ethernet')) void downloadUpdate(release).catch(ignoreError('update download'));
       }
       return release;
     })
-    .catch(() => null);
+    .catch((e: unknown) => {
+      ignoreError(UPDATE_CHECK_LABEL)(e);
+      return null;
+    });
   return session;
-}
-
-/** A fresh check on demand (the Check for updates row); throws when the check fails. */
-export function recheckUpdate(): Promise<AppRelease | null> {
-  const check = checkForUpdate();
-  session = check.catch(() => null); // the background users of the session never see a failure
-  return check;
 }
 
 export function useSessionUpdate(): AppRelease | null {

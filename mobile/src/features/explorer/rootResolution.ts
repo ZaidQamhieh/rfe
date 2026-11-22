@@ -37,8 +37,7 @@ export type RootResolution =
 export function resolveRoots(settings: Pick<AgentStatus, 'roots' | 'accessDenied'>, health: Pick<Health, 'os'> | null, initialPath?: string): RootResolution {
   if (settings.accessDenied) return { kind: 'denied' };
   const os = health?.os.toLowerCase() ?? '';
-  const winPath = (p: string) => /^[A-Za-z]:[\\/]/.test(p);
-  const isWindows = os === 'windows' || (initialPath !== undefined && winPath(initialPath)) || settings.roots.some(winPath);
+  const isWindows = os === 'windows' || (initialPath !== undefined && windowsDriveRoot(initialPath) !== null) || settings.roots.some((r) => windowsDriveRoot(r) !== null);
 
   if (initialPath !== undefined) {
     const root = settings.roots.length === 0 ? (isWindows ? windowsDriveRoot(initialPath) : '/') : allowedRootForPath(settings.roots, initialPath, isWindows);

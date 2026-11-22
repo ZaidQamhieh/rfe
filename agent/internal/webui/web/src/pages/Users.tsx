@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, Trash2, Users as UsersIcon } from 'lucide-react';
-import { api, ApiError, type UserAccount } from '@/lib/api';
+import { api, apiMessage, type UserAccount } from '@/lib/api';
 import { useToast } from '@/lib/toast-context';
 import { Dialog } from '@/components/Dialog';
+import { ListError } from '@/components/ListError';
 
 function since(created: number): string {
   return `since ${new Date(created * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
@@ -24,7 +25,7 @@ function avatarGradient(username: string): string {
 export function Users() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data: users, isLoading } = useQuery({ queryKey: ['users'], queryFn: api.listUsers });
+  const { data: users, isLoading, isError, error } = useQuery({ queryKey: ['users'], queryFn: api.listUsers });
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [showAddInfo, setShowAddInfo] = useState(false);
 
@@ -35,7 +36,7 @@ export function Users() {
       toast('User removed');
     },
     onError: (err) => {
-      toast(err instanceof ApiError ? err.message : 'Failed to remove user');
+      toast(apiMessage(err, 'Failed to remove user'));
     },
     onSettled: () => setPendingDelete(null),
   });
@@ -68,7 +69,9 @@ export function Users() {
         </button>
       </div>
 
-      {list.length === 0 ? (
+      {isError && !users ? (
+        <ListError title="Could not load accounts" error={error} />
+      ) : list.length === 0 ? (
         <div className="empty">
           <h4>No users</h4>
           <p>No accounts were found on this agent.</p>
@@ -81,10 +84,10 @@ export function Users() {
               <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10 }}>{u.username}</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 2 }}>{since(u.created)}</div>
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="badge blue">Admin</span>
                 <button
                   className={`btn ${pendingDelete === u.username ? 'btn-danger' : 'btn-ghost'} btn-sm`}
                   style={{ marginLeft: 'auto' }}
+                  title={isLastUser ? "The only account can't be removed" : undefined}
                   disabled={isLastUser || deleteMutation.isPending}
                   onClick={() => onRemoveClick(u)}
                 >

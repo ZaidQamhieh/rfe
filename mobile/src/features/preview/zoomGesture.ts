@@ -3,7 +3,7 @@
 export const MAX_SCALE = 5;
 export const DOUBLE_TAP_SCALE = 2.5;
 /** Android's ViewConfiguration double-tap timeout. */
-export const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_MS = 300;
 const TAP_SLOP = 6;
 const ZOOMED = 1.01;
 

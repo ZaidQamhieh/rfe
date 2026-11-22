@@ -95,14 +95,7 @@ async function importLegacyIdentity(): Promise<StoredIdentity | null> {
 
   let identity: StoredIdentity;
   try {
-    identity = {
-      privateKey: await crypto.subtle.importKey(
-        'pkcs8', fromBase64(privateKeyBase64), { name: 'Ed25519' }, false, ['sign'],
-      ),
-      publicKey: await crypto.subtle.importKey(
-        'raw', fromBase64(publicKeyBase64), { name: 'Ed25519' }, true, ['verify'],
-      ),
-    };
+    identity = await importIdentity(fromBase64(privateKeyBase64), fromBase64(publicKeyBase64));
     await validateIdentity(identity);
   } catch {
     // A malformed legacy key can never work; drop it so the next load pairs afresh
@@ -113,6 +106,14 @@ async function importLegacyIdentity(): Promise<StoredIdentity | null> {
   await writeIdentity(identity);
   clearLegacyIdentity();
   return identity;
+}
+
+// The private half is non-extractable (sign only); the public half stays extractable so it can be exported.
+async function importIdentity(privateBytes: BufferSource, publicBytes: BufferSource): Promise<StoredIdentity> {
+  return {
+    privateKey: await crypto.subtle.importKey('pkcs8', privateBytes, { name: 'Ed25519' }, false, ['sign']),
+    publicKey: await crypto.subtle.importKey('raw', publicBytes, { name: 'Ed25519' }, true, ['verify']),
+  };
 }
 
 function clearLegacyIdentity(): void {
@@ -135,14 +136,7 @@ async function generateIdentity(): Promise<StoredIdentity> {
     crypto.subtle.exportKey('pkcs8', generated.privateKey),
     crypto.subtle.exportKey('raw', generated.publicKey),
   ]);
-  const identity: StoredIdentity = {
-    privateKey: await crypto.subtle.importKey(
-      'pkcs8', privateBytes, { name: 'Ed25519' }, false, ['sign'],
-    ),
-    publicKey: await crypto.subtle.importKey(
-      'raw', publicBytes, { name: 'Ed25519' }, true, ['verify'],
-    ),
-  };
+  const identity: StoredIdentity = await importIdentity(privateBytes, publicBytes);
   await validateIdentity(identity);
   await writeIdentity(identity);
   return identity;
@@ -157,18 +151,12 @@ async function loadIdentity(): Promise<StoredIdentity> {
     await validateIdentity(stored);
     return stored;
   }
-  // Malformed legacy keys must not wedge sign-in for good: drop them and start a fresh identity.
-  let legacy: StoredIdentity | null = null;
-  try {
-    legacy = await importLegacyIdentity();
-  } catch {
-    clearLegacyIdentity();
-  }
-  return legacy ?? generateIdentity();
+  // A failed save of a valid legacy key propagates, so the legacy key stays stored and the next load retries it.
+  return (await importLegacyIdentity()) ?? generateIdentity();
 }
 
 /** The browser's persistent Ed25519 identity, creating it once when needed. */
-export async function getDeviceKeyPair(): Promise<CryptoKeyPair> {
+async function getDeviceKeyPair(): Promise<CryptoKeyPair> {
   if (cached) return cached;
   loading ??= loadIdentity();
   try {
@@ -190,7 +178,7 @@ export function deviceProofMessageV2(certFingerprint: string, nonce: string): st
   return `rfe-device-proof-v2\n${certFingerprint.toLowerCase()}\n${nonce}`;
 }
 
-/** signature field: message (the bound v2 proof, or the bare nonce for /login) signed with the non-extractable key. */
+/** signature field: message (the bound v2 proof) signed with the non-extractable key. */
 export async function signNonce(message: string): Promise<string> {
   const { privateKey } = await getDeviceKeyPair();
   const signature = await crypto.subtle.sign(

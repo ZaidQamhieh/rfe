@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Finder — start by typing what you are looking for</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d19{--bg:#fbfcfd;--sf:#ffffff;--rz:#eef1f4;--t1:#111827;--t2:#4b5563;--t3:#6b7280;--line:rgba(17,24,39,.08);--line2:rgba(17,24,39,.14);--ac:#0f766e;--on-ac:#fff;--ac-ink:#0f6b63;--ac-soft:rgba(15,118,110,.08);--font:"Inter",system-ui,sans-serif;display:flex;flex-direction:column}
+.d19 .top{height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;font-size:13px}
+.d19 .top nav{display:flex;gap:4px;margin-left:auto}
+.d19 .top nav button{height:30px;padding:0 10px;border-radius:6px;color:var(--t2)} .d19 .top nav button.on{background:var(--rz);color:var(--t1)}
+.d19 .top nav em{font-style:normal;color:var(--neg);font:11px var(--mono);margin-left:4px}
+.d19 .q{flex:none;padding:8px 20px 16px;border-bottom:1px solid var(--line)}
+.d19 .q label{display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;border-radius:12px;background:var(--sf);box-shadow:0 1px 2px rgba(0,0,0,.04),inset 0 0 0 1px var(--line2);font-size:18px}
+.d19 .q input{flex:1;border:0;outline:0;background:none;font:inherit;color:var(--t1)}
+.d19 .q .on{display:flex;gap:6px}
+.d19 .q .on span{display:flex;gap:6px;align-items:center;height:28px;padding:0 10px;border-radius:14px;background:var(--rz);font-size:12px;color:var(--t2)}
+.d19 .stage{flex:1;overflow:auto;padding:16px 20px;min-height:0}
+.d19 .stage:has(.fd){overflow:hidden;display:flex;padding:0}
+.d19 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d19 .k-files{flex:1}
+.d19 .fd{flex:1;display:grid;grid-template-columns:220px 1fr 320px;min-height:0}
+.d19 .fl{border-right:1px solid var(--line);padding:16px 12px;overflow:auto;font-size:13px}
+.d19 .fl h4{font:500 12px var(--font);color:var(--t3);margin:16px 8px 6px} .d19 .fl h4:first-child{margin-top:0}
+.d19 .fl label{display:flex;gap:8px;align-items:center;height:28px;padding:0 8px;border-radius:6px;color:var(--t2)} .d19 .fl label small{margin-left:auto;font:11px var(--mono);color:var(--t3)}
+.d19 .fl input{accent-color:var(--ac)}
+.d19 .fl button{display:flex;gap:8px;align-items:center;width:100%;height:28px;padding:0 8px;border-radius:6px;color:var(--t2)}
+.d19 .rs{overflow:auto;padding:12px 16px}
+.d19 .rs .ln{font-size:12px;color:var(--t3);margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.d19 .res{display:grid;grid-template-columns:24px 1fr auto;gap:12px;align-items:center;padding:10px;border-radius:8px}
+.d19 .res:hover{background:var(--rz)} .d19 .res.sel{background:var(--ac-soft)}
+.d19 .res b{font-weight:500} .d19 .res b mark{background:rgba(15,118,110,.14);color:inherit;border-radius:2px}
+.d19 .res small{display:block;color:var(--t3);font-size:12px;font-family:var(--mono)} .d19 .res .m{font:12px var(--mono);color:var(--t3);text-align:right}
+.d19 .pv{border-left:1px solid var(--line);padding:16px;overflow:auto}
+.d19 .pv h3{font:500 15px var(--font);margin:12px 0 4px}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d19">
+ <header class="top" id="topEl"></header>
+ <div class="q"><label><span id="qi"></span><input value="bed" aria-label="Search every computer"><span class="on" id="qon"></span><kbd>Enter</kbd></label></div>
+ <main class="stage" id="st"></main>
+</div>
+<script>
+window.IDEA='Most visits start with “where is that file”. The search field is the home screen and always open; it searches every connected computer at once, filters sit on the left, and the right column previews the result with its actions, so finding, opening and downloading is type, click, click. Browsing folders is one tab away.';
+window.MAP=[['Navigation','Text tabs at the top right; Find is home',1],['Switch computer','Tick computers in the filters; Browse has the switcher',1],['Connect and trust','Servers, New connection',2],['Servers and status','Servers tab',1],['Files and preview','Preview column; Browse tab for folders; right-click everywhere',0],['Upload and download','Download in the preview; Browse for upload',1],['Pair a phone','QR icon at the top right',1],['Pairing requests','Devices tab with the count',1],['Transfers','Transfers tab with the count',1],['Search','Always open; saved searches in the filters',0],['Tools','Tools tab',1],['History and audit','History tab',1],['Settings','Settings tab',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,D=K.D;
+document.getElementById('qi').outerHTML=I('search',20);
+document.getElementById('qon').innerHTML=`<span>${K.dot('ok')}studio-pc</span><span>${K.dot('ok')}work-laptop</span>`;
+const T=[['find','Find'],['files','Browse'],['servers','Servers'],['devices','Devices<em>2</em>'],['transfers','Transfers<em>3</em>'],['tools','Tools'],['history','History'],['settings','Settings']];
+function bar(v){document.getElementById('topEl').innerHTML=`<span style="display:flex;gap:8px;align-items:center;font-weight:500">${I('key',16)}RFE</span><nav>${T.map(t=>`<button class="${v===t[0]?'on':''}" data-k="go:${t[0]}">${t[1]}</button>`).join('')}</nav>${K.C.actions({no:['refresh']})}`;document.querySelector('.d19 .q').style.display=['find','search'].includes(v)?'':'none';}
+K.MENU.findmore=[['Share link…','dlg:share','link'],['Add to favorites','toast:Added north-bed-after.jpg to favorites','star'],['Properties…','dlg:props','info']];
+const ki={img:'img',doc:'doc',txt:'txt',sheet:'sheet',vid:'vid',arc:'arc'};
+const find=()=>`<div class="fd"><aside class="fl"><h4>Computers</h4>${D.servers.map(s=>`<label><input type="checkbox" ${s.dot==='ok'?'checked':'disabled'}>${K.mach(s,16)}${s.name}<small>${s.dot==='ok'?'':s.dot==='bad'?'key':'off'}</small></label>`).join('')}<h4>Kind</h4>${[['Images',3,'img'],['Documents',2,'doc'],['Text',1,'txt'],['Video',0,'vid']].map(k=>`<label><input type="checkbox" ${k[1]?'checked':''}>${K.E(k[2],16)}${k[0]}<small>${k[1]}</small></label>`).join('')}<h4>Modified</h4>${['Any time','This week','This month','This year'].map((m,i)=>`<label><input type="radio" name="m" ${i?'':'checked'}>${m}</label>`).join('')}<h4>Size</h4>${['Any','Over 1 MB','Over 100 MB'].map((m,i)=>`<label><input type="radio" name="s" ${i?'':'checked'}>${m}</label>`).join('')}<h4>Saved searches</h4>${D.search.saved.map(s=>`<button>${I('search',14)}${s}</button>`).join('')}<button>${I('plus',14)}Save “bed”</button></aside>
+<section class="rs"><p class="ln">${D.search.line}</p>${D.search.res.map((r,i)=>`<div class="res${i===0?' sel':''}" data-row="${r[0]}">${K.fic(ki[r[1]]||'doc')}<div><b>${r[0].replace('bed','<mark>bed</mark>')}</b><small>${r[3]} · ${r[2]}</small></div><span class="m">${r[5]}<br>${r[4]}</span></div>`).join('')}</section>
+<aside class="pv"><div data-k="dlg:preview" style="cursor:zoom-in">${K.photo(2,288,200,8)}</div><h3 style="display:flex;gap:8px;align-items:center">${K.E('img',16)}north-bed-after.jpg</h3><p class="k-sub">studio-pc · /home/sam/Projects/garden-plan</p><dl class="k-kv" style="margin-top:12px"><dt>Size</dt><dd>3.8 MB</dd><dt>Modified</dt><dd>1 Nov 09:12</dd><dt>Kind</dt><dd>JPEG image · 4032 × 3024</dd></dl><div class="k-dact" style="margin-top:16px">${K.btn('Download',{i:'download',k:'pri',kc:'Ctrl D'})}<div class="k-row">${K.btn('Open folder',{i:'folder',a:'go:files'})}${K.ib('more','Share link, add to favorites','menu:findmore')}</div></div></aside></div>`;
+K.mount({stage:document.getElementById('st'),state:{view:'find'},views:{find,search:find},onGo:bar});
+</script></body></html>

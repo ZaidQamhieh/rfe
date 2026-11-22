@@ -14,6 +14,10 @@ pub const MAX_DIRTY_DIRS: usize = 4096;
 /// A batch is applied once events have been quiet this long, or this long after the first one.
 pub const QUIET: Duration = Duration::from_millis(250);
 pub const MAX_WAIT: Duration = Duration::from_secs(2);
+/// How long a waiter sleeps before rechecking for events when no batch is pending.
+/// The shortest sleep between flush checks, so a nearly due flush does not spin.
+const MIN_WAIT: Duration = Duration::from_millis(10);
+const IDLE_WAIT: Duration = Duration::from_millis(500);
 
 #[derive(Default)]
 struct Pending {
@@ -22,6 +26,13 @@ struct Pending {
     last: Option<Instant>,
     /// The watcher lost events (queue overflow, error): only a rebuild is safe.
     overflow: bool,
+}
+
+/// Records an event at now: the batch starts at the first event and waits for the latest one.
+fn touch(p: &mut Pending) {
+    let now = Instant::now();
+    p.first.get_or_insert(now);
+    p.last = Some(now);
 }
 
 /// Directories reported dirty since the last batch.
@@ -40,18 +51,14 @@ pub struct Batch {
 impl Events {
     pub fn mark(&self, dir: String) {
         let mut p = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        p.first.get_or_insert(now);
-        p.last = Some(now);
+        touch(&mut p);
         p.paths.insert(dir);
         self.cv.notify_all();
     }
 
     pub fn mark_overflow(&self) {
         let mut p = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        p.first.get_or_insert(now);
-        p.last = Some(now);
+        touch(&mut p);
         p.overflow = true;
         self.cv.notify_all();
     }
@@ -72,9 +79,7 @@ impl Events {
     /// Puts a batch back (the applier could not run it yet).
     pub fn restore(&self, batch: Batch) {
         let mut p = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        p.first.get_or_insert(now);
-        p.last = Some(now);
+        touch(&mut p);
         p.paths.extend(batch.dirs);
         p.overflow |= batch.overflow;
     }
@@ -97,18 +102,10 @@ impl Events {
                         });
                     }
                     let wait = QUIET.saturating_sub(now.duration_since(last));
-                    p = self
-                        .cv
-                        .wait_timeout(p, wait.max(Duration::from_millis(10)))
-                        .unwrap()
-                        .0;
+                    p = self.cv.wait_timeout(p, wait.max(MIN_WAIT)).unwrap().0;
                 }
                 _ => {
-                    p = self
-                        .cv
-                        .wait_timeout(p, Duration::from_millis(500))
-                        .unwrap()
-                        .0;
+                    p = self.cv.wait_timeout(p, IDLE_WAIT).unwrap().0;
                 }
             }
         }
@@ -128,6 +125,8 @@ pub struct Health {
 pub struct Watch {
     watcher: Mutex<RecommendedWatcher>,
     pub health: Arc<Health>,
+    /// Set when a newer index replaced this watch: its events are ignored and its registration stops early.
+    stopped: Arc<AtomicBool>,
 }
 
 fn per_directory() -> bool {
@@ -138,27 +137,41 @@ fn per_directory() -> bool {
 
 impl Watch {
     pub fn new(events: Arc<Events>) -> notify::Result<Watch> {
-        let handler = move |res: notify::Result<notify::Event>| match res {
-            Ok(ev) => {
-                if matches!(ev.kind, EventKind::Access(_)) {
-                    return;
-                }
-                if ev.need_rescan() {
-                    events.mark_overflow();
-                    return;
-                }
-                for p in &ev.paths {
-                    if let Some(parent) = p.parent().and_then(Path::to_str) {
-                        events.mark(parent.to_string());
+        let stopped = Arc::new(AtomicBool::new(false));
+        let muted = Arc::clone(&stopped);
+        let handler = move |res: notify::Result<notify::Event>| {
+            if muted.load(Ordering::Relaxed) {
+                return;
+            }
+            match res {
+                Ok(ev) => {
+                    if matches!(ev.kind, EventKind::Access(_)) {
+                        return;
+                    }
+                    if ev.need_rescan() {
+                        events.mark_overflow();
+                        return;
+                    }
+                    for p in &ev.paths {
+                        if let Some(parent) = p.parent().and_then(Path::to_str) {
+                            events.mark(parent.to_string());
+                        }
                     }
                 }
+                Err(_) => events.mark_overflow(),
             }
-            Err(_) => events.mark_overflow(),
         };
         Ok(Watch {
             watcher: Mutex::new(notify::recommended_watcher(handler)?),
             health: Arc::new(Health::default()),
+            stopped,
         })
+    }
+
+    /// Retires this watch: later events are ignored (a superseded watch must not feed the live index, nor overflow
+    /// into a rebuild) and an unfinished registration stops. The inotify instance closes when the last Arc drops.
+    pub fn stop(&self) {
+        self.stopped.store(true, Ordering::Relaxed);
     }
 
     /// Watches every directory in `dirs` (or, where the platform does it cheaply, each root recursively).
@@ -168,6 +181,9 @@ impl Watch {
         let result: notify::Result<()> = if per_directory() {
             let mut r = Ok(());
             for d in dirs {
+                if self.stopped.load(Ordering::Relaxed) {
+                    break;
+                }
                 match w.watch(Path::new(d), RecursiveMode::NonRecursive) {
                     Ok(()) => {
                         self.health.watches.fetch_add(1, Ordering::Relaxed);

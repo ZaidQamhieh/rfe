@@ -18,49 +18,71 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/thumbs"
 )
 
-// indexBackend is what searchHandler needs from a search index: the rfe-indexd sidecar or noIndex
-// sidecar behind sidecarIndex.
+// indexBackend is what searchHandler needs from a search index: the rfe-indexd sidecar (sidecarIndex)
+// or noIndex when the agent runs without it.
 type indexBackend interface {
 	query(filters *searchFilters, roots []string, limit int) (results []fsops.Entry, truncated bool, ok bool)
+}
+
+// contextIndexBackend is an indexBackend whose query can be cancelled: a search whose client has gone away
+// stops waiting on the sidecar.
+type contextIndexBackend interface {
+	queryContext(ctx context.Context, filters *searchFilters, roots []string, limit int) (results []fsops.Entry, truncated bool, ok bool)
+}
+
+// queryIndex asks idx for results under ctx when idx supports cancellation, and plainly otherwise.
+func queryIndex(ctx context.Context, idx indexBackend, filters *searchFilters, roots []string, limit int) ([]fsops.Entry, bool, bool) {
+	if c, ok := idx.(contextIndexBackend); ok {
+		return c.queryContext(ctx, filters, roots, limit)
+	}
+	return idx.query(filters, roots, limit)
 }
 
 // indexRebuildInterval is how often the sidecar index is re-walked when live updates are not available.
 const indexRebuildInterval = 5 * time.Minute
 
+// indexRetryNoSidecar is how long the index loop waits before retrying when no sidecar client is available.
+const indexRetryNoSidecar = time.Minute
+
+// indexRetryAfterFailure is how long the index loop waits after a failed build before retrying.
+const indexRetryAfterFailure = 30 * time.Second
+
+// indexBuildTimeout bounds one index.build call to the sidecar.
+const indexBuildTimeout = 30 * time.Minute
+
 // maxIndexDutyCycle bounds the share of wall-clock time re-walks may consume: a walk that took longer than the
 // interval waits ten times its own duration, so cost scales with the tree instead of the clock.
 const maxIndexDutyCycle = 10
 
-// Limits handed to rfe-indexd for one snapshot. The byte ceiling stops unusually long names and paths from
-// defeating the entry cap.
+// Limits handed to rfe-indexd for one snapshot, defined once in internal/sidecar.
 const (
-	indexMaxEntries        = 2_000_000
-	indexMaxEstimatedBytes = 128 << 20
+	indexMaxEntries        = sidecar.IndexMaxEntries
+	indexMaxEstimatedBytes = sidecar.IndexMaxEstimatedBytes
 )
 
 // newIndexBackend picks the search index: rfe-indexd when enabled and installed, else none (live walks).
 func newIndexBackend(ops *fsops.Ops) indexBackend {
-	if sidecarEnabled("indexd") {
-		if cfg, ok := sidecarConfig("rfe-indexd"); ok {
+	if sidecarEnabled(sidecar.IndexdName) {
+		if cfg, ok := sidecarConfig(sidecar.IndexdName); ok {
 			log.Printf("search index: using sidecar %s", cfg.Path)
 			return newSidecarIndex(ops, cfg)
 		}
-		log.Printf("search index: RFE_SIDECARS enables indexd but rfe-indexd was not found; searching by live walk")
+		log.Printf("search index: RFE_SIDECARS enables indexd but rfe-indexd was not found or was refused (see above); searching by live walk")
 	}
-	warnSidecarMissing("indexd", "search")
+	warnSidecarMissing(sidecar.IndexdName, "search")
 	return noIndex{}
 }
 
 // warnSidecarMissing says once at startup that a component runs in-process because no verified sidecar came with
 // this install (a `go build` or a hand-copied agent), unless the owner turned sidecars off on purpose.
 func warnSidecarMissing(name, what string) {
-	if raw := os.Getenv("RFE_SIDECARS"); raw != "" && !sidecarEnabled(name) {
+	if sidecarSettingSet() && !sidecarEnabled(name) {
 		return
 	}
-	if _, ok, _ := locateSidecar("rfe-" + name); ok {
+	if _, ok, _ := locateSidecar(name); ok {
 		return
 	}
-	log.Printf("WARNING: rfe-%s is not installed next to the agent: %s runs in-process. Install the packaged release (tools/package-agent.sh) to use the sidecar", name, what)
+	log.Printf("WARNING: %s is not installed next to the agent: %s runs in-process. Install the packaged release (tools/package-agent.sh) to use the sidecar", sidecarFileName(name), what)
 }
 
 // sidecarIndex keeps the index in rfe-indexd and answers queries from it. While the sidecar is down or has no
@@ -118,12 +140,19 @@ type statsResp struct {
 	Live  liveStats `json:"live"`
 }
 
+const (
+	// sidecarWatchAttempts and sidecarWatchPoll bound the watching() retry loop.
+	sidecarWatchAttempts = 40
+	sidecarWatchPoll     = 500 * time.Millisecond
+	sidecarStatsTimeout  = 5 * time.Second
+)
+
 // watching reports whether the sidecar has a watch on every directory, retrying briefly because the watches go in
 // right after the build answers.
 func watching(c *sidecar.Client) (liveStats, bool) {
 	var last liveStats
-	for i := 0; i < 40; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	for i := 0; i < sidecarWatchAttempts; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), sidecarStatsTimeout)
 		var st statsResp
 		err := c.Call(ctx, "index.stats", struct{}{}, &st)
 		cancel()
@@ -137,20 +166,20 @@ func watching(c *sidecar.Client) (liveStats, bool) {
 		if st.Live.Error != "" {
 			return last, false
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(sidecarWatchPoll)
 	}
 	return last, false
 }
 
 func (s *sidecarIndex) loop() {
 	for {
-		wait := time.Minute
+		wait := indexRetryNoSidecar
 		if c, err := s.sup.Client(); err == nil {
 			started := time.Now()
 			wait = indexRebuildInterval
 			if err := s.build(c); err != nil {
 				log.Printf("search index (sidecar): build failed: %v", err)
-				wait = 30 * time.Second
+				wait = indexRetryAfterFailure
 			} else {
 				if live, ok := watching(c); ok {
 					wait = indexLiveReconcileInterval
@@ -188,12 +217,13 @@ func indexCovers(indexed []string, root string) bool {
 	for _, base := range indexed {
 		base = filepath.Clean(base)
 		// Exact, case-sensitive comparison on purpose: the index matches paths byte for byte.
+		trimmedBase := strings.TrimRight(base, string(filepath.Separator))
 		rel := ""
 		switch {
 		case root == base:
 			rel = "."
-		case strings.HasPrefix(root, strings.TrimRight(base, string(filepath.Separator))+string(filepath.Separator)):
-			rel = root[len(strings.TrimRight(base, string(filepath.Separator)))+1:]
+		case strings.HasPrefix(root, trimmedBase+string(filepath.Separator)):
+			rel = root[len(trimmedBase)+1:]
 		default:
 			continue
 		}
@@ -216,7 +246,7 @@ func indexCovers(indexed []string, root string) bool {
 
 func (s *sidecarIndex) build(c *sidecar.Client) error {
 	roots := s.indexRoots()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), indexBuildTimeout)
 	defer cancel()
 	var resp buildResp
 	if err := c.Call(ctx, "index.build", buildReq{Roots: roots, MaxEntries: indexMaxEntries, MaxBytes: indexMaxEstimatedBytes}, &resp); err != nil {
@@ -337,6 +367,13 @@ type queryResp struct {
 }
 
 func (s *sidecarIndex) query(filters *searchFilters, roots []string, limit int) ([]fsops.Entry, bool, bool) {
+	return s.queryContext(context.Background(), filters, roots, limit)
+}
+
+// queryContext asks the sidecar index for matches. It gives up when parent is done (the request's client left)
+// or after searchTimeBudget, whichever comes first. The agent drops duplicate paths and any path outside roots
+// itself, whatever the sidecar returns, before applying limit.
+func (s *sidecarIndex) queryContext(parent context.Context, filters *searchFilters, roots []string, limit int) ([]fsops.Entry, bool, bool) {
 	// A ready index that does not cover a root would answer [] for it; walk live instead.
 	s.builtMu.Lock()
 	indexed := s.built
@@ -347,11 +384,13 @@ func (s *sidecarIndex) query(filters *searchFilters, roots []string, limit int) 
 			return nil, false, false
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), searchTimeBudget)
+	ctx, cancel := context.WithTimeout(parent, searchTimeBudget)
 	defer cancel()
 	var resp queryResp
 	if err := s.sup.Call(ctx, "index.query", queryReq{Filters: toWireFilters(filters), Roots: roots, Limit: limit}, &resp); err != nil {
-		sidecar.Note("indexd.search-fallback")
+		if parent.Err() == nil {
+			sidecar.Note("indexd.search-fallback")
+		}
 		return nil, false, false
 	}
 	if !resp.Ready {
@@ -360,10 +399,15 @@ func (s *sidecarIndex) query(filters *searchFilters, roots []string, limit int) 
 	}
 	scopes := prepareRootScopes(roots)
 	out := make([]fsops.Entry, 0, len(resp.Entries))
+	seen := make(map[string]struct{}, len(resp.Entries))
 	for i := range resp.Entries {
 		if !acceptSidecarPath(resp.Entries[i].Path, scopes) {
 			continue
 		}
+		if _, dup := seen[resp.Entries[i].Path]; dup {
+			continue
+		}
+		seen[resp.Entries[i].Path] = struct{}{}
 		out = append(out, resp.Entries[i].toEntry())
 		if len(out) >= limit {
 			break
@@ -389,7 +433,7 @@ type recentsResp struct {
 // sidecar is unavailable or misbehaves.
 func sidecarRecentWalker(sup *sidecar.Supervisor) func(context.Context, *fsops.Ops, string, int, *recentHeap) {
 	return func(ctx context.Context, ops *fsops.Ops, root string, limit int, h *recentHeap) {
-		budget := 15 * time.Second
+		budget := recentTimeBudget
 		if dl, ok := ctx.Deadline(); ok {
 			budget = time.Until(dl)
 		}
@@ -448,9 +492,9 @@ func useThumbSidecar(r *thumbs.Renderer) {
 		warnSidecarMissing("thumbd", "thumbnail decoding")
 		return
 	}
-	cfg, ok := sidecarConfig("rfe-thumbd")
+	cfg, ok := sidecarConfig("thumbd")
 	if !ok {
-		log.Printf("thumbnails: RFE_SIDECARS enables thumbd but rfe-thumbd was not found; using the built-in renderer")
+		log.Printf("thumbnails: RFE_SIDECARS enables thumbd but rfe-thumbd was not found or was refused (see above); using the built-in renderer")
 		return
 	}
 	log.Printf("thumbnails: using sidecar %s", cfg.Path)

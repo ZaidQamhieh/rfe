@@ -33,6 +33,13 @@ describe('search controller', () => {
     expect(recorded).toEqual(['foo']);
   });
 
+  it('asks for a content search and sends the words as typed', async () => {
+    const { ctl, calls } = setup(() => ok());
+    await ctl.run('a*b', { ...defaultFilters(), content: true, mode: 'regex' }, '/here');
+    expect(calls[0].content).toBe(true);
+    expect(calls[0].q).toBe('a*b');
+  });
+
   it('searches every root when not restricted to the current folder', async () => {
     const { ctl, calls } = setup(() => ok());
     await ctl.run('x', { ...defaultFilters(), fromHere: false }, '/here');

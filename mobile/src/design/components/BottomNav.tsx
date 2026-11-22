@@ -3,63 +3,69 @@ import type { LucideIcon } from 'lucide-react-native';
 import { Pressable as RNPressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { mix } from '../color';
+import { t } from '../../i18n';
 import { LumenSize, LumenType } from '../lumen';
 import { useScheme } from '../theme';
+import { DuoIcon } from './DuoIcon';
 import { Text } from './Text';
+import { Spacing } from '../tokens';
 
-export type NavDestination = { name: string; label: string; Icon: LucideIcon; SelectedIcon?: LucideIcon };
+export type NavDestination = {
+  name: string;
+  label: string;
+  Icon: LucideIcon;
+  /** A plain number written beside the label (active transfers); hidden when absent or zero. */
+  count?: number;
+  /** Other routes that belong under this destination, so it stays selected while one of them is open. */
+  also?: string[];
+};
 
 /**
- * Lumen `.bottom`: a floating rounded dock (8 px inset, 12 px radius, raised surface, soft shadow) whose selected item is a
- * 9 px-radius pill tinted 13% with the host colour. Every pill background stays mounted and only its opacity changes,
- * because Android drops a view's radius when its background is swapped or mounted late.
+ * Nameplate `.nav`: a flat 76 high bar on the sheet colour with a hairline above it. Every destination is an icon and a
+ * label; the selected one has a 60x30 pill in the accent-soft colour behind its icon and its label in ink. A count is a
+ * mono number beside the label, never a badge. Destinations are matched to routes by name, so hidden routes in the
+ * tab navigator do not shift them. The pill stays mounted and only its opacity changes, because Android drops a view's
+ * radius when its background is swapped or mounted late.
  */
 export function BottomNav({ state, navigation, destinations }: BottomTabBarProps & { destinations: NavDestination[] }) {
   const c = useScheme();
   const insets = useSafeAreaInsets();
-  const pill = mix(c.primary, c.surfaceContainer, 0.13);
+  const current = state.routes[state.index]?.name;
 
   return (
-    <View style={{ backgroundColor: c.surface, paddingBottom: insets.bottom + LumenSize.dockInsetBottom, paddingHorizontal: LumenSize.dockInsetX, paddingTop: 4 }}>
-      <View
-        style={{
-          height: LumenSize.dockHeight,
-          padding: 6,
-          flexDirection: 'row',
-          alignItems: 'center',
-          borderRadius: LumenSize.dockRadius,
-          backgroundColor: c.surfaceContainer,
-          elevation: 6,
-          shadowColor: '#000',
-          shadowOpacity: 0.2,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 4 },
-        }}
-      >
-        {destinations.map((d, i) => {
-          const selected = state.index === i;
-          const tint = selected ? c.primary : c.onSurfaceVariant;
-          const Icon = selected ? (d.SelectedIcon ?? d.Icon) : d.Icon;
+    <View style={{ backgroundColor: c.surfaceContainerLowest, borderTopWidth: 1, borderTopColor: c.rule, paddingBottom: insets.bottom }}>
+      <View style={{ height: LumenSize.dockHeight, flexDirection: 'row', alignItems: 'center' }}>
+        {destinations.map((d) => {
+          const selected = current === d.name || (d.also?.includes(current ?? '') ?? false);
+          const route = state.routes.find((r) => r.name === d.name);
+          const labelColor = selected ? c.onSurface : c.onSurfaceVariant;
+          const count = d.count && d.count > 0 ? d.count : 0;
           return (
             <RNPressable
               key={d.name}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
-              accessibilityLabel={d.label}
+              accessibilityLabel={count ? t('navTransfersActive', { label: d.label, count }) : d.label}
               onPress={() => {
-                const route = state.routes[i];
+                if (!route) return;
                 const ev = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!selected && !ev.defaultPrevented) navigation.navigate(route.name);
+                if (!ev.defaultPrevented) navigation.navigate(route.name);
               }}
-              style={{ flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              style={{ flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs }}
             >
-              <View style={{ position: 'absolute', top: 0, left: 2, right: 2, bottom: 0, borderRadius: LumenSize.dockItemRadius, backgroundColor: pill, opacity: selected ? 1 : 0 }} />
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <Icon size={26} color={tint} />
-                <Text style={[LumenType.dock, selected && { fontFamily: 'Lato_700Bold' }]} color={tint} numberOfLines={1}>
+              <View style={{ width: 60, height: 30, borderRadius: LumenSize.dockItemRadius, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: LumenSize.dockItemRadius, backgroundColor: c.primaryContainer, opacity: selected ? 1 : 0 }} />
+                <DuoIcon icon={d.Icon} size={24} color={selected ? c.onPrimaryContainer : c.onSurfaceVariant} />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={LumenType.dock} color={labelColor} numberOfLines={1}>
                   {d.label}
                 </Text>
+                {count ? (
+                  <Text style={[LumenType.monoSmall, { marginLeft: Spacing.xs }]} color={c.onSurface}>
+                    {count}
+                  </Text>
+                ) : null}
               </View>
             </RNPressable>
           );

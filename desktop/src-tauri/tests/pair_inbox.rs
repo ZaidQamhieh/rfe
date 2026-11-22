@@ -317,7 +317,7 @@ fn every_inbox_message_is_in_the_user_guide_and_in_the_app() {
         "The agent holds at most 3 waiting requests.",
         "That request already expired or was answered on the PC.",
         "Accepted ",
-        "Rejected ",
+        "Refused ",
     ];
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let guide = std::fs::read_to_string(root.join("../docs/user-guide.md")).unwrap();

@@ -1,10 +1,12 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { canInstallPackages, installApk, openInstallSettings, publicDownload, publicDownloadCancel, sha256File, appBuild } from '../../core/native';
+import { canInstallPackages, installApk, openInstallSettings, publicDownload, sha256File, appBuild } from '../../core/native';
 import { keyValue } from '../../services';
 import { isUpdateAvailable, LATEST_MANIFEST_URL, LATEST_SIGNATURE_URL, manifestSignatureOk, parseRelease, percent, type AppRelease } from './updateLogic';
 
 const DISMISSED_KEY = 'rfe_update_dismissed_code_v1';
+/** How often the download progress callback reports, in ms. */
+const PROGRESS_INTERVAL_MS = 300;
 
 /** Fetches the newest published release; null when it is not newer than this build. Throws when the check itself fails. */
 export async function checkForUpdate(): Promise<AppRelease | null> {
@@ -48,15 +50,23 @@ export async function isApkReady(release: AppRelease): Promise<boolean> {
   return release.size > 0 && (await verified(release, apkFile(release.versionCode)));
 }
 
-const active = new Map<number, Promise<void>>();
+/** A running download and everyone listening to its progress (the caller that started it and any that joined). */
+const active = new Map<number, { job: Promise<void>; listeners: Set<(pct: number) => void> }>();
 
 /**
  * Downloads (or resumes) the release's APK and verifies it. A second call for the same build joins the running one, so
- * the background pre-download and a tap on Update never write the same file twice. A failed check deletes the file.
+ * the background pre-download and a tap on Update never write the same file twice; the joining call's [onProgress]
+ * is reported to as well. A failed check deletes the file.
  */
 export function downloadUpdate(release: AppRelease, onProgress?: (pct: number) => void): Promise<void> {
   const running = active.get(release.versionCode);
-  if (running) return running;
+  if (running) {
+    if (onProgress) running.listeners.add(onProgress);
+    return running.job;
+  }
+  const listeners = new Set<(pct: number) => void>();
+  if (onProgress) listeners.add(onProgress);
+  const report = (pct: number) => listeners.forEach((l) => l(pct));
   const job = (async () => {
     const file = apkFile(release.versionCode);
     if (await verified(release, file)) return;
@@ -66,7 +76,7 @@ export function downloadUpdate(release: AppRelease, onProgress?: (pct: number) =
       file.delete();
       offset = 0;
     }
-    const timer = onProgress ? setInterval(() => file.exists && onProgress(percent(file.size, release.size)), 300) : undefined;
+    const timer = setInterval(() => file.exists && report(percent(file.size, release.size)), PROGRESS_INTERVAL_MS);
     try {
       try {
         await publicDownload(id, release.url ?? '', nativePath(file), offset);
@@ -76,19 +86,17 @@ export function downloadUpdate(release: AppRelease, onProgress?: (pct: number) =
         await publicDownload(id, release.url ?? '', nativePath(file), 0);
       }
     } finally {
-      if (timer) clearInterval(timer);
+      clearInterval(timer);
     }
     if (!(await verified(release, file))) {
       file.delete();
       throw new Error('The downloaded update failed verification.');
     }
-    onProgress?.(100);
+    report(100);
   })().finally(() => active.delete(release.versionCode));
-  active.set(release.versionCode, job);
+  active.set(release.versionCode, { job, listeners });
   return job;
 }
-
-export const cancelUpdateDownload = (release: AppRelease) => publicDownloadCancel(`update${release.versionCode}`);
 
 export type InstallOutcome = 'started' | 'needsPermission' | 'failed';
 

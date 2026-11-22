@@ -15,6 +15,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ZaidQamhieh/rfe/agent/internal/pairing"
@@ -28,8 +29,29 @@ const pairRequestTTL = 2 * time.Minute
 const (
 	pairRequestRateAttempts = 6
 	pairRequestRateWindow   = time.Minute
+	// globalRateFactor scales the reveal route's per-source limit (a keyed limiter) as a multiple of the per-source budget.
+	globalRateFactor = 4
 	// Polling is cheap and legitimate (every ~2s for up to the TTL).
 	pairPollRateAttempts = 120
+)
+
+// pairRequestNotFoundMsg is the 404 message for a pairing request that is unknown or no longer pending.
+const pairRequestNotFoundMsg = "pairing request not found or expired"
+
+// codePairBusy is the 429 error code when too many pairing requests await approval.
+const codePairBusy = "PAIR_BUSY"
+
+const (
+	// pairIDBytes is the size, in bytes, of a pairing request id.
+	pairIDBytes = 16
+	// clientNonceBytes is the size, in bytes, of the client nonce.
+	clientNonceBytes = 16
+	// pairRequestBodyMax bounds the JSON body of POST /v1/pair/request.
+	pairRequestBodyMax = 8 << 10
+	// pairRevealBodyMax bounds the JSON body of POST /v1/pair/request/{id}/reveal.
+	pairRevealBodyMax = 1 << 10
+	// pairLabelMaxRunes caps the device name shown in the approval prompt.
+	pairLabelMaxRunes = 40
 )
 
 // PairPrompt is what the owner is asked to approve.
@@ -70,7 +92,7 @@ func validNonceCommit(s string) bool {
 
 func validClientNonce(s string) bool {
 	b, err := hex.DecodeString(s)
-	return err == nil && len(b) == 16
+	return err == nil && len(b) == clientNonceBytes
 }
 
 // createPairRequestHandler implements POST /v1/pair/request.
@@ -78,11 +100,11 @@ func createPairRequestHandler(cfg Config, db *store.DB, nonces *nonceStore) http
 	limiter := newKeyedLimiter(pairRequestRateAttempts, pairRequestRateWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow(clientIP(r)) {
-			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many pairing attempts, try again later")
+			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", pairRateLimitedMsg)
 			return
 		}
 		var req pairRequestBody
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, pairRequestBodyMax)).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 			return
 		}
@@ -90,11 +112,11 @@ func createPairRequestHandler(cfg Config, db *store.DB, nonces *nonceStore) http
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "clientNonceCommit (hex SHA-256 of the client nonce) is required — update the app")
 			return
 		}
-		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rePinOnKeyChange, requireBoundProof); err != nil {
+		if err := verifyDeviceProof(db, nonces, cfg.CertFingerprint, req.DeviceID, req.DevicePublicKey, req.Nonce, req.Signature, w, rePinOnKeyChange); err != nil {
 			return
 		}
 		label := sanitizeLabel(req.DeviceLabel)
-		id, err := randomToken(16)
+		id, err := randomToken(pairIDBytes)
 		if err != nil {
 			writeInternal(w, "pair request", err)
 			return
@@ -102,11 +124,11 @@ func createPairRequestHandler(cfg Config, db *store.DB, nonces *nonceStore) http
 		now := time.Now()
 		err = db.CreatePairRequest(store.PairRequest{
 			ID: id, Label: label, ClientID: req.DeviceID, PublicKey: req.DevicePublicKey,
-			NonceCommit: req.ClientNonceCommit, RemoteIP: clientIP(r),
+			NonceCommit: strings.ToLower(req.ClientNonceCommit), RemoteIP: clientIP(r),
 			Created: now.Unix(), Expires: now.Add(pairRequestTTL).Unix(),
 		})
 		if errors.Is(err, store.ErrTooManyPairRequests) {
-			writeError(w, http.StatusTooManyRequests, "PAIR_BUSY", "other pairing requests are waiting for approval on the computer")
+			writeError(w, http.StatusTooManyRequests, codePairBusy, "other pairing requests are waiting for approval on the computer")
 			return
 		}
 		if err != nil {
@@ -124,14 +146,14 @@ func createPairRequestHandler(cfg Config, db *store.DB, nonces *nonceStore) http
 // with the nonce fixed after the request id, is the match code derived and the
 // owner asked.
 func revealPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
-	limiter := newKeyedLimiter(pairRequestRateAttempts*4, pairRequestRateWindow)
+	limiter := newKeyedLimiter(pairRequestRateAttempts*globalRateFactor, pairRequestRateWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow(clientIP(r)) {
-			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many pairing attempts, try again later")
+			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", pairRateLimitedMsg)
 			return
 		}
 		var body revealBody
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil || !validClientNonce(body.ClientNonce) {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, pairRevealBodyMax)).Decode(&body); err != nil || !validClientNonce(body.ClientNonce) {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "clientNonce must be 16 random bytes, hex encoded")
 			return
 		}
@@ -145,7 +167,7 @@ func revealPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
 		sum := sha256.Sum256(raw)
 		// One error for unknown id and wrong nonce so ids cannot be probed.
 		if !ok || pr.Status != store.PairCommitted || subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(pr.NonceCommit)) != 1 {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "pairing request not found or expired")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", pairRequestNotFoundMsg)
 			return
 		}
 		sas, err := pairing.SAS(cfg.CertFingerprint, body.ClientNonce, id)
@@ -160,11 +182,11 @@ func revealPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
 		}
 		pr, err = db.RevealPairRequest(id, body.ClientNonce)
 		if errors.Is(err, store.ErrPairRequestGone) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "pairing request not found or expired")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", pairRequestNotFoundMsg)
 			return
 		}
 		if errors.Is(err, store.ErrTooManyPairRequests) {
-			writeError(w, http.StatusTooManyRequests, "PAIR_BUSY", "too many pairing requests are waiting for approval; try again shortly")
+			writeError(w, http.StatusTooManyRequests, codePairBusy, "too many pairing requests are waiting for approval; try again shortly")
 			return
 		}
 		if err != nil {
@@ -192,26 +214,43 @@ func pairReplaces(db *store.DB, clientID, publicKey string) (string, error) {
 	return "", nil
 }
 
+// unnamedDeviceLabel is the label stored for a pairing, register or login
+// request that sends no device name.
+const unnamedDeviceLabel = "unnamed-device"
+
 // sanitizeLabel bounds and cleans the device name shown in the prompt, which an
 // unauthenticated peer controls.
 func sanitizeLabel(s string) string {
-	out := make([]rune, 0, 40)
+	out := make([]rune, 0, pairLabelMaxRunes)
 	for _, r := range s {
 		if r < 0x20 || r == 0x7f {
 			continue
 		}
 		out = append(out, r)
-		if len(out) == 40 {
+		if len(out) == pairLabelMaxRunes {
 			break
 		}
 	}
 	if len(out) == 0 {
-		return "unnamed-device"
+		return unnamedDeviceLabel
 	}
 	return string(out)
 }
 
-// pollPairRequestHandler implements GET /v1/pair/request/{id}?nonce=<clientNonce>.
+// pairNonceHeader carries the poll nonce for apiVersion 3 clients, keeping the secret out of the URL.
+const pairNonceHeader = "X-RFE-Pair-Nonce"
+
+// pollNonce returns the client nonce of a poll request: the X-RFE-Pair-Nonce
+// header when present, else the older ?nonce= query parameter.
+func pollNonce(r *http.Request) string {
+	if h := r.Header.Get(pairNonceHeader); h != "" {
+		return h
+	}
+	return r.URL.Query().Get("nonce")
+}
+
+// pollPairRequestHandler implements GET /v1/pair/request/{id}, with the client nonce in the
+// X-RFE-Pair-Nonce header (preferred) or the nonce query parameter.
 func pollPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
 	limiter := newKeyedLimiter(pairPollRateAttempts, pairRequestRateWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -227,8 +266,8 @@ func pollPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
 		}
 		// One error for unknown id and wrong nonce so ids cannot be probed. A request that
 		// has not revealed its nonce yet has none to match.
-		if !ok || pr.ClientNonce == "" || subtle.ConstantTimeCompare([]byte(pr.ClientNonce), []byte(r.URL.Query().Get("nonce"))) != 1 {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "pairing request not found or expired")
+		if !ok || pr.ClientNonce == "" || subtle.ConstantTimeCompare([]byte(pr.ClientNonce), []byte(pollNonce(r))) != 1 {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", pairRequestNotFoundMsg)
 			return
 		}
 		switch pr.Status {
@@ -237,69 +276,60 @@ func pollPairRequestHandler(cfg Config, db *store.DB) http.HandlerFunc {
 		case store.PairRejected:
 			writeJSON(w, http.StatusOK, map[string]any{"status": "rejected"})
 		case store.PairApproved:
-			claimed, ok, err := db.ClaimApprovedPairRequest(id)
+			token, err := randomToken(tokenBytes)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "INTERNAL", tokenGenerateFailedMsg)
+				return
+			}
+			// Decided now, against the device as it is at approval time, before the upsert overwrites it.
+			replaces, err := pairReplaces(db, pr.ClientID, pr.PublicKey)
+			if err != nil {
+				writeInternal(w, "pair poll", err)
+				return
+			}
+			// Spending the approval and writing the device (with the access reset of a takeover, which
+			// must not inherit the old grants) are one transaction: if any step fails the approval stays
+			// unspent and the phone can poll again.
+			claimed, deviceID, ok, err := db.CompletePairRequest(id, token, replaces != "")
 			if err != nil {
 				writeInternal(w, "pair poll", err)
 				return
 			}
 			if !ok {
-				writeError(w, http.StatusNotFound, "NOT_FOUND", "pairing request not found or expired")
-				return
-			}
-			token, err := randomToken(32)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to generate token")
-				return
-			}
-			// Decided now, against the device as it is at approval time, before the upsert overwrites it.
-			replaces, err := pairReplaces(db, claimed.ClientID, claimed.PublicKey)
-			if err != nil {
-				writeInternal(w, "pair poll", err)
-				return
-			}
-			deviceID, err := db.UpsertDevice(claimed.ClientID, claimed.Label, token, claimed.PublicKey, false)
-			if err != nil {
-				writeInternal(w, "pair poll", err)
+				writeError(w, http.StatusNotFound, "NOT_FOUND", pairRequestNotFoundMsg)
 				return
 			}
 			detail := "approved at the computer, from " + claimed.RemoteIP
 			if replaces != "" {
-				// A takeover of an existing row must not inherit that device's grants.
-				if err := db.ResetDeviceAccess(deviceID); err != nil {
-					writeInternal(w, "pair poll", err)
-					return
-				}
 				detail += "; replaced device " + strconv.Quote(replaces) + " (access reset to browse-only)"
 			}
 			auditAs(db, claimed.Label, store.AuditPair, deviceID, detail)
-			resp := pairResponse{
-				DeviceToken:      token,
-				DeviceID:         deviceID,
-				AgentName:        cfg.Name,
-				CertFingerprint:  cfg.CertFingerprint,
-				Address:          cfg.Address,
-				TailscaleAddress: cfg.TailscaleAddress,
-			}
-			if isWebSessionRequest(r) {
-				setWebSessionCookie(w, token)
-				resp.DeviceToken = ""
-			}
+			resp := newPairResponse(cfg, token, deviceID).forSession(w, r)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"status": "approved", "deviceToken": resp.DeviceToken, "deviceId": resp.DeviceID,
 				"agentName": resp.AgentName, "certFingerprint": resp.CertFingerprint,
 				"address": resp.Address, "tailscaleAddress": resp.TailscaleAddress,
 			})
 		default:
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "pairing request not found or expired")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", pairRequestNotFoundMsg)
 		}
 	}
+}
+
+// forbidUnlessPairingAdmin writes the 403 for a caller that may not answer
+// pairing requests (not an admin device) and reports whether it did.
+func forbidUnlessPairingAdmin(w http.ResponseWriter, d *store.Device) bool {
+	if isAdminDevice(d) {
+		return false
+	}
+	writeError(w, http.StatusForbidden, "FORBIDDEN", "answering pairing requests requires an admin (login) session or the PC")
+	return true
 }
 
 // listPairRequestsHandler implements GET /v1/pair/requests (admin).
 func listPairRequestsHandler(cfg Config, db *store.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "answering pairing requests requires an admin (login) session or the PC")
+		if forbidUnlessPairingAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		list, err := db.ListPendingPairRequests()
@@ -309,7 +339,10 @@ func listPairRequestsHandler(cfg Config, db *store.DB) http.HandlerFunc {
 		}
 		out := make([]map[string]any, 0, len(list))
 		for _, pr := range list {
-			sas, _ := pairing.SAS(cfg.CertFingerprint, pr.ClientNonce, pr.ID)
+			sas, err := pairing.SAS(cfg.CertFingerprint, pr.ClientNonce, pr.ID)
+			if err != nil {
+				continue // a request whose match code cannot be computed cannot be verified by the owner, so it is not offered
+			}
 			replaces, err := pairReplaces(db, pr.ClientID, pr.PublicKey)
 			if err != nil {
 				writeInternal(w, "list pair requests", err)
@@ -327,8 +360,7 @@ func listPairRequestsHandler(cfg Config, db *store.DB) http.HandlerFunc {
 // decidePairRequestHandler implements POST /v1/pair/requests/{id}/{approve|reject} (admin).
 func decidePairRequestHandler(db *store.DB, approve bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAdminDevice(deviceFromContext(r)) {
-			writeError(w, http.StatusForbidden, "FORBIDDEN", "answering pairing requests requires an admin (login) session or the PC")
+		if forbidUnlessPairingAdmin(w, deviceFromContext(r)) {
 			return
 		}
 		err := db.DecidePairRequest(chi.URLParam(r, "id"), approve)

@@ -1,37 +1,35 @@
 import { Eye, EyeOff, Lock, LogIn, UserPlus, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
-import { Button, InlineError, Pressable, Text } from '../../design/components';
+import { Button, InlineError, Pressable, Text, useDialogs } from '../../design/components';
 import { LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
 import { Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { pairingDeps } from '../../services';
 import { AddressField, CodeBoxRow, LumenField } from './fields';
-import { checkKnownPin, humanizeError, loginWithAccount, probeTarget, registerAccount } from './pairingService';
+import { humanizeError } from '../../core/humanizeError';
+import { checkKnownPin, loginWithAccount, probeTarget, registerAccount, type PairingTarget } from './pairingService';
+import { groupFingerprint } from './identity';
 
-/** "ab12…" → "AB12 34CD …" in groups of four, so the user can compare it with the one the computer shows. */
-const groupFingerprint = (fp: string) => (fp.toUpperCase().match(/.{1,4}/g) ?? []).join(' ');
-
-/** First contact with a computer: its password is only sent once the user has seen its fingerprint. */
-function confirmFingerprint(address: string, fingerprint: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    Alert.alert(
-      t('confirmFingerprintTitle'),
-      t('confirmFingerprintBody', { address, fingerprint: groupFingerprint(fingerprint) }),
-      [
-        { text: t('cancelButton'), style: 'cancel', onPress: () => resolve(false) },
-        { text: t('confirmFingerprintTrust'), onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
-}
+const PASSWORD_MIN_LENGTH = 8;
 
 /** Login (existing account) and Register (new account + one-time pairing code) share one form. */
 export function AccountForm({ mode, prefillAddress, onPaired }: { mode: 'login' | 'register'; prefillAddress?: string; onPaired: (label: string) => void }) {
   const c = useScheme();
+  const dialogs = useDialogs();
+
+  /** Resolves true only when the user taps Trust; cancel or dismiss resolves false. */
+  const confirmTrust = (target: PairingTarget) =>
+    dialogs.confirm({
+      title: t('confirmFingerprintTitle'),
+      description: t('confirmTrustBody'),
+      details: t('confirmTrustDetails', { address: target.address, fingerprint: groupFingerprint(target.fingerprint) }),
+      detailsLabel: t('metaTechnicalDetails'),
+      confirmLabel: t('confirmTrustButton'),
+      cancelLabel: t('cancelButton'),
+    });
   const [address, setAddress] = useState(prefillAddress ?? '');
   const [code, setCode] = useState('');
   const [username, setUsername] = useState('');
@@ -44,19 +42,20 @@ export function AccountForm({ mode, prefillAddress, onPaired }: { mode: 'login' 
   const reg = mode === 'register';
 
   const req = (v: string) => (touched && !v.trim() ? t('requiredLabel') : null);
-  const pwError = touched ? (!password ? t('requiredLabel') : reg && password.length < 8 ? t('passwordTooShort') : null) : null;
+  const pwError = touched ? (!password ? t('requiredLabel') : reg && password.length < PASSWORD_MIN_LENGTH ? t('passwordTooShort') : null) : null;
   const confirmError = touched && reg && confirm !== password ? t('passwordMismatch') : null;
 
   async function submit() {
     setTouched(true);
     const invalid =
-      !address.trim() || !username.trim() || !password || (reg && (!code.trim() || password.length < 8 || confirm !== password));
+      !address.trim() || !username.trim() || !password || (reg && (!code.trim() || password.length < PASSWORD_MIN_LENGTH || confirm !== password));
     if (invalid) return;
     setBusy(true);
     setError(null);
     try {
       const target = await probeTarget(pairingDeps, address);
-      if ((await checkKnownPin(pairingDeps, target)) === 'new' && !(await confirmFingerprint(target.address, target.fingerprint))) return;
+      // First contact: the password is only sent once the user has trusted this computer.
+      if ((await checkKnownPin(pairingDeps, target)) === 'new' && !(await confirmTrust(target))) return;
       const host = reg
         ? await registerAccount(pairingDeps, target, { pairingCode: code, username, password })
         : await loginWithAccount(pairingDeps, target, { username, password });
@@ -70,7 +69,7 @@ export function AccountForm({ mode, prefillAddress, onPaired }: { mode: 'login' 
   }
 
   const eye = (
-    <Pressable onPress={() => setObscure((o) => !o)} accessibilityLabel={obscure ? 'Show password' : 'Hide password'} style={{ width: 48, height: 48, marginRight: -12, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={() => setObscure((o) => !o)} accessibilityLabel={obscure ? t('showPasswordLabel') : t('hidePasswordLabel')} style={{ width: 48, height: 48, marginRight: -12, alignItems: 'center', justifyContent: 'center' }}>
       {obscure ? <Eye size={22} color={c.onSurfaceVariant} /> : <EyeOff size={22} color={c.onSurfaceVariant} />}
     </Pressable>
   );
@@ -78,7 +77,7 @@ export function AccountForm({ mode, prefillAddress, onPaired }: { mode: 'login' 
     <View style={{ gap: Spacing.lg }}>
       <AddressField value={address} onChange={setAddress} error={req(address)} />
       {reg && (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: Spacing.sm }}>
           <Text style={LumenType.meta} color={c.onSurfaceVariant}>{t('pairingCodeLabel')}</Text>
           <CodeBoxRow value={code} onChange={setCode} />
           {touched && !code.trim() ? <Text style={LumenType.meta} color={c.error}>{t('requiredLabel')}</Text> : null}

@@ -641,3 +641,25 @@ func assertErrorCode(t *testing.T, rr *httptest.ResponseRecorder, want string) {
 		t.Fatalf("unexpected error code: got %+v, want code %q", got, want)
 	}
 }
+
+func TestParseLimit(t *testing.T) {
+	cases := []struct {
+		raw        string
+		def, maxim int
+		want       int
+	}{
+		{"", 50, 500, 50},
+		{"abc", 50, 500, 50},
+		{"0", 50, 500, 50},
+		{"-3", 50, 500, 50},
+		{"-99999999999999999999", 50, 500, 50},
+		{"20", 50, 500, 20},
+		{"900", 50, 500, 500},
+		{"99999999999999999999", 50, 500, 500},
+	}
+	for _, c := range cases {
+		if got := parseLimit(c.raw, c.def, c.maxim); got != c.want {
+			t.Errorf("parseLimit(%q, %d, %d) = %d, want %d", c.raw, c.def, c.maxim, got, c.want)
+		}
+	}
+}

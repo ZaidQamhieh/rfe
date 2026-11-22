@@ -20,6 +20,13 @@ describe('invalidNameReason', () => {
   ])('rejects %p', (name) => {
     expect(invalidNameReason(name)).not.toBeNull();
   });
+
+  it('keeps the English wording of each reason', () => {
+    expect(invalidNameReason('')).toBe('A name cannot be empty');
+    expect(invalidNameReason('..')).toBe('".." is not a usable name');
+    expect(invalidNameReason('a/b')).toBe("A name can't contain / or \\ (that would move the item)");
+    expect(invalidNameReason('a\u0000b')).toBe("A name can't contain control characters");
+  });
 });
 
 function setup(client: Record<string, jest.Mock>) {

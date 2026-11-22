@@ -1,3 +1,5 @@
+import { useAutoRetry } from '../features/transfers/useAutoRetry';
+import { useRelayCopy } from '../features/transfers/useRelayCopy';
 import { Stack, useRouter } from 'expo-router';
 import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +10,7 @@ import { useEffect } from 'react';
 import { DialogHost, ToastProvider, useToast } from '../design/components';
 import { ThemeProvider, useScheme } from '../design/theme';
 import { FontFamily } from '../design/tokens';
+import { ignoreError } from '../core/log';
 import { t } from '../i18n';
 import { ensureBackgroundTask } from '../features/background/backgroundTask';
 import { watchPhotoBackup } from '../features/photoBackup/photoBackupService';
@@ -35,6 +38,8 @@ function ShareRouter() {
 
 function Shell() {
   const c = useScheme();
+  useAutoRetry();
+  useRelayCopy();
   return (
     <>
       <StatusBar style={c.dark ? 'light' : 'dark'} />
@@ -53,23 +58,12 @@ function Shell() {
         <Stack.Screen name="workspaces" options={{ headerShown: false }} />
         <Stack.Screen name="pair/index" options={{ title: t('addComputerTitle') }} />
         <Stack.Screen name="pair/scan" options={{ headerShown: false }} />
-        <Stack.Screen name="receive" options={{ headerShown: false }} />
         <Stack.Screen name="share" options={{ title: t('shareTitle') }} />
         <Stack.Screen name="pair/request" options={{ title: t('pairRequestTitle') }} />
         <Stack.Screen name="pair/login" options={{ title: t('loginTab') }} />
+        <Stack.Screen name="pair/account-server" options={{ title: t('accountServerTitle') }} />
         <Stack.Screen name="pair/register" options={{ title: t('registerTab') }} />
-        <Stack.Screen name="settings/appearance" options={{ title: t('appearanceSection') }} />
-        <Stack.Screen name="settings/visibility" options={{ title: t('fileVisibilityTitle') }} />
-        <Stack.Screen name="settings/storage" options={{ title: t('storageSecurityTitle') }} />
-        <Stack.Screen name="settings/transfers" options={{ title: t('transfersSettingsTitle') }} />
-        <Stack.Screen name="settings/about" options={{ title: t('aboutSupportTitle') }} />
-        <Stack.Screen name="settings/sync" options={{ title: t('syncRulesTitle') }} />
-      <Stack.Screen name="settings/backup" options={{ title: t('backupScreenTitle') }} />
-      <Stack.Screen name="settings/photo-backup" options={{ title: t('photoBackupTitle') }} />
-        <Stack.Screen name="settings/whatsnew" options={{ title: t('whatsNewTitle') }} />
-        <Stack.Screen name="settings/licenses" options={{ title: t('openSourceLicenses') }} />
-      <Stack.Screen name="settings/privacy" options={{ title: t('privacyTitle') }} />
-        <Stack.Screen name="dev/gallery" options={{ title: 'Design gallery' }} />
+        <Stack.Screen name="settings/photo-backup" options={{ title: t('photoBackupTitle') }} />
       </Stack>
     </>
   );
@@ -82,7 +76,7 @@ export default function RootLayout() {
   useEffect(() => {
     // The one-time Flutter import must finish before settings and collections are read.
     // A damaged legacy file must not become an unhandled rejection; the app starts with the new storage (audit F-51).
-    ensureLegacyImport().catch(() => undefined).finally(() => {
+    ensureLegacyImport().catch(ignoreError('legacy import')).finally(() => {
       void load();
       void loadCollections();
     });
@@ -94,7 +88,7 @@ export default function RootLayout() {
   return (
     <ShareIntentProvider>
     <SafeAreaProvider>
-      <ThemeProvider mode={settings.themeMode} amoled={settings.amoledDark} seed={settings.seedColor}>
+      <ThemeProvider mode={settings.themeMode}>
         <ToastProvider>
           <DialogHost>
             <LockGate>

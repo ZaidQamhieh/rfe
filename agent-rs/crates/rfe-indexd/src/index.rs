@@ -19,6 +19,12 @@ const FLAG_ASCII: u8 = 4;
 /// Fixed cost per record plus a rough allowance for the chunk's own allocations.
 const REC_BYTES: usize = std::mem::size_of::<Rec>();
 const CHUNK_OVERHEAD: usize = 96;
+/// A scan checks whether a newer query superseded it once per this many entries (a power of two).
+const SUPERSEDE_CHECK_EVERY: usize = 8192;
+/// A parallel scan makes this many groups per worker thread, so uneven groups still balance.
+const GROUPS_PER_THREAD: usize = 4;
+/// The smallest group a parallel scan splits off, in entries.
+const MIN_GROUP_ENTRIES: usize = 4096;
 
 #[derive(Debug, Clone, Copy)]
 struct Rec {
@@ -172,7 +178,7 @@ fn list_dir(
         let Ok(ent) = ent else { continue };
         let os = ent.file_name();
         let Some(name) = os.to_str() else { continue };
-        if name.len() > u16::MAX as usize {
+        if name.len() > u16::MAX as usize || walk::is_publish_temp(name) {
             continue;
         }
         let Ok(ft) = ent.file_type() else { continue };
@@ -237,6 +243,22 @@ fn list_dir(
     Some((chunk, subs))
 }
 
+impl<'a> Builder<'a> {
+    fn new(next_id: u32, limits: Limits, cancel: &'a AtomicBool) -> Self {
+        Builder {
+            next_id: AtomicU32::new(next_id),
+            chunks: Mutex::new(Vec::new()),
+            entries: AtomicUsize::new(0),
+            bytes: AtomicUsize::new(0),
+            // The walk may overshoot the budget (it is parallel); the tail is cut in depth-first order afterwards.
+            hard_entries: limits.max_entries.saturating_mul(3) / 2,
+            hard_bytes: limits.max_bytes.saturating_mul(3) / 2,
+            over: AtomicBool::new(false),
+            cancel,
+        }
+    }
+}
+
 impl Visitor for Builder<'_> {
     fn visit(&self, at: &At, id: u32) -> Vec<Sub> {
         let Some((chunk, subs)) = list_dir(at, id, &|_| None, &mut || {
@@ -263,27 +285,42 @@ impl Visitor for Builder<'_> {
     }
 }
 
+/// `root` without trailing separators, except a filesystem root ("/", "C:\"), which keeps its separator.
+fn normalize_root(root: &str) -> &str {
+    let trimmed = root.trim_end_matches(std::path::MAIN_SEPARATOR);
+    if trimmed.is_empty() || std::path::Path::new(root).parent().is_none() {
+        root
+    } else {
+        trimmed
+    }
+}
+
+/// The roots to index: each normalized, with exact repeats (first kept) and any root inside another root dropped,
+/// so no directory is indexed twice. The order of the survivors is the order given.
+fn outermost_roots(roots: &[String]) -> Vec<String> {
+    let norm: Vec<&str> = roots.iter().map(|r| normalize_root(r)).collect();
+    norm.iter()
+        .enumerate()
+        .filter(|(i, r)| {
+            !norm.iter().enumerate().any(|(j, o)| {
+                *i != j && RootScopes::new(&[o.to_string()]).contains(r) && (o != *r || j < *i)
+            })
+        })
+        .map(|(_, r)| r.to_string())
+        .collect()
+}
+
 impl Index {
     /// Walks `roots` in parallel and builds the index. `cancel` aborts the build (the partial result is dropped by
     /// the caller).
     pub fn build(roots: &[String], limits: Limits, cancel: &AtomicBool) -> Index {
         let started = Instant::now();
-        let b = Builder {
-            next_id: AtomicU32::new(0),
-            chunks: Mutex::new(Vec::new()),
-            entries: AtomicUsize::new(0),
-            bytes: AtomicUsize::new(0),
-            // The walk may overshoot the budget (it is parallel); the tail is cut in depth-first order afterwards.
-            hard_entries: limits.max_entries.saturating_mul(3) / 2,
-            hard_bytes: limits.max_bytes.saturating_mul(3) / 2,
-            over: AtomicBool::new(false),
-            cancel,
-        };
+        let b = Builder::new(0, limits, cancel);
         let mut root_ids = Vec::new();
-        for root in roots {
+        for root in outermost_roots(roots) {
             let id = b.next_id.fetch_add(1, Ordering::Relaxed);
-            root_ids.push((root.clone(), id));
-            walk::par_walk(&b, root, id);
+            walk::par_walk(&b, &root, id);
+            root_ids.push((root, id));
         }
         let mut chunks = b.chunks.into_inner().unwrap();
         chunks.sort_unstable_by_key(|c| c.id);
@@ -423,7 +460,7 @@ impl Index {
             }
             let chunk = &self.chunks[seg.pos as usize];
             for i in seg.start as usize..seg.end as usize {
-                if i % 8192 == 8191 && gate.superseded() {
+                if i % SUPERSEDE_CHECK_EVERY == SUPERSEDE_CHECK_EVERY - 1 && gate.superseded() {
                     return out;
                 }
                 let r = &chunk.recs[i];
@@ -467,7 +504,10 @@ impl Index {
         if self.stats.truncated || roots.is_empty() {
             return None;
         }
-        if !roots.iter().all(|r| self.roots.iter().any(|(p, _)| p == r)) {
+        if !roots
+            .iter()
+            .all(|r| self.roots.iter().any(|(p, _)| p == normalize_root(r)))
+        {
             return None;
         }
         let scopes = RootScopes::new(roots);
@@ -534,8 +574,8 @@ impl Index {
         let scopes = RootScopes::new(roots);
         // Groups of roughly equal entry counts, scanned in parallel; their results are joined in order, so the
         // answer is the same as a sequential scan.
-        let parts = rayon::current_num_threads().max(1) * 4;
-        let target = (self.visible / parts).max(4096);
+        let parts = rayon::current_num_threads().max(1) * GROUPS_PER_THREAD;
+        let target = (self.visible / parts).max(MIN_GROUP_ENTRIES);
         let mut groups: Vec<&[Seg]> = Vec::new();
         let (mut from, mut acc) = (0usize, 0usize);
         for (n, s) in self.segs.iter().enumerate() {
@@ -592,11 +632,16 @@ impl Index {
 
     /// The chunk position of directory `path` and the index of the root that holds it, found by following names
     /// down from the root chunk (records are sorted by name, so each step is a binary search).
+    /// The chunk at `pos`: the copy an update batch has already replaced, else the indexed one.
+    fn chunk_at<'a>(&'a self, replaced: &'a HashMap<u32, Arc<Chunk>>, pos: u32) -> &'a Chunk {
+        replaced.get(&pos).unwrap_or(&self.chunks[pos as usize])
+    }
+
     fn locate(&self, path: &str, replaced: &HashMap<u32, Arc<Chunk>>) -> Option<(usize, u32)> {
         let sep = std::path::MAIN_SEPARATOR;
         for (ri, (root, root_pos)) in self.roots.iter().enumerate() {
             let prefix = format!("{}{sep}", root.strip_suffix(sep).unwrap_or(root));
-            let rel = if path == root {
+            let rel = if path == root || path == normalize_root(root) {
                 ""
             } else if let Some(r) = path.strip_prefix(prefix.as_str()) {
                 r
@@ -609,7 +654,7 @@ impl Index {
             }
             if !rel.is_empty() {
                 for comp in rel.split(sep) {
-                    let chunk = replaced.get(&pos).unwrap_or(&self.chunks[pos as usize]);
+                    let chunk = self.chunk_at(replaced, pos);
                     let at = chunk
                         .recs
                         .binary_search_by(|r| chunk.name_bytes(r).cmp(comp.as_bytes()))
@@ -644,7 +689,7 @@ impl Index {
             if pos == NO_CHILD || !out.insert(id) {
                 continue;
             }
-            let chunk = replaced.get(&pos).unwrap_or(&self.chunks[pos as usize]);
+            let chunk = self.chunk_at(replaced, pos);
             stack.extend(
                 chunk
                     .recs
@@ -659,7 +704,7 @@ impl Index {
     /// touched are shared with `self`. `None` means the change cannot be folded in (the index was cut by its
     /// budget, a root went away, or the result outgrew the budget) and the caller should rebuild from scratch.
     pub fn apply(&self, dirty: &[String], cancel: &AtomicBool) -> Option<Applied> {
-        use crate::walk::{rel_join, Sub};
+        use crate::walk::rel_join;
         let started = Instant::now();
         if self.stats.truncated {
             return None;
@@ -781,9 +826,7 @@ impl Index {
                             .file_name()
                             .and_then(|n| n.to_str()),
                     ) {
-                        let mut parent = Chunk::clone(
-                            replaced.get(&ppos).unwrap_or(&self.chunks[ppos as usize]),
-                        );
+                        let mut parent = Chunk::clone(self.chunk_at(&replaced, ppos));
                         if let Ok(at) = parent
                             .recs
                             .binary_search_by(|r| parent.name_bytes(r).cmp(name.as_bytes()))
@@ -806,16 +849,7 @@ impl Index {
                 let Ok(child) = dir.open_dir(&name) else {
                     continue;
                 };
-                let b = Builder {
-                    next_id: AtomicU32::new(next_id),
-                    chunks: Mutex::new(Vec::new()),
-                    entries: AtomicUsize::new(0),
-                    bytes: AtomicUsize::new(0),
-                    hard_entries: self.limits.max_entries.saturating_mul(3) / 2,
-                    hard_bytes: self.limits.max_bytes.saturating_mul(3) / 2,
-                    over: AtomicBool::new(false),
-                    cancel,
-                };
+                let b = Builder::new(next_id, self.limits, cancel);
                 let sub_rel = rel_join(&rel, &name.to_string_lossy());
                 walk::par_walk_sub(
                     &b,
@@ -855,6 +889,10 @@ impl Index {
             .roots
             .iter()
             .map(|(p, old_pos)| {
+                // A root that could not be listed has no chunk; it stays that way.
+                if *old_pos == NO_CHILD {
+                    return (p.clone(), NO_CHILD);
+                }
                 let id = self.chunks[*old_pos as usize].id;
                 (p.clone(), id_to_pos[id as usize])
             })

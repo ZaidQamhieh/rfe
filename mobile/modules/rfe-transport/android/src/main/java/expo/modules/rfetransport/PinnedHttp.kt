@@ -105,18 +105,48 @@ object PinnedHttp {
     if (!url.toHttpUrl().isHttps) throw PinPolicyViolation("cleartext HTTP is refused")
   }
 
-  /** TLS handshake only; returns the leaf SHA-256 without sending any HTTP bytes. */
-  fun probeFingerprint(url: String, timeoutMs: Long = 8000): String {
+  /** True when [e] or any cause is a [CertPinMismatch]: the one test for "the host's identity changed", not "unreachable". */
+  fun isPinMismatch(e: Throwable): Boolean = generateSequence(e) { it.cause }.any { it is CertPinMismatch }
+
+  private val dnsPool = java.util.concurrent.Executors.newCachedThreadPool { r -> Thread(r, "rfe-dns").apply { isDaemon = true } }
+
+  private val IPV4_LITERAL = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
+
+  /**
+   * Looks up [host] with [resolve] on a helper thread and waits at most [timeoutMs]: the platform resolver has no
+   * deadline of its own and InetSocketAddress(host, port) would block in it. IP literals need no lookup.
+   */
+  private fun resolveWithin(host: String, timeoutMs: Long, resolve: (String) -> java.net.InetAddress): java.net.InetAddress {
+    if (host.contains(':') || IPV4_LITERAL.matches(host)) return java.net.InetAddress.getByName(host)
+    val lookup = dnsPool.submit(java.util.concurrent.Callable { resolve(host) })
+    try {
+      return lookup.get(timeoutMs.coerceAtLeast(1), TimeUnit.MILLISECONDS)
+    } catch (e: java.util.concurrent.TimeoutException) {
+      lookup.cancel(true)
+      throw java.net.SocketTimeoutException("DNS lookup for $host timed out after $timeoutMs ms")
+    } catch (e: java.util.concurrent.ExecutionException) {
+      throw e.cause ?: e
+    }
+  }
+
+  /**
+   * TLS handshake only; returns the leaf SHA-256 without sending any HTTP bytes. [timeoutMs] bounds the DNS lookup,
+   * the connect (with whatever the lookup left) and the handshake.
+   */
+  fun probeFingerprint(url: String, timeoutMs: Long = 8000, resolve: (String) -> java.net.InetAddress = { java.net.InetAddress.getByName(it) }): String {
     requireHttps(url)
     val tm = PinTrustManager(null)
     val http = client(tm, timeoutMs)
     val u = url.toHttpUrl()
+    val startNanos = System.nanoTime()
+    val address = resolveWithin(u.host, timeoutMs, resolve)
+    val connectMs = (timeoutMs - (System.nanoTime() - startNanos) / 1_000_000L).coerceAtLeast(1L).toInt()
     // Connect with a deadline first: createSocket(host, port) connects with none, so an address that drops
     // SYNs would hold the probe for minutes (audit F-152).
     val raw = java.net.Socket()
     val sock: javax.net.ssl.SSLSocket
     try {
-      raw.connect(java.net.InetSocketAddress(u.host, u.port), timeoutMs.toInt())
+      raw.connect(java.net.InetSocketAddress(address, u.port), connectMs)
       sock = http.sslSocketFactory.createSocket(raw, u.host, u.port, true) as javax.net.ssl.SSLSocket
     } catch (e: Exception) {
       raw.close()

@@ -1,6 +1,10 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 
+import { t } from '../../i18n';
 import { SecureKeys, type SecureStore } from './secureStore';
+
+/** Length in bytes of an Ed25519 seed and of its public key. */
+const KEY_BYTES = 32;
 
 // Standard base64 (matches Dart base64Encode/Decode used by the Flutter app).
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -37,7 +41,7 @@ export function fromBase64(s: string): Uint8Array | null {
 export function tryParseKeyPair(priv: string, pub: string): { seed: Uint8Array; publicKey: Uint8Array } | null {
   const seed = fromBase64(priv);
   const publicKey = fromBase64(pub);
-  if (!seed || !publicKey || seed.length !== 32 || publicKey.length !== 32) return null;
+  if (!seed || !publicKey || seed.length !== KEY_BYTES || publicKey.length !== KEY_BYTES) return null;
   return { seed, publicKey };
 }
 
@@ -61,7 +65,12 @@ export class DeviceIdentity {
   private load() {
     if (this.cached) return Promise.resolve(this.cached);
     // concurrent first callers share one load/generate (PR-55)
-    this.pending ??= this.loadOrCreate().then((kp) => (this.cached = kp));
+    // A failed load is not remembered: the next call starts over instead of replaying the same error forever.
+    this.pending ??= this.loadOrCreate()
+      .then((kp) => (this.cached = kp))
+      .finally(() => {
+        this.pending = undefined;
+      });
     return this.pending;
   }
 
@@ -69,7 +78,8 @@ export class DeviceIdentity {
     const priv = await this.store.read(SecureKeys.devicePrivate);
     const pub = await this.store.read(SecureKeys.devicePublic);
     if (priv === null && pub === null) return this.generate();
-    if (priv === null || pub === null) throw new IdentityCorrupt('partial device identity');
+    if (priv === null) throw new IdentityCorrupt('partial device identity');
+    if (pub === null) return this.repairPublicKey(priv);
     const parsed = tryParseKeyPair(priv, pub);
     if (!parsed) throw new IdentityCorrupt('malformed device identity');
     const derived = ed25519.getPublicKey(parsed.seed);
@@ -77,8 +87,21 @@ export class DeviceIdentity {
     return parsed;
   }
 
+  /**
+   * Finishes an identity whose first write (the private key) landed but whose second (the public key) did not, e.g.
+   * the app died in between. The public key is a pure function of the seed, so it is derived and stored; the identity
+   * every host has pinned is unchanged. A private key that is not a valid seed is still reported, never replaced.
+   */
+  private async repairPublicKey(priv: string) {
+    const seed = fromBase64(priv);
+    if (!seed || seed.length !== KEY_BYTES) throw new IdentityCorrupt('malformed device identity');
+    const publicKey = ed25519.getPublicKey(seed);
+    await this.store.write(SecureKeys.devicePublic, toBase64(publicKey));
+    return { seed, publicKey };
+  }
+
   private async generate() {
-    const seed = this.randomBytes(32);
+    const seed = this.randomBytes(KEY_BYTES);
     const publicKey = ed25519.getPublicKey(seed);
     await this.store.write(SecureKeys.devicePrivate, toBase64(seed));
     await this.store.write(SecureKeys.devicePublic, toBase64(publicKey));
@@ -97,8 +120,9 @@ export class DeviceIdentity {
 }
 
 export class IdentityCorrupt extends Error {
-  constructor(message: string) {
-    super(`${message}; re-pair the device instead of regenerating silently`);
+  /** The internal reason, for diagnostics; the message is the plain wording the user sees. */
+  constructor(readonly reason: string) {
+    super(t('identityCorruptMessage'));
     this.name = 'IdentityCorrupt';
   }
 }

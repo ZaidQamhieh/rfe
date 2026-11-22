@@ -551,6 +551,11 @@ async fn a_browse_only_device_can_look_and_is_refused_with_the_agents_words() {
     if common::modern("the agent reports permissions") {
         let caps = r.caps.expect("permissions are reported");
         assert!(caps.browse && !caps.modify && !caps.delete, "{caps:?}");
+        assert_eq!(
+            caps.wake,
+            Some(false),
+            "a code-paired device has no wake grant: {caps:?}"
+        );
     }
     let top = files::list(app.path(), &store, &root, None, None)
         .await

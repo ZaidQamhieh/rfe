@@ -1,13 +1,16 @@
+import { calendarDaysBetween } from '../../core/format';
 import { t } from '../../i18n';
 
-/** Localised "last seen" relative time (HostCard._relative). */
-export function relativeLabel(at: Date, now: Date = new Date()): string {
-  const s = Math.floor((now.getTime() - at.getTime()) / 1000);
-  if (s < 5) return t('relativeJustNow');
-  if (s < 60) return t('relativeSecondsAgo', { count: s });
-  const m = Math.floor(s / 60);
-  if (m < 60) return t('relativeMinutesAgo', { count: m });
-  const h = Math.floor(m / 60);
-  if (h < 24) return t('relativeHoursAgo', { count: h });
-  return t('relativeDaysAgo', { count: Math.floor(h / 24) });
+export { relativeLabel } from '../../core/format';
+
+/**
+ * When a computer was last seen, as a clock time: "22:41" today, "22:41 yesterday", or "22:41 on 3 Nov" for older.
+ * Days are counted on the phone's calendar, not in 24-hour steps.
+ */
+export function seenWhen(at: Date, now: Date = new Date()): string {
+  const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const days = calendarDaysBetween(at, now);
+  if (days <= 0) return time;
+  if (days === 1) return t('seenYesterday', { time });
+  return t('seenOnDate', { time, date: at.toLocaleDateString([], { day: 'numeric', month: 'short' }) });
 }

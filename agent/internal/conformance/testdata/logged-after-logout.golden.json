@@ -1,0 +1,48 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "entries": [
+      {
+        "created": "<created>",
+        "isDir": false,
+        "isSymlink": false,
+        "mimeType": "text/plain; charset=utf-8",
+        "mode": "-rw-r--r--",
+        "modified": "<modified>",
+        "name": "hello.txt",
+        "path": "<ROOT>/docs/hello.txt",
+        "size": 12
+      },
+      {
+        "created": "<created>",
+        "isDir": false,
+        "isSymlink": false,
+        "mimeType": "text/markdown; charset=utf-8",
+        "mode": "-rw-r--r--",
+        "modified": "<modified>",
+        "name": "notes.md",
+        "path": "<ROOT>/docs/notes.md",
+        "size": 8
+      },
+      {
+        "childCount": 1,
+        "created": "<created>",
+        "isDir": true,
+        "isSymlink": false,
+        "mode": "drwxr-xr-x",
+        "modified": "<modified>",
+        "name": "sub",
+        "path": "<ROOT>/docs/sub",
+        "size": "<dirSize>"
+      }
+    ],
+    "nextCursor": null,
+    "path": "<ROOT>/docs"
+  }
+}

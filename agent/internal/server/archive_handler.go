@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -29,26 +28,19 @@ type ArchiveEntry struct {
 // its limit; the desktop client already clamps to the same value.
 const archivePeekMaxLimit = 5000
 
+// archivePeekDefaultLimit is the entry count a listing returns when the request names no limit.
+const archivePeekDefaultLimit = 500
+
 func archivePeekHandler(ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path query param required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "path query param required")
 			return
 		}
 
-		limit := 500
-		if l := r.URL.Query().Get("limit"); l != "" {
-			if n, err := strconv.Atoi(l); err == nil && n > 0 {
-				limit = n
-			} else if errors.Is(err, strconv.ErrRange) && !strings.HasPrefix(l, "-") {
-				limit = archivePeekMaxLimit // too large for an int: clamp, do not fall back to the default
-			}
-		}
-		if limit > archivePeekMaxLimit {
-			limit = archivePeekMaxLimit
-		}
+		limit := parseLimit(r.URL.Query().Get("limit"), archivePeekDefaultLimit, archivePeekMaxLimit)
 
 		resolved, err := ops.Resolve(path)
 		if err != nil {
@@ -144,8 +136,11 @@ func peekTarGzFile(file *os.File, limit int) ([]ArchiveEntry, error) {
 	return readTarEntries(tar.NewReader(&budgetReader{r: gz, left: peekInflateBudget}), limit)
 }
 
+// peekInflateDefaultBytes is the default cap on decompressed bytes read while listing a .tar.gz.
+const peekInflateDefaultBytes int64 = 256 << 20
+
 // peekInflateBudget caps decompressed bytes read while listing a .tar.gz.
-var peekInflateBudget = int64(256) << 20
+var peekInflateBudget = peekInflateDefaultBytes
 
 var errPeekTooLarge = errors.New("archive is too large to list")
 

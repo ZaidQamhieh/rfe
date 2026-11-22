@@ -33,10 +33,16 @@ data class TransferRecord(
   val publicUri: String? = null,
   /** Epoch millis of the last journal write; for a finished transfer, when it finished. 0 in journals written before this field. */
   val updatedAt: Long = 0,
-  /** Downloads only: the file's ETag (or Last-Modified) from the response that started the `.part`, sent as If-Range on resume. */
+  /** Downloads only: the file's strong ETag (or, from an agent without one, Last-Modified) from the response that started the `.part`, sent as If-Range on resume. */
   val validator: String? = null,
   /** Upload only: the source's modified time when [sha256] was computed; a different time means the hash is stale. */
   val sourceModified: Long = 0,
+  /** Epoch millis when the transfer was queued; 0 in journals written before this field. Orders rows newest first. */
+  val enqueuedAt: Long = 0,
+  /** Downloads only: the name the published copy was saved under (Android renames a duplicate, e.g. "a (1).pdf"). */
+  val savedName: String? = null,
+  /** Upload only: the random key sent as Idempotency-Key when opening the session, journaled before the POST so a retry after a lost answer finds the same session. */
+  val idempotencyKey: String? = null,
 ) {
   val isUpload get() = direction == "UPLOAD"
 
@@ -48,6 +54,8 @@ data class TransferRecord(
     .put("overwrite", overwrite).put("deleteSource", deleteSource)
     .put("publicUri", publicUri ?: JSONObject.NULL).put("updatedAt", updatedAt)
     .put("validator", validator ?: JSONObject.NULL).put("sourceModified", sourceModified)
+    .put("enqueuedAt", enqueuedAt).put("savedName", savedName ?: JSONObject.NULL)
+    .put("idempotencyKey", idempotencyKey ?: JSONObject.NULL)
 
   companion object {
     fun fromJson(j: JSONObject) = TransferRecord(
@@ -62,6 +70,9 @@ data class TransferRecord(
       j.optLong("updatedAt", 0),
       if (j.isNull("validator")) null else j.optString("validator"),
       j.optLong("sourceModified", 0),
+      j.optLong("enqueuedAt", 0),
+      if (j.isNull("savedName")) null else j.optString("savedName"),
+      if (j.isNull("idempotencyKey")) null else j.optString("idempotencyKey"),
     )
   }
 }
@@ -78,8 +89,11 @@ interface Credentials {
  * backgrounded or killed. State lives in a per-transfer JSON journal; the bytes
  * live in `<dest>.part` and are the source of truth for resume offsets.
  *
- * - Resume: Range from the `.part` length; a 200 to a ranged request restarts
- *   from zero (server ignored Range), never appends full content to a partial.
+ * - Resume: Range from the `.part` length with If-Range set to the stored validator. A 200 to a
+ *   ranged request restarts from zero (server ignored Range or the file changed), never appends full
+ *   content to a partial. A 206 is appended only if its ETag equals the stored one and its
+ *   Content-Range starts at the partial's length; otherwise the partial is discarded and the download
+ *   restarts, so two versions of a file are never spliced.
  * - Integrity: when the server states a length, the final size must match
  *   before the atomic rename; a mismatch fails the transfer and keeps `.part`.
  * - Process death: transfers found RUNNING/QUEUED at startup become PAUSED.
@@ -94,6 +108,8 @@ class TransferEngine(
   private val busyDelayMs: Long = 5_000,
   /** Copies a finished download somewhere shared and returns its URI; on success the private copy is dropped. */
   private val publisher: ((File) -> String?)? = null,
+  /** The name a published copy was saved under, from the URI [publisher] returned. */
+  private val publishedName: ((String) -> String?)? = null,
 ) {
   private val pool = Executors.newFixedThreadPool(maxConcurrent)
   private val records = ConcurrentHashMap<String, TransferRecord>()
@@ -119,7 +135,7 @@ class TransferEngine(
   fun enqueue(id: String, hostId: String, address: String, remotePath: String, destPath: String): TransferRecord {
     require(id.matches(Regex("[A-Za-z0-9_-]{1,64}"))) { "invalid transfer id" }
     requireIdFree(id)
-    val r = TransferRecord(id, hostId, address, remotePath, destPath, TransferState.QUEUED, 0, -1, null)
+    val r = TransferRecord(id, hostId, address, remotePath, destPath, TransferState.QUEUED, 0, -1, null, enqueuedAt = System.currentTimeMillis())
     records[id] = r
     persist(r)
     submit(id)
@@ -133,7 +149,7 @@ class TransferEngine(
   fun enqueueUpload(id: String, hostId: String, address: String, localPath: String, remotePath: String, overwrite: Boolean, deleteSource: Boolean): TransferRecord {
     require(id.matches(Regex("[A-Za-z0-9_-]{1,64}"))) { "invalid transfer id" }
     requireIdFree(id)
-    val r = TransferRecord(id, hostId, address, remotePath, localPath, TransferState.QUEUED, 0, -1, null, "UPLOAD", null, null, overwrite, deleteSource)
+    val r = TransferRecord(id, hostId, address, remotePath, localPath, TransferState.QUEUED, 0, -1, null, "UPLOAD", null, null, overwrite, deleteSource, enqueuedAt = System.currentTimeMillis())
     records[id] = r
     persist(r)
     submit(id)
@@ -189,7 +205,8 @@ class TransferEngine(
   private fun stop(id: String, reason: TransferState) {
     val r = records[id] ?: return
     if (r.state == TransferState.DONE) return
-    attempts[id]?.stop = reason
+    // Under the attempt's monitor, so a progress write that already began finishes before the stop is visible (see runUpload).
+    attempts[id]?.let { a -> synchronized(a) { a.stop = reason } }
     calls[id]?.cancel()
     futures[id]?.cancel(true)
     if (r.state != TransferState.RUNNING) update(r.copy(state = reason))
@@ -220,12 +237,19 @@ class TransferEngine(
         track = { calls[id] = it },
         // A worker that was stopped and replaced (pause, then an immediate resume) must not write progress or
         // finish the transfer under the new attempt (audit F-126).
-        save = { next -> if (attempts[id] === attempt) r = update(next) },
+        // Once stopped, a chunk thread still winding down must not write RUNNING over the cancelled or paused record:
+        // that left a cancelled upload "running" in the list with its notification (and strip) never going away.
+        save = { next -> synchronized(attempt) { if (attempts[id] === attempt && attempt.stop == null) r = update(next) } },
         chunkSize = uploadChunkSize,
         busyDelayMs = busyDelayMs,
       )
       r = uploader.run(r)
       if (attempts[id] !== attempt) return // replaced while finishing: the new attempt still needs the source
+      // The owner cancelled while the last chunk was landing: the transfer ends as cancelled, never as done.
+      if (attempt.stop == TransferState.CANCELLED) {
+        update(r.copy(state = TransferState.CANCELLED))
+        return
+      }
       update(r.copy(state = TransferState.DONE, received = r.total, error = null))
       // The upload is done; a failure to remove the staged source must not turn it back into FAILED (audit F-127).
       runCatching { discardSource(r) }
@@ -275,6 +299,15 @@ class TransferEngine(
           throw UploadRejected(resp.code, code)
         }
         val resumed = offset > 0 && resp.code == 206
+        if (resumed) {
+          // If-Range should have made the server answer 200 for a changed file; do not trust that alone.
+          val answerETag = resp.header("ETag")
+          val start = contentRangeStart(resp.header("Content-Range"))
+          if ((answerETag != null && answerETag != r.validator) || (start != null && start != offset)) {
+            part.delete()
+            throw RestartFromZero()
+          }
+        }
         if (!resumed) {
           // 200: the file changed (If-Range failed) or the server ignored Range; the body is the whole current file.
           offset = 0
@@ -311,10 +344,15 @@ class TransferEngine(
         // Publishing is best effort: if it fails the download simply stays in app storage.
         val published = publisher?.let { p -> runCatching { p(dest) }.getOrNull() }
         if (published != null) { dest.delete(); dropStagingDir(dest, id) }
-        update(r.copy(state = TransferState.DONE, received = size, total = size, error = null, publicUri = published))
+        val savedName = published?.let { u -> publishedName?.let { f -> runCatching { f(u) }.getOrNull() } }
+        update(r.copy(state = TransferState.DONE, received = size, total = size, error = null, publicUri = published, savedName = savedName))
       }
     } catch (e: RestartFromZero) {
-      if (attempts[id] === attempt) submit(id)
+      if (attempts[id] !== attempt) return
+      // A cancel or pause that arrived while the restart was being decided must stand; restarting would bring a cancelled download back.
+      val stopReason = attempt.stop
+      val cur = records[id]
+      if (stopReason == null) submit(id) else if (cur != null) update(cur.copy(state = stopReason))
     } catch (e: Exception) {
       if (attempts[id] !== attempt) return // superseded by a newer attempt
       // An interrupt without an explicit stop is engine shutdown: keep the partial, resumable.
@@ -328,6 +366,10 @@ class TransferEngine(
   }
 
   private class RestartFromZero : RuntimeException()
+
+  /** The first byte offset of a `Content-Range: bytes START-END/TOTAL` header, or null if absent or not in that form. */
+  private fun contentRangeStart(header: String?): Long? =
+    header?.let { Regex("""^bytes (\d+)-""").find(it)?.groupValues?.get(1)?.toLongOrNull() }
 
   private fun describe(e: Exception): String = when (e) {
     is CertPinMismatch -> "ERR_CERT_PIN_MISMATCH"

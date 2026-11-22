@@ -1,6 +1,6 @@
 //! File metadata as it crosses the wire, and the conversions the Go side expects.
 
-use crate::walk::At;
+use crate::walk::{rel_join, At};
 use cap_std::fs::{Dir, Metadata};
 use serde::Serialize;
 use std::ffi::OsStr;
@@ -133,11 +133,7 @@ pub fn stat_of(meta: &Metadata) -> Stat {
 /// walk root (an absolute link, or one leaving the root, reports as a non-directory) and the target text is the
 /// raw link contents, whatever they point at.
 pub fn link_info(root: &Dir, dir: &Dir, rel_dir: &str, name: &OsStr) -> (bool, String) {
-    let rel = if rel_dir.is_empty() {
-        name.to_string_lossy().into_owned()
-    } else {
-        format!("{rel_dir}/{}", name.to_string_lossy())
-    };
+    let rel = rel_join(rel_dir, &name.to_string_lossy());
     let is_dir = root.metadata(&rel).map(|m| m.is_dir()).unwrap_or(false);
     (is_dir, read_link_raw(dir, name))
 }

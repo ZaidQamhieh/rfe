@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Floating — panels you arrange, a dock to summon them</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.fl{background:linear-gradient(135deg,#1f2937,#0f172a 50%,#1e1b4b);color:#e5e7eb;font-family:"Inter",system-ui,sans-serif;font-size:12.5px}
+.fl .tb{color:#475569}
+.fl .desk{flex:1;position:relative}
+.fl .pn{position:absolute;background:rgba(30,41,59,.78);backdrop-filter:blur(18px);border:1px solid rgba(148,163,184,.18);border-radius:14px;box-shadow:0 24px 50px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden}
+.fl .pn header{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:600;cursor:move;border-bottom:1px solid rgba(148,163,184,.12)}
+.fl .pn header .g{color:#64748b;letter-spacing:-2px}
+.fl .pn header .x{margin-left:auto;color:#64748b;font-weight:400;display:flex;gap:10px}
+.fl .pn .bd{padding:10px 12px;overflow:auto}
+.fl .pn.focus{border-color:rgba(129,140,248,.6);box-shadow:0 24px 50px rgba(0,0,0,.45),0 0 0 3px rgba(129,140,248,.15)}
+.fl .row{display:grid;grid-template-columns:18px 1fr 70px 70px;gap:8px;padding:6px 6px;border-radius:7px;align-items:center}
+.fl .row:hover{background:rgba(148,163,184,.1)}.fl .row.sel{background:rgba(99,102,241,.35)}
+.fl .row .i{width:14px;height:12px;border-radius:2px;background:#818cf8}.fl .row .i.f{background:#64748b;width:11px;height:14px}
+.fl .row span{color:#94a3b8;text-align:right}
+.fl .crumb{display:flex;gap:6px;color:#94a3b8;margin-bottom:6px}.fl .crumb b{color:#fff;font-weight:500}
+.fl .xf{padding:6px 0;border-bottom:1px solid rgba(148,163,184,.1)}.fl .xf .pb{height:4px;background:rgba(148,163,184,.15);border-radius:2px;margin-top:5px;overflow:hidden}.fl .xf .pb i{display:block;height:100%;background:#818cf8}
+.fl .xf small{color:#94a3b8;float:right}
+.fl .prev{height:150px;border-radius:10px;background:linear-gradient(135deg,#f472b6,#818cf8 50%,#22d3ee);margin-bottom:8px}
+.fl .kv{display:grid;grid-template-columns:80px 1fr;gap:4px;color:#94a3b8}.fl .kv b{color:#e5e7eb;font-weight:400}
+.fl .pair{text-align:center}.fl .qr{width:120px;height:120px;margin:6px auto;background:
+ repeating-linear-gradient(90deg,#e5e7eb 0 6px,transparent 6px 12px),repeating-linear-gradient(0deg,#e5e7eb 0 6px,transparent 6px 12px);background-blend-mode:difference;border:8px solid #e5e7eb;border-radius:6px;filter:contrast(2)}
+.fl .pair b{font:700 20px ui-monospace,monospace;letter-spacing:.14em;display:block;margin-top:4px}
+.fl .dock{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;padding:6px;background:rgba(15,23,42,.8);backdrop-filter:blur(18px);border:1px solid rgba(148,163,184,.2);border-radius:18px}
+.fl .dock div{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:rgba(148,163,184,.08);position:relative;cursor:pointer}
+.fl .dock div.on::after{content:"";position:absolute;bottom:-4px;width:4px;height:4px;border-radius:50%;background:#818cf8}
+.fl .dock .sep{width:1px;background:rgba(148,163,184,.2);margin:6px 2px}
+.fl .dock sup{position:absolute;top:2px;right:3px;background:#f43f5e;color:#fff;border-radius:7px;font:700 9px system-ui;padding:1px 4px}
+.fl .lay{position:absolute;top:10px;right:14px;display:flex;gap:6px}
+.fl .lay span{background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:5px 10px;color:#cbd5e1}
+.fl .lay span.on{border-color:#818cf8;color:#fff}
+</style></head><body class="mk">
+<div class="win fl">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="desk">
+  <div class="lay"><span class="on">Layout: Browse</span><span>Sort photos</span><span>Admin</span><span>＋ Save layout</span></div>
+  <div class="pn focus" style="left:20px;top:46px;width:470px;height:470px"><header><span class="g">⋮⋮</span>studio-pc<span class="x">⌕ ✕</span></header><div class="bd">
+   <div class="crumb">home › Projects › <b>launch-kit</b></div>
+   <div class="row"><i class="i"></i>assets<span>42</span><span>Today</span></div><div class="row"><i class="i"></i>drafts<span>7</span><span>Yesterday</span></div>
+   <div class="row sel"><i class="i f"></i>hero-final.png<span>4.2 MB</span><span>09:12</span></div><div class="row"><i class="i f"></i>brief.md<span>8 KB</span><span>Oct 29</span></div>
+   <div class="row"><i class="i f"></i>budget-q4.xlsx<span>212 KB</span><span>Oct 27</span></div><div class="row"><i class="i f"></i>moodboard.jpg<span>11.8 MB</span><span>Oct 22</span></div>
+   <div class="row"><i class="i f"></i>launch-video.mp4<span>1.4 GB</span><span>Oct 20</span></div><div class="row"><i class="i f"></i>press-release.pdf<span>680 KB</span><span>Oct 18</span></div></div></div>
+  <div class="pn" style="left:506px;top:46px;width:300px;height:330px"><header><span class="g">⋮⋮</span>This PC · Downloads<span class="x">✕</span></header><div class="bd">
+   <div class="row"><i class="i"></i>RFE Desktop<span>12</span><span>Today</span></div><div class="row"><i class="i f"></i>invoice-1042.pdf<span>96 KB</span><span>10:41</span></div><div class="row"><i class="i f"></i>trip-photos.zip<span>2.1 GB</span><span>09:02</span></div><div class="row"><i class="i f"></i>notes.txt<span>3 KB</span><span>Oct 31</span></div>
+   <div style="margin-top:10px;border:1.5px dashed rgba(148,163,184,.35);border-radius:10px;padding:14px;text-align:center;color:#94a3b8">Drag between panels to copy</div></div></div>
+  <div class="pn" style="left:822px;top:46px;width:420px;height:300px"><header><span class="g">⋮⋮</span>Inspector<span class="x">✕</span></header><div class="bd"><div class="prev"></div><div class="kv">Name<b>hero-final.png</b>Size<b>4.2 MB · 3840×2160</b>Where<b>studio-pc / launch-kit</b>Rights<b>rw-r--r--</b></div></div></div>
+  <div class="pn" style="left:506px;top:392px;width:300px;height:200px"><header><span class="g">⋮⋮</span>Transfers<span class="x">⏸ ✕</span></header><div class="bd">
+   <div class="xf">↑ raw-footage-day3.mov<small>71%</small><div class="pb"><i style="width:71%"></i></div></div><div class="xf">↓ tax-2025.pdf<small>✓</small><div class="pb"><i style="width:100%"></i></div></div><div class="xf">↑ thesis-v12.docx<small>waiting</small><div class="pb"><i style="width:0"></i></div></div></div></div>
+  <div class="pn" style="left:822px;top:362px;width:240px;height:250px"><header><span class="g">⋮⋮</span>Pair a phone<span class="x">✕</span></header><div class="bd pair"><div class="qr"></div><b>7Q4-K2M</b><small style="color:#94a3b8">studio-pc · 4:12 left · one use</small></div></div>
+  <div class="dock"><div class="on">▤</div><div class="on">💻</div><div class="on">⇅</div><div class="on">ⓘ</div><div class="sep"></div><div>⌕</div><div class="on">☍<sup>1</sup></div><div>🗑</div><div>🔗</div><div>▦</div><div>◷</div><div class="sep"></div><div>⚙</div></div>
+ </div>
+</div></body></html>

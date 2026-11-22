@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Harbor — a calm top bar and an Overview that is a to-do list</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d01{--bg:#f6f8fa;--sf:#fff;--rz:#edf1f5;--t1:#0f1720;--t2:#475467;--t3:#667085;--line:rgba(15,23,32,.08);--line2:rgba(15,23,32,.14);--ac:#2563eb;--ac-ink:#1d4ed8;--ac-soft:rgba(37,99,235,.08);--font:"Figtree",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.d01 .top{height:56px;flex:none;display:flex;align-items:center;gap:8px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--sf)}
+.d01 .top .k-sbox{width:380px;margin-right:auto}
+.d01 .k-dockwrap{position:absolute;right:16px;top:64px;width:520px;display:none;z-index:40}.d01 .k-dockwrap.open{display:block}
+.d01 .hi{font:500 26px var(--font);margin:0}.d01 .hs{color:var(--t2);margin:4px 0 24px}
+.d01 .need{display:grid;grid-template-columns:28px 1fr auto;gap:14px;align-items:center;padding:14px 16px;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:8px}
+.d01 .need b{font-weight:500}.d01 .need small{display:block;color:var(--t3)}.d01 .need .k-row{flex-wrap:nowrap}
+.d01 .pcs{display:grid;gap:2px}.d01 .pcl{display:grid;grid-template-columns:20px 1fr 140px 64px;gap:12px;align-items:center;height:44px;padding:0 8px;border-radius:8px}.d01 .pcl:hover{background:var(--rz)}.d01 .pcl small{color:var(--t3);font:12px var(--mono)}.d01 .pcl .k-bar{margin:0}
+.d01 .rcs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.d01 .rcs div{font-size:12px;color:var(--t3);cursor:pointer}.d01 .rcs svg{display:block;width:100%;height:auto;border-radius:8px;margin-bottom:6px}.d01 .rcs b{display:block;color:var(--t1);font-weight:500;font-size:13px}
+.d01 .chk{display:grid;gap:8px;max-width:640px}.d01 .chk div{display:grid;grid-template-columns:32px 1fr auto;gap:14px;align-items:center;padding:16px;border-radius:12px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line)}
+.d01 .chk div.off{opacity:.55}.d01 .chk b{font-weight:500}.d01 .chk small{display:block;color:var(--t3)}
+.d01 .num{width:28px;height:28px;border-radius:14px;display:grid;place-items:center;background:var(--rz);font:500 13px var(--mono);color:var(--t2)}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d01">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The Overview is a short list of what needs you, in the order to act on it, then your computers and recent files. Search and the account sit in a plain top bar; transfers show as a pill there.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Needs you", "Overview, first list; each row has its one action", 0], ["Transfers", "Pill in the top bar opens the dock; Transfers page", 1], ["Search", "Top bar field or Ctrl K", 1], ["Pair a phone", "Top bar", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=K.C.searchBox(EM?'Search, once a computer is added':'Search all connected computers')+(EM?'':K.C.pill())+K.C.actions();
+document.getElementById('dock').innerHTML=K.C.dock();
+const needs=[['phone','Pixel 9 asks to join studio-pc','Accept only if it shows 4829 1307 · 1:42 left',K.btn('Reject',{k:'sm ghost'})+K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})],['warning','nas has a different key','Its files stay closed until you compare',K.btn('Review key…',{k:'sm warn',a:'dlg:keychanged'})],['doc','bed-layout.pdf already exists on work-laptop','Upload to /Users/sam/Documents waits',K.btn('Replace',{k:'sm'})+K.btn('Keep both',{k:'sm pri'})],['memo','notes.txt was damaged while uploading','The upload was discarded',K.btn('Retry',{i:'refresh',k:'sm'})]];
+const home=()=>EM?`<h1 class="hi">Welcome to RFE</h1><p class="hs">Three steps and your PCs’ files are here. 0 of 3 done</p><div class="chk">
+<div><span class="num">1</span><span><b>Set up a PC</b><small>Install RFE on it and run <code>rfe setup</code>; it prints a pairing code</small></span>${K.btn('How',{k:'sm ghost',a:'dlg:welcome'})}</div>
+<div><span class="num">2</span><span><b>Add it here</b><small>By its address, from the network, or with the pairing code</small></span>${K.btn('Add a computer',{i:'plus',k:'sm pri',a:'dlg:newconn'})}</div>
+<div class="off"><span class="num">3</span><span><b>Pair your phone</b><small>After step 2: scan a QR code with RFE for Android</small></span>${K.btn('Pair a phone',{k:'sm',dis:1})}</div></div>`
+:`<h1 class="hi">Good morning, sam</h1><p class="hs">2 of 4 computers connected · 4 things need you</p>${needs.map(n=>`<div class="need">${E(n[0],24)}<span><b>${n[1]}</b><small>${n[2]}</small></span><span class="k-row">${n[3]}</span></div>`).join('')}
+<div class="k-g2" style="margin-top:24px">${K.sec('Computers','',`<div class="pcs">${D.servers.map(s=>`<div class="pcl" data-k="${s.dot==='ok'?'go:files':'go:servers'}">${K.mach(s,18)}<span>${K.dot(s.dot)} ${s.name} <small>${s.ms?s.ms+' ms':s.state.toLowerCase()}</small></span>${K.bar(s.used/s.total*100)}<small>${Math.round(s.used/s.total*100)}%</small></div>`).join('')}</div>`)}${K.sec('Recent files',K.btn('Open Files',{k:'sm ghost',a:'go:files'}),`<div class="rcs">${[[2,'north-bed-after.jpg','studio-pc · 12 min'],[1,'north-bed-before.jpg','downloaded'],[3,'garden-sketch.png','this computer']].map(r=>`<div data-k="dlg:preview">${K.photo(r[0],160,100,8)}<b>${r[1]}</b>${r[2]}</div>`).join('')}</div>`)}</div>`;
+B.mount({views:{home}});
+
+</script></body></html>

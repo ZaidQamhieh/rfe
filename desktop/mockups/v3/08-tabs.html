@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tabs — pages and folders open as tabs, the Overview is a new tab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d08{--bg:#f4f5f7;--sf:#fff;--rz:#eceef1;--t1:#111827;--t2:#4b5563;--t3:#6b7280;--line:rgba(17,24,39,.08);--line2:rgba(17,24,39,.14);--ac:#7c3aed;--ac-ink:#6d28d9;--ac-soft:rgba(124,58,237,.08);--font:"Plus Jakarta Sans",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.d08 .top{flex:none;background:var(--rz);border-bottom:1px solid var(--line)}
+.d08 .tabs{display:flex;gap:2px;padding:8px 8px 0;align-items:flex-end}.d08 .tab{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 12px;border-radius:8px 8px 0 0;font-size:13px;color:var(--t2);max-width:220px}
+.d08 .tab.on{background:var(--sf);color:var(--t1);box-shadow:0 -1px 0 var(--line)}.d08 .tab .x{opacity:.5;display:inline-flex}.d08 .tab:hover .x{opacity:1}
+.d08 .omni{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--sf)}
+.d08 .addr{flex:1;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:17px;background:var(--rz);font:13px var(--mono);color:var(--t2)}.d08 .addr b{color:var(--t1);font-weight:500}.d08 .addr .lk{display:inline-flex;gap:4px;align-items:center;color:var(--pos);font-family:var(--font);font-size:12px}
+.d08 .nt{max-width:820px;margin:24px auto 0}.d08 .nt .k-in{height:52px;border-radius:26px;font-size:16px;padding:0 20px;margin-bottom:28px;background:var(--sf);box-shadow:var(--ctl)}
+.d08 .nt h3{font:500 13px var(--font);color:var(--t3);margin:20px 0 10px}
+.d08 .fv{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.d08 .fv button{display:grid;justify-items:center;gap:8px;padding:16px 8px;border-radius:14px;font-size:13px}.d08 .fv button:hover{background:var(--sf);box-shadow:var(--ctl)}.d08 .fv small{color:var(--t3);font-size:11px}
+.d08 .fv .ic{width:52px;height:52px;border-radius:14px;background:var(--sf);display:grid;place-items:center;box-shadow:var(--ctl)}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d08">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Pages and folders open as tabs above the content, like a browser, with an address line under them. The Overview is the new-tab page: search, favorite folders, recent files and computers.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Tabs", "Above the content; + opens a new tab (the Overview)", 1], ["Address", "The line under the tabs: type a path or a search", 1], ["Transfers", "Ring at the end of the address line; Transfers page", 1], ["Favorites", "New-tab page tiles", 0]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+const TT=EM?[['home','sparkle','New tab']]:[['files','dir','garden-plan'],['files2','dir','Documents · work-laptop'],['devices','phone','Devices'],['home','x','New tab']];
+function drawTop(v){const cur=v==='home'?'home':v;document.getElementById('top').innerHTML=`<div class="tabs">${TT.map(t=>`<button class="tab${(t[0]===cur||(t[0]==='files'&&v==='files'))?' on':''}" data-k="go:${t[0]==='files2'?'files':t[0]}">${t[1]==='x'||t[1]==='sparkle'?I('plus',14):E(t[1],16)}<span>${t[2]}</span><span class="x">${I('x',12)}</span></button>`).join('')}${K.ib('plus','New tab (Ctrl T)','go:home')}</div><div class="omni">${K.ib('left','Back (Alt+Left)')}${K.ib('up','Up one folder (Alt+Up)')}<div class="addr">${EM?'Type an address to add a computer, or a search':v==='files'?`<span class="lk">${I('lock',12)}pinned</span>rfe://studio-pc<b>/home/sam/Projects/garden-plan</b>`:`rfe://${v==='home'?'new-tab':v}`}</div>${EM?'':`<button class="k-xpill" data-k="go:transfers" style="height:32px" data-tip="Transfers">${K.C.ring(71)}2</button>`}${K.C.actions()}</div>`;}
+const home=()=>`<div class="nt"><label class="k-in">${I('search',18)}<input placeholder="${EM?'Type an address like 192.168.1.20 to add a computer':'Search every connected computer, or type a path'}"></label>`+(EM?`<h3>Start</h3><div class="fv">${[['electric_plug','Add a computer','by address','dlg:newconn'],['satellite_antenna','Find on network','mDNS','dlg:newconn:Find on network'],['key','Pairing code','from rfe setup','dlg:newconn:Pairing code'],['information','How it works','the tour','dlg:welcome']].map(f=>`<button data-k="${f[3]}"><span class="ic">${E(f[0],28)}</span>${f[1]}<small>${f[2]}</small></button>`).join('')}</div>`:`<h3>Favorites</h3><div class="fv">${[...D.favs.map(f=>['file_folder',f[0],f[1],'go:files']),['wastebasket','Trash','4 items','tool:trash'],['link','Share links','2 live','tool:share'],['toolbox','Apps','studio-pc','tool:apps']].map(f=>`<button data-k="${f[3]}"><span class="ic">${E(f[0],28)}</span>${f[1]}<small>${f[2]}</small></button>`).join('')}</div><h3>Recent files</h3><div class="fv">${[[2,'north-bed-after.jpg'],[1,'north-bed-before.jpg'],[3,'garden-sketch.png']].map(r=>`<button data-k="dlg:preview">${K.photo(r[0],120,76,10)}${r[0]?r[1]:''}<small>${r[1]}</small></button>`).join('')}${[['memo','planting-calendar.md'],['page_facing_up','tax-2025.pdf'],['bar_chart','soil-test-results.csv']].map(r=>`<button data-k="go:files"><span class="ic">${E(r[0],28)}</span><small>${r[1]}</small></button>`).join('')}</div><h3>Computers</h3><div class="fv">${D.servers.map(s=>`<button data-k="${s.dot==='ok'?'go:files':'go:servers'}"><span class="ic">${K.mach(s,28)}</span>${K.dot(s.dot)} ${s.name}<small>${s.ms?s.ms+' ms':s.state}</small></button>`).join('')}</div>`)+`</div>`;
+B.mount({views:{home},onGo:drawTop});
+
+</script></body></html>

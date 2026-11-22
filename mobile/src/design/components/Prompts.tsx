@@ -3,8 +3,11 @@ import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable as RNPressable, ScrollView, View } from 'react-native';
 
 import { t } from '../../i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { insetPadding } from '../safeInsets';
 import { useScheme } from '../theme';
-import { Radii, Spacing } from '../tokens';
+import { FontFamily, Radii, SCRIM, Spacing } from '../tokens';
 import { Button } from './Button';
 import { withAlpha } from './Callouts';
 import { SheetHero } from './Sheet';
@@ -13,10 +16,11 @@ import { TextField } from './TextField';
 
 function Center({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
   const c = useScheme();
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }} onPress={onClose} accessibilityLabel="Dismiss">
+        <RNPressable style={{ flex: 1, backgroundColor: SCRIM, justifyContent: 'center', ...insetPadding(insets, Spacing.lg) }} onPress={onClose} accessibilityLabel={t('dismissButton')}>
           <RNPressable accessibilityViewIsModal style={{ backgroundColor: c.surfaceContainer, borderRadius: Radii.lg, overflow: 'hidden', maxHeight: '90%' }}>
             {children}
           </RNPressable>
@@ -43,11 +47,11 @@ export function PromptDialog({
   const ok = (allowEmpty || value.trim().length > 0) && problem === null;
   return (
     <Center visible={visible} onClose={onCancel}>
-      <View style={{ padding: 24, gap: 12 }}>
+      <View style={{ padding: Spacing.lg, gap: Spacing.md2 }}>
         <Text variant="titleLarge" accessibilityRole="header">{title}</Text>
         {description ? <Text muted>{description}</Text> : null}
         <TextField label={placeholder ?? title} hideLabel placeholder={placeholder} value={value} onChangeText={setValue} autoFocus autoCapitalize="none" autoCorrect={false} mono={mono} helper={helper} error={problem} keyboardType={keyboardType} onSubmitEditing={() => ok && onSubmit(value.trim())} />
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm }}>
           <Button kind="text" label={cancelLabel} onPress={onCancel} />
           <Button kind="filled" label={confirmLabel} disabled={!ok} onPress={() => onSubmit(value.trim())} />
         </View>
@@ -67,7 +71,7 @@ export function ChoiceDialog<T extends string>({ visible, title, subtitle, optio
       <View style={{ padding: Spacing.lg, paddingTop: 0 }}>
         <View style={{ backgroundColor: c.surfaceContainerHighest, borderRadius: Radii.card, overflow: 'hidden' }}>
           {options.map((o, i) => (
-            <RNPressable key={o.value} accessibilityRole="button" accessibilityLabel={o.label} onPress={() => onChoose(o.value)} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: Spacing.md, minHeight: 48, borderTopWidth: i ? 1 : 0, borderColor: withAlpha(c.outlineVariant, 0.5) }}>
+            <RNPressable key={o.value} accessibilityRole="button" accessibilityLabel={o.label} onPress={() => onChoose(o.value)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.md, minHeight: 48, borderTopWidth: i ? 1 : 0, borderColor: withAlpha(c.outlineVariant, 0.5) }}>
               {o.icon}
               <Text variant="bodyLarge" color={o.tint}>{o.label}</Text>
             </RNPressable>
@@ -78,16 +82,18 @@ export function ChoiceDialog<T extends string>({ visible, title, subtitle, optio
   );
 }
 
+const REPORT_LIST_MAX_HEIGHT = 320;
+
 /** Scrollable message dialog with an OK button (batch failure report). */
 export function ReportDialog({ visible, title, items, onClose }: { visible: boolean; title: string; items: { primary: string; secondary?: string }[]; onClose: () => void }) {
   const c = useScheme();
   return (
     <Center visible={visible} onClose={onClose}>
       <SheetHero showGrabber={false} badge={<TriangleAlert size={24} color={c.error} />} tint={c.error} title={title} />
-      <ScrollView style={{ maxHeight: 320 }}>
+      <ScrollView style={{ maxHeight: REPORT_LIST_MAX_HEIGHT }}>
         {items.map((it, i) => (
           <View key={i} style={{ paddingHorizontal: Spacing.lg, paddingVertical: 6 }}>
-            <Text style={{ fontSize: 14, fontFamily: 'Lato_400Regular' }}>{it.primary}</Text>
+            <Text style={{ fontSize: 14, fontFamily: FontFamily.regular }}>{it.primary}</Text>
             {it.secondary ? <Text muted style={{ fontSize: 11.5 }}>{it.secondary}</Text> : null}
           </View>
         ))}

@@ -9,10 +9,11 @@ import { AppBarIconButton, Button, ErrorRetry, GroupedCard, HintCard, PageHead, 
 import { mix } from '../../design/color';
 import { LumenSize, LumenType } from '../../design/lumen';
 import { useRoles, useScheme } from '../../design/theme';
+import { Spacing } from '../../design/tokens';
 import { t } from '../../i18n';
 import { clientForHost } from '../../services';
 import { useHostById } from '../hosts/useHostById';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { appIconKey, appMeta, filterApps, launchFailure, platformKey, type IconKey } from './appsLogic';
 
 const ICONS: Record<IconKey, LucideIcon> = { browser: Globe, code: Code, office: FileText, media: Play, terminal: Terminal, system: Settings, monitor: Monitor };
@@ -55,6 +56,7 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
       setFailure(r.failure);
     }
   }, []);
+  const refetch = useCallback(async () => apply(await fetchCatalog()), [apply, fetchCatalog]);
   useEffect(() => {
     if (host === undefined) return;
     let live = true;
@@ -67,7 +69,7 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
   const reload = () => {
     setCatalog(null);
     setFailure(null);
-    void fetchCatalog().then(apply);
+    void refetch();
   };
 
   const launch = async (app: HostApp) => {
@@ -79,7 +81,7 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
     } catch (e) {
       const f = launchFailure(e);
       toast.error(t(f.key, { appName: app.name }));
-      if (f.refresh) void fetchCatalog().then(apply);
+      if (f.refresh) void refetch();
     } finally {
       setLaunching((s) => {
         const next = new Set(s);
@@ -102,7 +104,7 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
   };
 
   const centered = (icon: React.ReactNode, title: string, message: string, action?: React.ReactNode) => (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.md2 }}>
       {icon}
       <Text style={[LumenType.title, { textAlign: 'center' }]}>{title}</Text>
       <Text style={[LumenType.meta, { textAlign: 'center' }]} color={c.onSurfaceVariant}>{message}</Text>
@@ -119,7 +121,7 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
     body = <ErrorRetry message={failure.message} onRetry={reload} />;
   } else if (catalog === null) {
     body = (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md2 }}>
         <ActivityIndicator color={c.primary} />
         <Text style={LumenType.meta} color={c.onSurfaceVariant}>{t('hostAppsLoading')}</Text>
       </View>
@@ -140,23 +142,23 @@ export function AppsScreen({ hostId, chrome = true }: { hostId: string; chrome?:
             progressBackgroundColor={c.surfaceContainerHigh}
             onRefresh={async () => {
               setRefreshing(true);
-              apply(await fetchCatalog());
+              await refetch();
               setRefreshing(false);
             }}
           />
         }
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: Spacing.lg, gap: 10 }}
         ListHeaderComponent={
-          <View style={{ gap: 12, marginBottom: 2 }}>
+          <View style={{ gap: Spacing.md2, marginBottom: 2 }}>
             {catalog.launchAllowed ? null : <HintCard kind="warning" text={t('hostAppsLaunchPermissionOffHint')} />}
             <SearchBar value={query} onChange={setQuery} placeholder={t('hostAppsSearchHint')} />
             {query.trim() !== '' ? (
-              <Text style={[LumenType.meta, { paddingHorizontal: 4 }]} color={c.onSurfaceVariant}>{t('hostAppsMatches', { count: shown.length })}</Text>
+              <Text style={[LumenType.meta, { paddingHorizontal: Spacing.xs }]} color={c.onSurfaceVariant}>{t('hostAppsMatches', { count: shown.length })}</Text>
             ) : null}
           </View>
         }
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', gap: 6, padding: 24 }}>
+          <View style={{ alignItems: 'center', gap: 6, padding: Spacing.lg }}>
             <SearchX size={32} color={c.onSurfaceVariant} />
             <Text style={LumenType.rowTitle}>{t('hostAppsNoMatchesTitle')}</Text>
             <Text style={LumenType.meta} color={c.onSurfaceVariant}>{t('hostAppsNoMatchesMessage')}</Text>
@@ -206,8 +208,8 @@ function AppCard({ app, launching, launchAllowed, onRun }: { app: HostApp; launc
   const canRun = launchAllowed && app.launchable;
   const meta = appMeta(app, launchAllowed);
   return (
-    <GroupedCard padded={false} style={{ padding: 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <GroupedCard padded={false} style={{ padding: Spacing.md2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md2 }}>
         <View style={{ width: LumenSize.appIconTile, height: LumenSize.appIconTile, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: mix(tone, c.surfaceContainerHigh, 0.19) }}>
           <Icon size={24} color={tone} />
         </View>
@@ -228,7 +230,7 @@ function RunButton({ label, off, busy, onPress }: { label: string; off: boolean;
   const fg = off ? c.onSurfaceVariant : c.onPrimary;
   return (
     <Pressable onPress={off || busy ? undefined : onPress} disabled={off || busy} accessibilityLabel={off ? `${label} unavailable` : label} accessibilityState={{ disabled: off, busy }} hitSlop={4}>
-      <View style={{ minWidth: 76, minHeight: 48, paddingHorizontal: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: off ? c.surfaceContainerHigh : roles.safe, opacity: busy ? 0.7 : 1 }}>
+      <View style={{ minWidth: 76, minHeight: 48, paddingHorizontal: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: off ? c.surfaceContainerHigh : roles.safe, opacity: busy ? 0.7 : 1 }}>
         {busy ? <ActivityIndicator size="small" color={fg} /> : off ? null : <Play size={16} color={fg} />}
         <Text style={LumenType.pill} color={fg} numberOfLines={1}>{off ? 'Off' : label}</Text>
       </View>

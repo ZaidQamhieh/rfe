@@ -1,5 +1,6 @@
 import type { AgentClient } from '../../core/api/agentClient';
 import type { Entry } from '../../core/api/models';
+import { CertPinMismatch } from '../../core/api/pin';
 import { ListingCache, MemoryListingBackend } from '../../core/storage/listingCache';
 import { defaultVisibility } from '../../core/visibility';
 import { createExplorer, currentPath, deriveDisplay } from './explorerStore';
@@ -14,6 +15,29 @@ function setup(client: Partial<Record<keyof AgentClient, jest.Mock>>) {
   return { ex, cache };
 }
 
+describe('quietRefresh', () => {
+  it('refetches without a spinner and keeps the selection of paths that still exist', async () => {
+    const list = jest.fn().mockResolvedValueOnce({ path: '/r', entries: [e('a'), e('b')] }).mockResolvedValueOnce({ path: '/r', entries: [e('a'), e('c')] });
+    const { ex } = setup({ list });
+    await ex.load();
+    ex.getState().selected.add('/r/a');
+    ex.getState().selected.add('/r/b');
+    await ex.quietRefresh();
+    expect(ex.getState().entries.map((x) => x.name)).toEqual(['a', 'c']);
+    expect([...ex.getState().selected]).toEqual(['/r/a']);
+    expect(ex.getState().loading).toBe(false);
+  });
+
+  it('does nothing while the list is offline or stale', async () => {
+    const list = jest.fn().mockResolvedValueOnce({ path: '/r', entries: [e('a')] }).mockRejectedValueOnce(new Error('down'));
+    const { ex } = setup({ list });
+    await ex.load();
+    await ex.load();
+    await ex.quietRefresh();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('load / cache / offline', () => {
   it('loads, caches, and falls back to cache with offline=true when the host is down', async () => {
     const list = jest.fn().mockResolvedValueOnce({ path: '/r', entries: [e('a')], nextCursor: 'c' }).mockRejectedValueOnce(new Error('down'));
@@ -24,6 +48,15 @@ describe('load / cache / offline', () => {
     await ex.load();
     expect(ex.getState()).toMatchObject({ offline: true, stale: true, error: null });
     expect(ex.getState().entries).toHaveLength(1);
+  });
+
+  it('a changed computer identity drops the cached rows instead of showing them as offline', async () => {
+    const list = jest.fn().mockResolvedValueOnce({ path: '/r', entries: [e('a')] }).mockRejectedValueOnce(new CertPinMismatch());
+    const { ex } = setup({ list });
+    await ex.load();
+    await ex.load();
+    expect(ex.getState()).toMatchObject({ entries: [], offline: false, stale: false });
+    expect(ex.getState().error).toBeTruthy();
   });
 
   it('a folder that fails with no cache does not show the previous folder\'s rows or offline flag', async () => {
@@ -81,8 +114,9 @@ describe('load / cache / offline', () => {
     expect(ex.getState().entries.map((x) => x.name)).toEqual(['a', 'b']);
     expect(ex.getState().nextCursor).toBeNull();
     expect((await cache.get('h', '/r'))!.entries).toHaveLength(2);
+    const before = ex.getState();
     await ex.loadMore(); // no cursor: no-op
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(ex.getState()).toEqual(before);
   });
 });
 
@@ -368,7 +402,7 @@ describe('listing cache', () => {
   it('evicts the oldest non-pinned listing beyond capacity and serialises writes', async () => {
     let t = 0;
     const cache = new ListingCache(new MemoryListingBackend(), 2, () => ++t);
-    cache.setPinned('h:/a', true);
+    cache.syncPinned('h', ['/a']);
     await Promise.all([cache.put('h', '/a', []), cache.put('h', '/b', []), cache.put('h', '/c', [])]);
     expect(await cache.get('h', '/a')).not.toBeNull();
     expect(await cache.get('h', '/b')).toBeNull();
@@ -412,5 +446,29 @@ describe('local cache failures never decide the result (F-163, F-164)', () => {
     await expect(ex.load()).resolves.toBeUndefined();
     expect(ex.getState().entries.map((x) => x.name)).toEqual(['a']);
     expect(ex.getState().loading).toBe(false);
+  });
+});
+
+describe('a refused token', () => {
+  it('shows the removed-phone message, not the offline cache', async () => {
+    const { AgentApiError } = jest.requireActual('../../core/api/agentClient');
+    const list = jest.fn().mockResolvedValueOnce({ path: '/r', entries: [e('a')] }).mockRejectedValueOnce(new AgentApiError(401, 'UNAUTHORIZED', 'invalid or revoked token'));
+    const { ex } = setup({ list });
+    await ex.load();
+    await ex.load();
+    expect(ex.getState()).toMatchObject({ offline: false, errorCode: 'UNAUTHORIZED', entries: [] });
+    expect(ex.getState().error).not.toBeNull();
+  });
+});
+
+describe('creating with a path as the name', () => {
+  it('refuses a name with a slash and sends nothing', async () => {
+    const createFolder = jest.fn();
+    const createFile = jest.fn();
+    const { ex } = setup({ createFolder, createFile });
+    await expect(ex.createFolder('docs/a')).rejects.toThrow();
+    await expect(ex.createFile('a/b.txt')).rejects.toThrow();
+    expect(createFolder).not.toHaveBeenCalled();
+    expect(createFile).not.toHaveBeenCalled();
   });
 });

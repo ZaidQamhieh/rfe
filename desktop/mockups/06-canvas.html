@@ -1,0 +1,60 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Canvas — your computers as a map</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.cv{background:#0c0d10;color:#e7e7ea;font-family:"Inter",system-ui,sans-serif;background-image:radial-gradient(#23252c 1px,transparent 1px);background-size:22px 22px}
+.cv .tb{background:transparent;color:#3a3d46}
+.cv .board{flex:1;position:relative}
+.cv svg.lines{position:absolute;inset:0;width:100%;height:100%}
+.cv .node{position:absolute;background:#16181d;border:1px solid #2a2d36;border-radius:16px;padding:12px 14px;width:170px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.cv .node .n{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.cv .node .n i{width:8px;height:8px;border-radius:50%;background:#34d399}
+.cv .node small{display:block;color:#7c808c;font-size:11.5px;margin-top:4px}
+.cv .node.me{border-color:#f472b6;background:#1d1219}.cv .node.me .n i{background:#f472b6}
+.cv .node.phone{width:130px;border-style:dashed;border-radius:22px}
+.cv .node.phone.new{border-color:#fbbf24;color:#fde68a}
+.cv .node.off .n i{background:#4b5060}.cv .node.off{opacity:.6}
+.cv .open{position:absolute;left:470px;top:70px;width:520px;height:440px;background:#16181d;border:1px solid #3b3f4b;border-radius:18px;box-shadow:0 40px 80px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden}
+.cv .open header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #2a2d36}
+.cv .open header b{font-size:14px}.cv .open header span{color:#7c808c;font-size:12px}
+.cv .open header .x{margin-left:auto;color:#7c808c;font-size:12px}
+.cv .gridf{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;overflow:auto}
+.cv .t{background:#1e2027;border-radius:12px;padding:10px;font-size:12px;display:flex;flex-direction:column;gap:8px;cursor:grab}
+.cv .t .th{height:64px;border-radius:8px;background:#2a2d36}
+.cv .t .th.d{background:linear-gradient(135deg,#334155,#1e293b);position:relative}.cv .t .th.d::after{content:"";position:absolute;left:10px;top:10px;width:26px;height:18px;border-radius:3px;background:#64748b}
+.cv .t .th.p1{background:linear-gradient(135deg,#f97316,#db2777)}.cv .t .th.p2{background:linear-gradient(135deg,#22d3ee,#6366f1)}.cv .t .th.p3{background:linear-gradient(135deg,#a3e635,#059669)}
+.cv .t.drag{transform:rotate(-4deg);box-shadow:0 20px 40px rgba(0,0,0,.6);outline:2px solid #f472b6}
+.cv .ghost{position:absolute;left:236px;top:404px;width:120px;background:#1e2027;border-radius:12px;padding:8px;font-size:11.5px;transform:rotate(-6deg);outline:2px solid #f472b6;box-shadow:0 20px 40px rgba(0,0,0,.6)}
+.cv .ghost .th{height:46px;border-radius:7px;background:linear-gradient(135deg,#f97316,#db2777);margin-bottom:6px}
+.cv .hud{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:4px;background:#16181d;border:1px solid #2a2d36;border-radius:14px;padding:5px}
+.cv .hud div{padding:7px 12px;border-radius:10px;font-size:12.5px;color:#a7abb6;cursor:pointer}
+.cv .hud div.on{background:#2a2d36;color:#fff}
+.cv .tip{position:absolute;right:20px;top:20px;width:220px;font-size:12px;color:#7c808c;line-height:1.6}
+.cv .pill{position:absolute;font-size:11px;padding:3px 8px;border-radius:999px;background:#0c0d10;border:1px solid #2a2d36;color:#a7abb6}
+.cv .req{position:absolute;left:1030px;top:450px;width:200px;background:#211b0b;border:1px solid #6b5313;border-radius:14px;padding:12px;font-size:12px}
+.cv .req b{font:600 20px ui-monospace,monospace;letter-spacing:.12em;color:#fde68a;display:block;margin:6px 0}
+.cv .req button{border:0;border-radius:8px;padding:6px 10px;font:600 12px system-ui;background:#fbbf24;color:#211b0b;margin-right:4px}
+.cv .req button+button{background:#3a3016;color:#fde68a}
+</style></head><body class="mk">
+<div class="win cv">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="board">
+  <svg class="lines"><g stroke="#2f323b" stroke-width="2" fill="none">
+   <path d="M210 380 C 330 380, 360 260, 470 260"/><path d="M210 380 C 300 470, 360 560, 470 600"/><path d="M210 380 C 140 250, 160 200, 170 160"/>
+   <path d="M990 300 C 1060 300, 1080 200, 1110 170" stroke-dasharray="4 5"/><path d="M990 420 C 1060 440, 1080 470, 1100 470" stroke="#6b5313" stroke-dasharray="4 5"/></g>
+   <path d="M210 380 C 330 380, 360 260, 470 260" stroke="#f472b6" stroke-width="2.5" fill="none" stroke-dasharray="6 8"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="1s" repeatCount="indefinite"/></path></svg>
+  <div class="node me" style="left:60px;top:345px"><div class="n"><i></i>This PC</div><small>Downloads · Desktop</small></div>
+  <div class="node" style="left:90px;top:110px"><div class="n"><i></i>work-laptop</div><small>Windows · 3 devices</small></div>
+  <div class="node off" style="left:470px;top:570px"><div class="n"><i></i>media-mini</div><small>offline · retrying</small></div>
+  <div class="node phone" style="left:1100px;top:140px"><div class="n">📱 Pixel 7</div><small>browse · download</small></div>
+  <div class="pill" style="left:300px;top:300px">↑ 2 · 58%</div>
+  <div class="open"><header><span style="width:8px;height:8px;border-radius:50%;background:#34d399"></span><b>studio-pc</b><span>/ home / Projects / launch-kit</span><span class="x">⤢ zoom · Esc</span></header>
+   <div class="gridf">
+    <div class="t"><div class="th d"></div>assets</div><div class="t"><div class="th d"></div>drafts</div><div class="t drag"><div class="th p1"></div>hero-final.png</div><div class="t"><div class="th"></div>brief.md</div>
+    <div class="t"><div class="th p2"></div>moodboard.jpg</div><div class="t"><div class="th"></div>budget-q4.xlsx</div><div class="t"><div class="th p3"></div>cover.webp</div><div class="t"><div class="th"></div>launch.mp4</div>
+    <div class="t"><div class="th"></div>press.pdf</div><div class="t"><div class="th"></div>contacts.csv</div><div class="t"><div class="th"></div>notes.txt</div><div class="t"><div class="th d"></div>exports</div></div></div>
+  <div class="ghost"><div class="th"></div>hero-final.png → This PC</div>
+  <div class="req">📱 “Sam's Pixel 9” wants studio-pc<b>482 913</b><button>Match</button><button>Reject</button></div>
+  <div class="tip">Drag a file onto any node to send it there: a computer copies, This PC downloads, a phone makes a share link.<br>Double-click a node to open it. Scroll to zoom.</div>
+  <div class="hud"><div class="on">Map</div><div>⌕ Search</div><div>Transfers 2</div><div>History</div><div>⚙</div></div>
+ </div>
+</div></body></html>

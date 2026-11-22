@@ -75,9 +75,14 @@ async function pairedClient(a: Running): Promise<AgentClient> {
   return new AgentClient(host, { transport: nodeTransport(), deviceToken: (await store.getToken(host.id)) ?? undefined, pinnedFingerprint: await store.getPin(host.id) });
 }
 
-const stop = (a: Running) => {
-  a.proc.kill();
-  fs.rmSync(path.dirname(a.root), { recursive: true, force: true });
+const stop = async (a: Running) => {
+  if (a.proc.exitCode === null && a.proc.signalCode === null) {
+    const exited = new Promise<void>((res) => a.proc.once('exit', () => res()));
+    a.proc.kill();
+    await Promise.race([exited, new Promise<void>((res) => setTimeout(res, 10000))]);
+  }
+  // The agent may still be writing (a backup) as it exits: retry the removal instead of failing teardown.
+  fs.rmSync(path.dirname(a.root), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 };
 
 const codeOf = async (p: Promise<unknown>) => {

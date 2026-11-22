@@ -176,6 +176,11 @@ func TestLaunchHostAppRevalidatesCatalogAndUsesNativeLauncher(t *testing.T) {
 	launchDevice := &store.Device{ID: "app-launch-integration", ViewApps: true, LaunchApps: true}
 	t.Setenv("DISPLAY", "")
 	t.Setenv("WAYLAND_DISPLAY", "")
+	/* session discovery must find nothing here, whatever desktop this machine runs */
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	oldX11 := x11SocketDir
+	x11SocketDir = t.TempDir()
+	t.Cleanup(func() { x11SocketDir = oldX11 })
 	noSessionReq := appRequestWithID(http.MethodPost, requested.ID)
 	noSessionReq = noSessionReq.WithContext(withDevice(noSessionReq.Context(), launchDevice))
 	noSessionRR := httptest.NewRecorder()

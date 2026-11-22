@@ -57,3 +57,11 @@ test("the aria-label cannot break out of its attribute", () => {
   assert.ok(!svg.includes("<meta"), svg.slice(0, 400));
   assert.match(svg, /aria-label="&#34;&#62;&#60;meta/);
 });
+
+// A CSS variable as the background goes in a style (an SVG fill attribute cannot hold var()); a plain colour stays a fill attribute; anything else cannot break out.
+test("the QR background takes a theme token, a plain colour, and nothing that can inject markup", () => {
+  assert.match(QR.svg("hello", { bg: "var(--qr-bg)" }), /<rect [^>]*style="fill:var\(--qr-bg\)"/);
+  assert.match(QR.svg("hello", { bg: "#eee" }), /<rect [^>]*fill="#eee"/);
+  assert.match(QR.svg("hello"), /<rect [^>]*fill="#fff"/);
+  assert.ok(!QR.svg("hello", { bg: 'var(--x)"><b>' }).includes("<b>"));
+});

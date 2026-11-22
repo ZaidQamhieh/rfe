@@ -156,12 +156,8 @@ impl Compiled {
                 return false;
             }
         }
-        if self.mod_after_ns.is_some_and(|t| mtime_ns < t)
-            || self.mod_before_ns.is_some_and(|t| mtime_ns > t)
-        {
-            return false;
-        }
-        true
+        !(self.mod_after_ns.is_some_and(|t| mtime_ns < t)
+            || self.mod_before_ns.is_some_and(|t| mtime_ns > t))
     }
 }
 

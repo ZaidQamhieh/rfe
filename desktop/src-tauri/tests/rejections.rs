@@ -11,11 +11,11 @@ use std::collections::BTreeMap;
 
 const PW: &str = "pw-for-rejection-tests";
 
-fn login_body(id: &Identity, password: &str, nonce: &str, signed: &str) -> Value {
+fn login_body(id: &Identity, fingerprint: &str, password: &str, nonce: &str) -> Value {
     json!({
         "username": "owner", "password": password, "deviceLabel": "T",
         "deviceId": id.device_id(), "devicePublicKey": id.public_key_b64(),
-        "nonce": nonce, "signature": id.sign_b64(signed),
+        "nonce": nonce, "signature": id.proof_b64(fingerprint, nonce),
     })
 }
 
@@ -54,28 +54,28 @@ async fn each_rejection_the_agent_can_be_made_to_send_reads_differently() {
     let raw = Raw::new(&a.host);
     let (id, _d) = identity();
     let (other, _d2) = identity();
+    let fp = a.status_fingerprint();
 
     let mut refusals = vec![];
     // Wrong password with a valid device proof.
     let n = raw.nonce().await;
     refusals.push(
-        raw.refused("/login", login_body(&id, "not-the-password", &n, &n))
+        raw.refused("/login", login_body(&id, &fp, "not-the-password", &n))
             .await,
     );
     // A nonce the agent never issued.
     refusals.push(
         raw.refused(
             "/login",
-            login_body(&id, PW, "00000000000000000000000000000000", "x"),
+            login_body(&id, &fp, PW, "00000000000000000000000000000000"),
         )
         .await,
     );
     // A real nonce, signed over something else.
     let n = raw.nonce().await;
-    refusals.push(
-        raw.refused("/login", login_body(&id, PW, &n, "other"))
-            .await,
-    );
+    let mut forged = login_body(&id, &fp, PW, &n);
+    forged["signature"] = json!(id.sign_b64("other"));
+    refusals.push(raw.refused("/login", forged).await);
     // No device proof at all.
     refusals.push(
         raw.refused(
@@ -99,9 +99,9 @@ async fn each_rejection_the_agent_can_be_made_to_send_reads_differently() {
     );
     // The device id is bound to this key by a first login; a second key then claims it.
     let n = raw.nonce().await;
-    raw.ok("/login", login_body(&id, PW, &n, &n)).await;
+    raw.ok("/login", login_body(&id, &fp, PW, &n)).await;
     let n = raw.nonce().await;
-    let mut stolen = login_body(&other, PW, &n, &n);
+    let mut stolen = login_body(&other, &fp, PW, &n);
     stolen["deviceId"] = json!(id.device_id());
     refusals.push(raw.refused("/login", stolen).await);
 
@@ -142,12 +142,13 @@ async fn too_many_attempts_is_reported_as_rate_limited_with_a_wait_hint() {
     a.add_user("owner", PW);
     let raw = Raw::new(&a.host);
     let (id, _d) = identity();
+    let fp = a.status_fingerprint();
 
     let mut limited = None;
     for _ in 0..15 {
         let n = raw.nonce().await;
         let e = raw
-            .refused("/login", login_body(&id, "wrong", &n, &n))
+            .refused("/login", login_body(&id, &fp, "wrong", &n))
             .await;
         if code_of(&e) == "RATE_LIMITED" {
             limited = Some(e);

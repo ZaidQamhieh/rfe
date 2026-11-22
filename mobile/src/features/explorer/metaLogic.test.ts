@@ -1,10 +1,27 @@
-import { bitsToOctal, bitsToSymbolic, extractFolderName, hashMatches, isExtractableArchive, parseModeBits } from './metaLogic';
+import type { Entry } from '../../core/api/models';
+import { bitsToOctal, bitsToSymbolic, extractFolderName, hashMatches, isExtractableArchive, parseModeBits, soleExtractableArchive } from './metaLogic';
 import { parentDirOf } from './paths';
 
 describe('isExtractableArchive', () => {
   it('matches the formats the agent extracts, case-insensitively', () => {
     for (const n of ['a.zip', 'A.ZIP', 'x.tar.gz', 'x.TGZ']) expect(isExtractableArchive(n)).toBe(true);
     for (const n of ['a.tar', 'a.rar', 'a.gz', 'zip', 'a.zip.txt']) expect(isExtractableArchive(n)).toBe(false);
+  });
+});
+
+describe('soleExtractableArchive', () => {
+  const file = (name: string, isDir = false): Entry => ({ name, path: `/r/${name}`, isDir, size: 1 }) as Entry;
+  const entries = [file('a.zip'), file('b.txt'), file('dir.zip', true)];
+
+  it('returns the one selected archive', () => {
+    expect(soleExtractableArchive(entries, new Set(['/r/a.zip']))).toBe(entries[0]);
+  });
+
+  it('is undefined for none, several, a non-archive or a folder', () => {
+    expect(soleExtractableArchive(entries, new Set())).toBeUndefined();
+    expect(soleExtractableArchive(entries, new Set(['/r/a.zip', '/r/b.txt']))).toBeUndefined();
+    expect(soleExtractableArchive(entries, new Set(['/r/b.txt']))).toBeUndefined();
+    expect(soleExtractableArchive(entries, new Set(['/r/dir.zip']))).toBeUndefined();
   });
 });
 

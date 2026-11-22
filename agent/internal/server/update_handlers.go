@@ -13,7 +13,7 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/updates"
 )
 
-// apkDigest returns the SHA-256 of the APK at path, cached by size and modification time so the listing does
+// apkDigestCache.of returns the SHA-256 of the APK at path, cached by size and modification time so the listing does
 // not re-read a large file on every poll.
 type apkDigestCache struct {
 	mu    sync.Mutex

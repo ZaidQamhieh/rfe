@@ -20,6 +20,9 @@ import (
 	"strings"
 )
 
+// defaultExtractMode is the permission for archive entries that record none.
+const defaultExtractMode = 0o644
+
 // Compress creates a zip archive at destPath containing each of sources
 // (files or directories, recursively). All sources and destPath are
 // jail-checked via Resolve. If destPath already exists it is auto-renamed
@@ -69,7 +72,7 @@ func (o *Ops) Compress(sources []string, destPath string) (*Entry, error) {
 		resDest.full = renamed.full
 		resDest.name = renamed.name
 	}
-	if err := resDest.parent().mkdirAll(0o755); err != nil {
+	if err := resDest.parent().mkdirAll(dirPerm); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +86,7 @@ func (o *Ops) Compress(sources []string, destPath string) (*Entry, error) {
 	// klauspost's deflate writes the same format about 1.5x faster than the standard library at a ~1% larger size.
 	zw.RegisterCompressor(zip.Deflate, func(w io.Writer) (io.WriteCloser, error) { return kflate.NewWriter(w, zipDeflateLevel) })
 	for _, src := range resolved {
-		if err := addToZipSecure(zw, src, tmpPath.full); err != nil {
+		if err := addToZipSecureEntry(zw, src, filepath.Base(src.full), tmpPath.full); err != nil {
 			zw.Close()
 			tmp.Close()
 			cleanup()
@@ -120,14 +123,9 @@ func (o *Ops) Compress(sources []string, destPath string) (*Entry, error) {
 // 221 MB mixed corpus, within about 1% of its output size (see TestZipCompressorSpeed).
 const zipDeflateLevel = 5
 
-// addToZipSecure adds src to the archive. skip is the archive's own temp file:
+// addToZipSecureEntry adds src to the archive. skip is the archive's own temp file:
 // when the destination sits inside a folder being compressed, the walk would
 // otherwise read the half-written archive into itself.
-func addToZipSecure(zw *zip.Writer, src *securePath, skip string) error {
-	base := filepath.Base(src.full)
-	return addToZipSecureEntry(zw, src, base, skip)
-}
-
 func addToZipSecureEntry(zw *zip.Writer, src *securePath, name, skip string) error {
 	if skip != "" && src.full == skip {
 		return nil
@@ -237,7 +235,7 @@ func (o *Ops) Extract(archivePath, destDir string) (*Entry, error) {
 	return o.Meta(resDest.full)
 }
 
-// Archive extraction bounds (PR-07): a paired client can supply a crafted
+// Archive extraction bounds: a paired client can supply a crafted
 // archive, so cap entry count and total expanded bytes to defeat zip/tar
 // bombs. These are process-wide ceilings, not per-user quotas.
 const (
@@ -344,20 +342,12 @@ func safeJoinSecure(dest *securePath, name string) (*securePath, error) {
 	return &securePath{full: target, root: dest.root, name: filepath.Join(dest.name, rel)}, nil
 }
 
-func createArchiveFile(path *securePath, mode os.FileMode) (*os.File, error) {
-	dst, err := uniqueArchivePath(path)
-	if err != nil {
-		return nil, err
-	}
-	return dst.openFile(os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
-}
-
 // uniqueArchivePath prepares the location for an extracted file: its parent
 // exists and, if the name is taken, a free "name (1)" style sibling is used.
 // Extraction never replaces a file that is already there (Compress and Copy
 // behave the same way).
 func uniqueArchivePath(path *securePath) (*securePath, error) {
-	if err := path.parent().mkdirAll(0o755); err != nil {
+	if err := path.parent().mkdirAll(dirPerm); err != nil {
 		return nil, err
 	}
 	if info, err := path.lstat(); err == nil {
@@ -414,14 +404,14 @@ func (x *extractLog) mkdirAll(p *securePath) error {
 		}
 	}
 	for i := len(missing) - 1; i >= 0; i-- {
-		if err := missing[i].mkdirAll(0o755); err != nil {
+		if err := missing[i].mkdirAll(dirPerm); err != nil {
 			return err
 		}
 		x.dirs = append(x.dirs, missing[i])
 	}
 	// The walk stops at the first entry that exists, which may be a file in
 	// the way: fail on it as a plain MkdirAll does instead of skipping it.
-	return p.mkdirAll(0o755)
+	return p.mkdirAll(dirPerm)
 }
 
 // rollback removes the recorded files, then the recorded directories deepest
@@ -514,7 +504,7 @@ func extractZipSecure(archive, dest *securePath, created *extractLog) error {
 		}
 		mode := f.Mode().Perm()
 		if mode == 0 {
-			mode = 0o644
+			mode = defaultExtractMode
 		}
 		err = writeArchiveEntry(target, mode, rc, &remaining, created)
 		rc.Close()
@@ -563,7 +553,7 @@ func extractTarGzSecure(archive, dest *securePath, created *extractLog) error {
 		case tar.TypeReg:
 			mode := os.FileMode(hdr.Mode).Perm()
 			if mode == 0 {
-				mode = 0o644
+				mode = defaultExtractMode
 			}
 			if err := writeArchiveEntry(target, mode, tr, &remaining, created); err != nil {
 				return err

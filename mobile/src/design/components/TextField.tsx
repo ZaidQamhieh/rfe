@@ -10,7 +10,7 @@ type Props = TextInputProps & { label: string; hideLabel?: boolean; mono?: boole
 /** Filled input (surfaceContainerHighest), 8px radius, 1px outlineVariant, 2px primary when focused. */
 export function TextField({ label, hideLabel, mono, error, helper, leading, trailing, style, onFocus, onBlur, ...rest }: Props) {
   const c = useScheme();
-  const [focused, setFocused] = useFocus();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       {hideLabel ? null : (
@@ -70,4 +70,3 @@ export function TextField({ label, hideLabel, mono, error, helper, leading, trai
   );
 }
 
-const useFocus = () => useState(false);

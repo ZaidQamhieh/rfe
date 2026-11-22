@@ -7,9 +7,9 @@
 //! stripped of control and bidirectional-override characters and cut to a fixed length before it
 //! reaches the window, which then shows it with `textContent` only.
 
-use crate::agent_client::{AgentClient, AgentError};
+use crate::agent_client::{AgentError, CODE_FORBIDDEN, STATUS_FORBIDDEN};
 use crate::applog;
-use crate::flows;
+use crate::files::{drop_dead_token, session};
 use crate::secrets::Offloaded;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -101,52 +101,7 @@ impl AuditEntry {
 
 /// The agent's answer for a login that is not an admin device.
 fn is_forbidden(e: &AgentError) -> bool {
-    matches!(e, AgentError::Server { status: 403, code, .. } if code == "FORBIDDEN")
-}
-
-/// The pinned client and the saved token. Like the device list: a forgotten pin ends the session,
-/// and a token the agent no longer accepts is dropped so the window returns to sign-in.
-async fn session(dir: &Path, store: &Offloaded) -> Result<(AgentClient, String), AgentError> {
-    let saved = {
-        let dir = dir.to_path_buf();
-        store
-            .run(move |s| flows::load_saved(&dir, s))
-            .await
-            .map_err(AgentError::Local)?
-    };
-    if saved.token.is_empty() || saved.host.is_empty() {
-        return Err(AgentError::Local("not signed in".into()));
-    }
-    let key = flows::pin_key(&saved.host);
-    let pinned = flows::list_pins(dir)
-        .map_err(AgentError::Local)?
-        .into_iter()
-        .find(|p| flows::pin_key(&p.host) == key)
-        .map(|p| p.fingerprint)
-        .ok_or_else(|| {
-            AgentError::Local(format!(
-                "{} is no longer a trusted agent; connect and compare its fingerprint again",
-                saved.host
-            ))
-        })?;
-    Ok((AgentClient::pinned(&saved.host, &pinned)?, saved.token))
-}
-
-async fn drop_dead_token(
-    dir: &Path,
-    store: &Offloaded,
-    token: &str,
-    e: &AgentError,
-) -> Result<(), AgentError> {
-    if let AgentError::Server { status: 401, .. } = e {
-        let dir = dir.to_path_buf();
-        let token = token.to_string();
-        store
-            .run(move |st| flows::drop_refused_token(&dir, st, &token))
-            .await
-            .map_err(AgentError::Local)?;
-    }
-    Ok(())
+    matches!(e, AgentError::Server { status: STATUS_FORBIDDEN, code, .. } if code == CODE_FORBIDDEN)
 }
 
 /// One page of the audit trail: the newest `limit` entries, or the `limit` before id `before`.

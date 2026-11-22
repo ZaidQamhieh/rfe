@@ -14,7 +14,8 @@ records what the current source tree now contains. The companion UI brief is
 | Tier 2 #9–11, #13 | Delivered: foreground transfer notifications, SSE live updates, camera-roll backup, and offline pins with encrypted cached bodies. |
 | Tier 2 #12 | Delivered on Android: user-started LAN DNS-SD discovery lists IPv4 host candidates and hands the chosen address to secure pairing. QR/manual paths remain available. |
 | Horizon audit log | Delivered for account, device, share, launch, and restart events, with an in-app viewer. File-operation auditing remains out of scope. |
-| PC-to-PC copy, home-screen widget, launcher shortcuts, dual-pane explorer | Not started. |
+| Home-screen widget | Delivered on Android: a 3x1 storage widget (computer name, used-space bar, "x free of y"). The app writes the numbers whenever it reads a computer's drives; the widget makes no requests, so it holds no token or pin and shows the last computer refreshed. Transfer progress and a Quick Settings tile are not built. Not yet placed on a real home screen. |
+| PC-to-PC copy, dual-pane explorer | Delivered on Android as a phone relay: files (not folders) selected in the explorer or in the "Two panes" screen are downloaded to this phone, then uploaded to the other computer and the temporary copy is removed. It uses each computer's existing pairing and adds no agent API. Within one computer, "Two panes" uses the agent's own copy, and folders work there. |
 
 This status describes implemented code, not a claim that every OS/device flow
 has received a full owner-run acceptance test.

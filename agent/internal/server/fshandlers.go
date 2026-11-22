@@ -28,16 +28,19 @@ func drivesHandler(base *fsops.Ops) http.HandlerFunc {
 
 // --------- /fs GET (list dir) ---------
 
+// listDirDefaultLimit is the entry count a directory listing returns when the request names no limit.
+const listDirDefaultLimit = 200
+
 func listDirHandler(ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path query param required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "path query param required")
 			return
 		}
 		cursor := r.URL.Query().Get("cursor")
-		limit := 200
+		limit := listDirDefaultLimit
 		if l := r.URL.Query().Get("limit"); l != "" {
 			if n, err := strconv.Atoi(l); err == nil && n > 0 {
 				limit = n
@@ -75,13 +78,13 @@ func deleteHandler(ops *fsops.Ops, trashDir string) http.HandlerFunc {
 			case err == nil:
 				paths = append(paths, body.Paths...)
 			case !errors.Is(err, io.EOF):
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON body")
+				writeError(w, http.StatusBadRequest, codeBadRequest, "invalid JSON body")
 				return
 			}
 		}
 
 		if len(paths) == 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "no paths specified")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "no paths specified")
 			return
 		}
 		// Default is reversible (move to trash); ?permanent=true hard-deletes.
@@ -116,7 +119,7 @@ func restoreTrashHandler(ops *fsops.Ops, trashDir string) http.HandlerFunc {
 			IDs []string `json:"ids"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&body); err != nil || len(body.IDs) == 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "ids required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "ids required")
 			return
 		}
 		results := ops.RestoreFromTrash(body.IDs, trashDir)
@@ -140,18 +143,18 @@ func emptyTrashHandler(ops *fsops.Ops, trashDir string) http.HandlerFunc {
 		// request can never wipe the whole trash.
 		err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&body)
 		if err != nil && !errors.Is(err, io.EOF) {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid body")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "invalid body")
 			return
 		}
 		// A body that is present must name ids ({}, null and {"ids":[]} would otherwise wipe everything,
 		// for example when a client has nothing selected).
 		if err == nil && len(body.IDs) == 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "ids must not be empty; send no body to empty all")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "ids must not be empty; send no body to empty all")
 			return
 		}
 		if err := reqOps.EmptyTrash(trashDir, body.IDs); err != nil {
 			if errors.Is(err, fsops.ErrBadTrashID) {
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid trash id")
+				writeError(w, http.StatusBadRequest, codeBadRequest, "invalid trash id")
 				return
 			}
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "empty trash failed")
@@ -170,7 +173,7 @@ func createFolderHandler(ops *fsops.Ops) http.HandlerFunc {
 			Path string `json:"path"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || req.Path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		entry, err := ops.CreateFolder(req.Path)
@@ -191,7 +194,7 @@ func createFileHandler(ops *fsops.Ops) http.HandlerFunc {
 			Path string `json:"path"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || req.Path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		entry, err := ops.CreateFile(req.Path)
@@ -213,7 +216,7 @@ func renameHandler(ops *fsops.Ops) http.HandlerFunc {
 			Dst string `json:"dst"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || req.Src == "" || req.Dst == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "src and dst required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "src and dst required")
 			return
 		}
 		entry, err := ops.Rename(req.Src, req.Dst)
@@ -225,19 +228,22 @@ func renameHandler(ops *fsops.Ops) http.HandlerFunc {
 	}
 }
 
+// copyMoveRequest is the JSON body of POST /fs/copy and POST /fs/move.
+type copyMoveRequest struct {
+	Sources   []string `json:"sources"`
+	DestDir   string   `json:"destDir"`
+	Dup       bool     `json:"duplicate"`
+	Overwrite bool     `json:"overwrite"`
+}
+
 // --------- /fs/copy POST ---------
 
 func copyHandler(ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
-		var req struct {
-			Sources   []string `json:"sources"`
-			DestDir   string   `json:"destDir"`
-			Dup       bool     `json:"duplicate"`
-			Overwrite bool     `json:"overwrite"`
-		}
+		var req copyMoveRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || len(req.Sources) == 0 || req.DestDir == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "sources and destDir required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "sources and destDir required")
 			return
 		}
 		// Overwrite replaces (deletes) whatever is at the destination, so it
@@ -255,14 +261,9 @@ func copyHandler(ops *fsops.Ops) http.HandlerFunc {
 func moveHandler(ops *fsops.Ops) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ops := opsFromContext(r.Context(), ops)
-		var req struct {
-			Sources   []string `json:"sources"`
-			DestDir   string   `json:"destDir"`
-			Dup       bool     `json:"duplicate"`
-			Overwrite bool     `json:"overwrite"`
-		}
+		var req copyMoveRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || len(req.Sources) == 0 || req.DestDir == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "sources and destDir required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "sources and destDir required")
 			return
 		}
 		results := ops.Move(req.Sources, req.DestDir, req.Dup, req.Overwrite)
@@ -280,7 +281,7 @@ func compressHandler(ops *fsops.Ops) http.HandlerFunc {
 			Dest    string   `json:"dest"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || len(req.Sources) == 0 || req.Dest == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "sources and dest required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "sources and dest required")
 			return
 		}
 		entry, err := ops.Compress(req.Sources, req.Dest)
@@ -302,7 +303,7 @@ func extractHandler(ops *fsops.Ops) http.HandlerFunc {
 			DestDir string `json:"destDir"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil || req.Archive == "" || req.DestDir == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "archive and destDir required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "archive and destDir required")
 			return
 		}
 		entry, err := ops.Extract(req.Archive, req.DestDir)
@@ -321,7 +322,7 @@ func metaHandler(ops *fsops.Ops) http.HandlerFunc {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		entry, err := ops.Meta(path)
@@ -333,6 +334,27 @@ func metaHandler(ops *fsops.Ops) http.HandlerFunc {
 	}
 }
 
+// --------- /fs/media-info GET ---------
+
+// mediaInfoHandler returns the pixel size, capture date and duration read from
+// a photo or video header. A folder or an unsupported file gives `{}`.
+func mediaInfoHandler(ops *fsops.Ops) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ops := opsFromContext(r.Context(), ops)
+		path := r.URL.Query().Get("path")
+		if path == "" {
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
+			return
+		}
+		info, err := ops.MediaInfo(path)
+		if err != nil {
+			handleFsError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, info)
+	}
+}
+
 // --------- /fs/checksum GET ---------
 
 func checksumHandler(ops *fsops.Ops) http.HandlerFunc {
@@ -340,7 +362,7 @@ func checksumHandler(ops *fsops.Ops) http.HandlerFunc {
 		ops := opsFromContext(r.Context(), ops)
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		algo := r.URL.Query().Get("algo")
@@ -350,7 +372,7 @@ func checksumHandler(ops *fsops.Ops) http.HandlerFunc {
 		switch algo {
 		case "sha256", "sha1", "md5":
 		default:
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "unsupported algorithm (use sha256, sha1, or md5)")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "unsupported algorithm (use sha256, sha1, or md5)")
 			return
 		}
 		sum, err := ops.Checksum(path, algo)
@@ -379,7 +401,7 @@ func handleFsError(w http.ResponseWriter, err error) {
 	case errors.Is(err, fsops.ErrNotRegular):
 		writeError(w, http.StatusUnprocessableEntity, "NOT_A_FILE", err.Error())
 	case errors.Is(err, fsops.ErrNotDir), errors.Is(err, fsops.ErrIsDir):
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
 	case errors.Is(err, fsops.ErrUnsupported):
 		writeError(w, http.StatusBadRequest, "UNSUPPORTED_FORMAT", err.Error())
 	case errors.Is(err, fsops.ErrNoAtomicRename):
@@ -387,7 +409,7 @@ func handleFsError(w http.ResponseWriter, err error) {
 		// substitute: fsops refused and changed nothing. Only this sentinel:
 		// a raw ENOTSUP/ENOSYS also matches errors.ErrUnsupported but comes
 		// from some other operation. Fixed text, never err.Error(): it carries
-		// OS detail (PR-53).
+		// OS detail.
 		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", fsops.NoAtomicRenameMessage)
 	case errors.Is(err, fsops.ErrConflict):
 		writeError(w, http.StatusConflict, "CONFLICT", err.Error())
@@ -399,7 +421,7 @@ func handleFsError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "STALE_WRITE", err.Error())
 	default:
 		// Unmapped errors are raw OS errors carrying absolute paths — don't
-		// echo them to the client (PR-53).
+		// echo them to the client.
 		writeInternal(w, "fs operation", err)
 	}
 }

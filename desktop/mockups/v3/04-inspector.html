@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Inspector — every page is a list with an inspector on the right</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d04{--bg:#fbfcfd;--sf:#fff;--rz:#eef1f5;--t1:#141a24;--t2:#4a5568;--t3:#6b7686;--line:rgba(20,26,36,.08);--line2:rgba(20,26,36,.14);--ac:#0e7490;--ac-ink:#0e6680;--ac-soft:rgba(14,116,144,.08);--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace}
+.d04 .top{height:52px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}.d04 .top .k-sbox{width:340px;margin-right:auto}
+.d04 .rail{width:340px;flex:none;border-left:1px solid var(--line);padding:20px;overflow:auto;background:var(--sf)}
+.d04 .body:has(.ol) .rail{display:none}
+.d04 .rail h2{font:500 18px var(--font);margin:8px 0 4px;display:flex;gap:10px;align-items:center}.d04 .rail .k-sub{margin-bottom:16px}
+.d04 .rail .k-dact{margin-top:8px}
+.d04 .li{display:grid;gap:2px}.d04 .ro{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;min-height:52px;padding:6px 12px;border-radius:8px;cursor:pointer}
+.d04 .ro:hover{background:var(--rz)}.d04 .ro.sel{background:var(--ac-soft);box-shadow:inset 2px 0 0 var(--ac)}.d04 .ro b{font-weight:500}.d04 .ro small{display:block;color:var(--t3);font-size:12px}.d04 .ro .st{font:12px var(--mono);color:var(--t2);display:flex;gap:6px;align-items:center}
+.d04 .rail .none{color:var(--t3);font-size:13px}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d04">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Every page except Files is a list, and the inspector on the right shows the selected row in full with its actions. One place to look for details and one place for buttons; rows themselves carry none.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Servers", "Servers list; inspector holds status, key, actions", 1], ["Devices", "Devices list; inspector holds permissions", 1], ["Transfers", "Transfers list; inspector holds the selected transfer", 1], ["Search", "Top bar or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=K.C.searchBox('Search all connected computers')+K.C.actions();
+let pick={servers:'studio',devices:'Pixel 8',transfers:'walkthrough-full.mov',home:'studio'};
+const rail=document.getElementById('rail');
+const insp={
+ servers:()=>{const s=K.S(pick.servers);return `${K.mach(s,40)}<h2>${s.name}</h2><p class="k-sub">${K.dot(s.dot)} ${s.state} · ${s.route}</p><dl class="k-kv"><dt>Address</dt><dd class="mono">${s.addr}</dd><dt>System</dt><dd>${s.sys}</dd><dt>Agent</dt><dd>${s.ver}</dd><dt>Key</dt><dd>${K.tag(s.id)}</dd><dt>Disk</dt><dd>${s.used} GB of ${s.total} GB${K.bar(s.used/s.total*100)}</dd></dl><div class="k-dact">${s.state==='Connected'?K.btn('Open files',{i:'folder',k:'pri',a:'go:files'}):s.state==='Key changed'?K.btn('Review key…',{k:'warn',a:'dlg:keychanged'}):K.btn('Wake computer',{i:'power'})}${K.btn('Status…',{i:'activity',a:'dlg:status'})}${K.btn('Run diagnostics',{i:'radar',a:'dlg:diag'})}${K.btn('Allowed roots…',{i:'drive',a:'dlg:roots'})}${K.btn('Forget…',{k:'ghost',a:'dlg:forget'})}</div>`;},
+ devices:()=>{const d=D.devices.find(x=>x.n===pick.devices);return `${E(d.kind,40)}<h2>${d.n}</h2><p class="k-sub">${d.how} · seen ${d.seen}</p><div class="k-perms">${[['Browse',1],['Download',1],['Upload',1],['Change',0],['Delete',0],['Share links',1],['See apps',0],['Start apps',0],['Read-only',0]].map(x=>`<div class="k-set"><div><b>${x[0]}</b></div>${K.sw(x[1])}</div>`).join('')}</div><dl class="k-kv" style="margin-top:12px"><dt>Folder limit</dt><dd class="mono">${d.lim||'none'}</dd></dl><div class="k-dact">${K.btn('Activity',{a:'go:history'})}${K.btn('Revoke access…',{k:'warn',a:'dlg:revoke'})}</div>`;},
+ transfers:()=>`${E('outbox_tray',40)}<h2>walkthrough-full.mov</h2><p class="k-sub">Upload to studio-pc · /home/sam/Projects/garden-plan</p>${K.bar(71)}<dl class="k-kv" style="margin-top:12px"><dt>Done</dt><dd>2.9 of 4.1 GB · 71%</dd><dt>Speed</dt><dd>52.4 MB/s · 23 s left</dd><dt>Checks</dt><dd>Each 4 MiB piece and the whole file, by SHA-256</dd></dl><div class="k-dact">${K.btn('Pause',{i:'pause'})}${K.btn('Cancel',{k:'ghost'})}</div>`,
+};
+const ro=(page,id,icon,t,s,st)=>`<div class="ro${pick[page]===id?' sel':''}" data-k="pick:${page}:${id}">${icon}<span><b>${t}</b><small>${s}</small></span><span class="st">${st}</span></div>`;
+const L={
+ servers:()=>K.head('Servers',`${D.servers.length} saved`,K.btn('New connection',{i:'plug',k:'pri',a:'dlg:newconn'}))+`<div class="li">${D.servers.map(s=>ro('servers',s.id,K.mach(s,24),s.name,s.addr+' · '+s.route,K.dot(s.dot)+s.state)).join('')}</div>`,
+ devices:()=>K.head('Devices','Allowed on studio-pc',K.btn('Pair a phone',{i:'qr',a:'dlg:pairphone'}))+K.sec('Asking to join <span class="k-count">2</span>','',K.V.requests())+`<div class="li">${D.devices.map(d=>ro('devices',d.n,E(d.kind,24),d.n,d.how+' · '+d.seen,d.revoked?'<span class="bad">Revoked</span>':d.lim||'every folder')).join('')}</div>`,
+ transfers:()=>K.head('Transfers','52.4 MB/s · 2 moving · 3 need you',K.btn('Pause all',{i:'pause',k:'sm'}))+`<div class="li">${[...D.xfer.attention,...D.xfer.active,...D.xfer.queued,...D.xfer.done].map(t=>ro('transfers',t.n,E(t.d==='up'?'outbox_tray':'inbox_tray',24),t.n,t.where,t.st?`<span class="warn">${t.st}</span>`:t.pct+'%')).join('')}</div>`,
+ home:()=>K.head('studio-pc','The computer you use most · '+K.tag('studio'))+`<div class="k-stats">${[['52.4 MB/s','moving now'],['3','need you'],['812 GB','of 2 TB used'],['4','devices allowed']].map(s=>`<div><b class="mono">${s[0]}</b><small>${s[1]}</small></div>`).join('')}</div>`+K.sec('Other computers','',`<div class="li">${D.servers.slice(1).map(s=>ro('home',s.id,K.mach(s,24),s.name,s.addr,K.dot(s.dot)+s.state)).join('')}</div>`),
+};
+const draw=v=>{rail.innerHTML=EM?`<h2>Nothing selected</h2><p class="none">Pick a row to see it here with everything you can do to it.</p><ol class="b-steps"><li>Install RFE on a PC and run <code>rfe setup</code>.</li><li><b>Add a computer</b>.</li><li>Its details and actions appear here.</li></ol>`:(insp[v]||insp.servers)();};
+const views=EM?{home:()=>K.head('Overview')+B.W('desktop_computer','No computers yet','Add one, and this page shows it at a glance with the others below.',B.addActs)}:{home:L.home,servers:L.servers,devices:L.devices,transfers:L.transfers};
+B.mount({views,on:(a,b,t)=>{if(a==='pick'){const p=t.dataset.k.split(':');pick[p[1]]=p.slice(2).join(':');K.render();}},onGo:v=>draw(v==='home'?'servers':v)});
+
+</script></body></html>

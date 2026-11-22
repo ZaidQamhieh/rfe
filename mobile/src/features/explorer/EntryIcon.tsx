@@ -16,8 +16,11 @@ export function EntryLeading({ entry, size = 24 }: { entry: Pick<Entry, 'isDir' 
   return <Icon size={size} color={role ? roles[role] : c.onSurfaceVariant} />;
 }
 
+/** Whether the entry is a file whose thumbnail can be requested (an image by MIME type). */
+export const isImageEntry = (e: Pick<Entry, 'isDir' | 'mimeType'>): boolean => !e.isDir && (e.mimeType ?? '').startsWith('image/');
+
 /** Tonal chip behind the glyph (`.filemark`): the entry's role colour at 17% over the raised surface, neutral for unknown types. */
-export function useIconChipBg(entry: Pick<Entry, 'isDir' | 'mimeType'> & { name?: string }): string {
+export function useIconChipBg(entry: Pick<Entry, 'isDir' | 'mimeType'>): string {
   const c = useScheme();
   const roles = useRoles();
   const role = roleOf(entry);

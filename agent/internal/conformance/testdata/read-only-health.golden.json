@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "address": "<ADDR>",
+    "apiVersion": 2,
+    "features": [
+      "pairRequest"
+    ],
+    "name": "conformance-agent",
+    "os": "linux",
+    "readOnly": true,
+    "status": "ok",
+    "tailscaleAddress": "",
+    "version": "1.0.0"
+  }
+}

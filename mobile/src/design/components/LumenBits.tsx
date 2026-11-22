@@ -6,19 +6,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mix } from '../color';
 import { LumenSize, LumenType } from '../lumen';
-import { useScheme } from '../theme';
+import { useRoles, useScheme } from '../theme';
 import { Pressable } from './Pressable';
 import { Text } from './Text';
+import { t } from '../../i18n';
+import { Spacing } from '../tokens';
 
 type Tone = 'safe' | 'warn' | 'host' | 'route' | 'muted';
 
 /** `.state-pill`: 8 px bold label on a 15% tint of its tone (Linked, Secure, Protected, Ready, Found...). */
 export function StatePill({ label, tone = 'safe', icon: Icon }: { label: string; tone?: Tone; icon?: LucideIcon }) {
   const c = useScheme();
-  const color = tone === 'safe' ? c.tertiary : tone === 'warn' ? (c.dark ? '#E8A16D' : '#AA571F') : tone === 'host' ? c.primary : tone === 'route' ? c.secondary : c.onSurfaceVariant;
+  const roles = useRoles();
+  const color = tone === 'safe' ? c.tertiary : tone === 'warn' ? roles.warn : tone === 'host' ? c.primary : tone === 'route' ? c.secondary : c.onSurfaceVariant;
   const bg = tone === 'muted' ? c.surfaceContainerHigh : mix(color, c.surfaceContainer, 0.15);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: LumenSize.pillRadius, backgroundColor: bg }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md2, borderRadius: LumenSize.pillRadius, backgroundColor: bg }}>
       {Icon ? <Icon size={16} color={color} /> : null}
       <Text style={LumenType.pill} color={color} numberOfLines={1}>
         {label}
@@ -35,14 +38,14 @@ export function TopBar({ context, right, onMore, sub, actions }: { context: stri
   const c = useScheme();
   const insets = useSafeAreaInsets();
   const more = onMore ? (
-    <Pressable onPress={onMore} accessibilityLabel="More" style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={onMore} accessibilityLabel={t('moreTooltip')} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
       <EllipsisVertical size={22} color={c.onSurfaceVariant} />
     </Pressable>
   ) : null;
   if (sub) {
     // Mockup `.appbar` with a second `.workspace-row`: context + actions on top, label + state pill below.
     return (
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: 4 }}>
+      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: Spacing.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
           <Text style={[LumenType.appbar, { flexShrink: 1 }]} color={c.onSurfaceVariant} numberOfLines={1}>
             {context}
@@ -62,7 +65,7 @@ export function TopBar({ context, right, onMore, sub, actions }: { context: stri
     );
   }
   return (
-    <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 64 + insets.top }}>
+    <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: Spacing.xs, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 64 + insets.top }}>
       <Text style={[LumenType.appbar, { flexShrink: 1 }]} color={c.onSurfaceVariant} numberOfLines={1}>
         {context}
       </Text>
@@ -78,12 +81,12 @@ export function TopBar({ context, right, onMore, sub, actions }: { context: stri
 export function PageHead({ title, subtitle }: { title: string; subtitle?: string }) {
   const c = useScheme();
   return (
-    <View style={{ marginTop: 16, marginBottom: 14, paddingHorizontal: 18 }}>
+    <View style={{ marginTop: Spacing.md, marginBottom: 14, paddingHorizontal: 18 }}>
       <Text style={LumenType.pageTitle} accessibilityRole="header">
         {title}
       </Text>
       {subtitle ? (
-        <Text style={[LumenType.caption, { marginTop: 4 }]} color={c.onSurfaceVariant}>
+        <Text style={[LumenType.caption, { marginTop: Spacing.xs }]} color={c.onSurfaceVariant}>
           {subtitle}
         </Text>
       ) : null}

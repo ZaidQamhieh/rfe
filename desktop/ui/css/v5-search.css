@@ -1,0 +1,53 @@
+/* RFE v5 Search panel: the mockup's search beside the sidebar (drawn by v5-transfers.js, "Search panel").
+   A scrim over the page next to the sidebar and a 40 rem panel that drops from the top edge. The chosen result is a light gray
+   fill with a thin border. Sizes are rem, colours come from the .d5 tokens, and the position uses logical edges so it
+   follows the sidebar in right-to-left languages. */
+
+:where(.d5).rfe { position: relative; }
+:where(.d5) .b-sr { inset-block: 0; inset-inline: 15rem 0; background: rgba(29, 32, 22, .12); }
+:where(.d5).sbmin .b-sr { inset-inline-start: 4rem; }
+:where(.d5) .b-sr > .m { inset-block-start: 0.75rem; inset-block-end: auto; inset-inline: 0; margin-inline: auto; width: min(34rem, calc(100% - 2rem)); max-height: calc(100% - 1.5rem); background: var(--sf); color: var(--t1); border-radius: 0.875rem; overflow: hidden; box-shadow: 0 1.5rem 3rem rgba(29, 32, 22, .18), inset 0 0 0 1px var(--line2); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; animation: b-sr-drop var(--dur, .18s) ease-out; }
+@keyframes b-sr-drop { from { transform: translateY(-1.25rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { :where(.d5) .b-sr > .m { animation: none; } }
+:root[data-theme="dark"] .d5 .b-sr { background: var(--shade-40); }
+:root[data-theme="dark"] .d5 .b-sr > .m { box-shadow: 0 1.5rem 3rem var(--shade-50), inset 0 0 0 1px var(--line2); }
+/* the top bar's Search button reads as pressed while the panel is open */
+:where(.d5).sr-open .top #btnSearch { background: var(--sf); color: var(--t1); box-shadow: inset 0 0 0 1px var(--line); }
+
+:where(.d5) .b-sr .s-f { display: flex; align-items: center; gap: 0.625rem; margin: 1rem 1rem 0.75rem; height: 2.75rem; padding: 0 0.75rem; border-radius: 0.625rem; box-shadow: inset 0 0 0 1px var(--ac); color: var(--t3); }
+:where(.d5) .b-sr .s-sc:empty { display: none; }
+:where(.d5) .b-sr .s-f input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 1rem var(--font); color: var(--t1); }
+:where(.d5) .b-sr .s-sc { padding: 0 1rem 0.75rem; border-bottom: 1px solid var(--line); display: grid; gap: 0.5rem; }
+:where(.d5) .b-sr .s-sc p { margin: 0; font-size: 0.75rem; color: var(--t3); }
+:where(.d5) .b-sr .s-pl { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+:where(.d5) .b-sr .s-pl button { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.75rem; padding: 0 0.625rem; border-radius: 0.5rem; font-size: 0.75rem; color: var(--t2); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .b-sr .s-pl button.on { background: var(--rz); color: var(--t1); }
+:where(.d5) .b-sr .s-pl button i { font-style: normal; color: var(--t3); }
+:where(.d5) .b-sr .s-pl button.on i { color: var(--t2); }
+:where(.d5) .b-sr .s-pl .k-e { margin-right: 0; }
+
+:where(.d5) .b-sr .s-ls { overflow: auto; padding: 0.5rem; }
+:where(.d5) .b-sr .s-pg { margin: 0.25rem 0.5rem 0.5rem; font-size: 0.75rem; color: var(--t3); }
+:where(.d5) .b-sr .s-g { display: flex; align-items: center; gap: 0.5rem; font: 500 0.75rem var(--font); color: var(--t2); margin: 0.625rem 0.5rem 0.25rem; }
+:where(.d5) .b-sr .s-r { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; gap: 0.625rem; align-items: center; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer; min-height: 3rem; }
+:where(.d5) .b-sr .s-r:hover { background: var(--rz); }
+:where(.d5) .b-sr .s-r.on { background: var(--rz); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .b-sr .s-r > span:nth-child(2) { min-width: 0; }
+:where(.d5) .b-sr .s-r b { font-weight: 400; font-size: 0.875rem; }
+:where(.d5) .b-sr .s-r small { display: block; font: 0.75rem var(--mono); color: var(--t3); margin-top: 0.125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:where(.d5) .b-sr .s-r .ia { display: none; gap: 0.125rem; }
+:where(.d5) .b-sr .s-r.on .ia, :where(.d5) .b-sr .s-r:hover .ia, :where(.d5) .b-sr .s-r:focus-within .ia { display: flex; }
+:where(.d5) .b-sr .s-r .ia .k-ib { width: 1.75rem; height: 1.75rem; }
+:where(.d5) .b-sr .s-mo { display: block; font-size: 0.8125rem; color: var(--ac-ink); cursor: pointer; padding: 0.375rem 0.5rem 0.25rem 2.625rem; }
+:where(.d5) .b-sr .s-ch { padding: 0.25rem 0.5rem; display: grid; gap: 0.25rem; }
+:where(.d5) .b-sr .s-no { display: grid; gap: 0.625rem; justify-items: center; text-align: center; padding: 1.5rem 0.5rem; color: var(--t2); font-size: 0.875rem; }
+:where(.d5) .b-sr .s-no b { color: var(--t1); font-weight: 500; }
+:where(.d5) .b-sr .s-no p { margin: 0; }
+
+:where(.d5) .b-sr .s-ft { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--t3); }
+:where(.d5) .b-sr .s-ft .k { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; }
+:where(.d5) .b-sr .s-ft .sp { flex: 1; }
+:where(.d5) .b-sr .s-ft .n { font-weight: 500; }
+
+/* The top bar has no search field in the mockup: Search, Ctrl+K and / open the search panel. The field stays in the DOM (pages.js and the Search page set its value) but is never shown. */
+:where(.d5) .top .sbar, :where(.d5) .top .sbar[hidden] { display: none; }

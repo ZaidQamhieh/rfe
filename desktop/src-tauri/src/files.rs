@@ -1,6 +1,6 @@
 //! The file browser's Rust core: the agent's roots, directory listings and the few safe changes the
 //! agent offers (new folder, rename, delete to trash). Every call goes over the pinned connection
-//! with the saved login, like `flows::list_devices`; the window never sees a token or a URL.
+//! with the saved login, like the `list_devices` command in `lib.rs`; the window never sees a token or a URL.
 //!
 //! Paths in this file are the *agent's* paths, text that names a place on another computer. They are
 //! never turned into a local `Path`, never joined with one and never opened here. Each one is checked
@@ -11,17 +11,19 @@
 use crate::agent_client::{AgentClient, AgentError};
 use crate::applog;
 use crate::flows;
+use crate::health::{CODE_UNAUTHORIZED, STATUS_UNAUTHORIZED};
 use crate::secrets::Offloaded;
+use crate::{data_dir, keystore};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
 
 /// Longest path this app will send. Linux allows 4096 bytes; the agent refuses what its system refuses.
-const MAX_PATH_BYTES: usize = 4096;
+pub const MAX_PATH_BYTES: usize = 4096;
 /// Longest single name (every common file system stops at 255 bytes).
-const MAX_NAME_BYTES: usize = 255;
+pub const MAX_NAME_BYTES: usize = 255;
 /// The agent caps a page at 1000 entries whatever is asked for.
-const MAX_PAGE: u32 = 1000;
+pub(crate) const MAX_PAGE: u32 = 1000;
 const DEFAULT_PAGE: u32 = 500;
 
 pub const ERR_PATH_ABSOLUTE: &str = "a path must be absolute (start with / or a drive letter)";
@@ -183,6 +185,9 @@ pub struct Caps {
     pub modify: bool,
     pub delete: bool,
     pub share: bool,
+    /// Wake-on-LAN grant; `None` when the agent does not report it (nothing is hidden then).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wake: Option<bool>,
 }
 
 #[derive(Default, Deserialize)]
@@ -244,9 +249,8 @@ pub struct FileEntry {
     pub child_count: Option<u32>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
-#[derive(Default)]
 struct Listing {
     path: String,
     entries: Vec<FileEntry>,
@@ -309,7 +313,7 @@ pub(crate) async fn session(
     let pinned = flows::list_pins(dir)
         .map_err(AgentError::Local)?
         .into_iter()
-        .find(|p| p.host == key)
+        .find(|p| flows::pin_key(&p.host) == key)
         .map(|p| p.fingerprint)
         .ok_or_else(|| {
             AgentError::Local(format!(
@@ -337,7 +341,25 @@ pub(crate) async fn settle<T>(
         Err(AgentError::Network(_)) => applog::error(&format!("files: {op} failed (network)")),
         Err(AgentError::Local(_)) => applog::error(&format!("files: {op} failed (local)")),
     }
-    if let Err(AgentError::Server { status: 401, .. }) = &r {
+    if let Err(e) = &r {
+        drop_dead_token(dir, store, token, e).await?;
+    }
+    r
+}
+
+/// A 401 means the agent no longer accepts this token: drop it so the window goes back to sign-in
+/// the next time it checks, keeping the pin, the account name and the device key.
+pub(crate) async fn drop_dead_token(
+    dir: &Path,
+    store: &Offloaded,
+    token: &str,
+    e: &AgentError,
+) -> Result<(), AgentError> {
+    if let AgentError::Server {
+        status: STATUS_UNAUTHORIZED,
+        ..
+    } = e
+    {
         let dir = dir.to_path_buf();
         let token = token.to_string();
         store
@@ -345,7 +367,7 @@ pub(crate) async fn settle<T>(
             .await
             .map_err(AgentError::Local)?;
     }
-    r
+    Ok(())
 }
 
 /// The text the window shows for an error. A refusal the agent worded itself (outside the allowed
@@ -354,7 +376,7 @@ pub(crate) async fn settle<T>(
 pub fn user_message(e: &AgentError) -> String {
     match e {
         AgentError::Server { code, message, .. }
-            if !matches!(code.as_str(), "UNAUTHORIZED" | "INTERNAL")
+            if !matches!(code.as_str(), CODE_UNAUTHORIZED | "INTERNAL")
                 && !code.starts_with("HTTP_") =>
         {
             format!("{AGENT_SAYS} {message} ({code})")
@@ -580,15 +602,6 @@ pub async fn delete(
 // ---------------------------------------------------------------------------------------------
 // Commands (registered in lib.rs)
 // ---------------------------------------------------------------------------------------------
-
-fn keystore() -> Offloaded {
-    Offloaded::os_keystore()
-}
-
-fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    use tauri::Manager;
-    app.path().app_data_dir().map_err(|e| e.to_string())
-}
 
 #[tauri::command]
 pub async fn files_roots(app: tauri::AppHandle, host: Option<String>) -> Result<Roots, String> {

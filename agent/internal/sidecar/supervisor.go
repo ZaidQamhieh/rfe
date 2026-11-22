@@ -17,7 +17,20 @@ const (
 	breakerFailures = 5
 	pingInterval    = 15 * time.Second
 	pingTimeout     = 5 * time.Second
+	// Suffixes of the notes a supervisor records, appended to its sidecar's name.
+	breakerOpenSuffix = ".breaker-open"
+	crashSuffix       = ".crash"
 )
+
+// stopped reports whether Stop has been called, without blocking.
+func (s *Supervisor) stopped() bool {
+	select {
+	case <-s.stop:
+		return true
+	default:
+		return false
+	}
+}
 
 // Supervisor keeps one sidecar running: it restarts it with exponential backoff after a crash or a failed
 // health ping and reports unavailability instead of blocking callers.
@@ -29,7 +42,7 @@ type Supervisor struct {
 	client *Client
 
 	// timings are fields so tests can shrink them.
-	minBackoff, maxBackoff, healthyAfter, pingEvery time.Duration
+	minBackoff, maxBackoff, pingEvery time.Duration
 
 	stats supStats
 	stop  chan struct{}
@@ -37,16 +50,21 @@ type Supervisor struct {
 	run   sync.Once // set by Run; Stop closes done itself when Run never started the loop
 }
 
-// NewSupervisor creates a supervisor; Run starts it. onReady, when set, runs (in the supervisor goroutine's
-// shadow, not blocking restarts) each time a sidecar completes its handshake.
+// NewSupervisor creates a supervisor; Run starts it. onReady, when set, runs in its own goroutine each time a
+// sidecar completes its handshake, so it never blocks restarts.
 func NewSupervisor(cfg Config, onReady func(*Client)) *Supervisor {
 	s := &Supervisor{
 		cfg: cfg, onReady: onReady,
-		minBackoff: minBackoff, maxBackoff: maxBackoff, healthyAfter: healthyAfter, pingEvery: pingInterval,
+		minBackoff: minBackoff, maxBackoff: maxBackoff, pingEvery: pingInterval,
 		stop: make(chan struct{}), done: make(chan struct{}),
 	}
 	register(s)
 	return s
+}
+
+// nextBackoff doubles the restart wait, capped at the supervisor's maximum.
+func (s *Supervisor) nextBackoff(d time.Duration) time.Duration {
+	return min(d*2, s.maxBackoff)
 }
 
 // Run supervises until Stop. It returns immediately; work happens in a goroutine.
@@ -116,10 +134,8 @@ func (s *Supervisor) loop() {
 	backoff := s.minBackoff
 	failures := 0
 	for {
-		select {
-		case <-s.stop:
+		if s.stopped() {
 			return
-		default:
 		}
 		started := time.Now()
 		c, err := Start(s.cfg)
@@ -129,7 +145,7 @@ func (s *Supervisor) loop() {
 			if failures == breakerFailures {
 				s.stats.breakerOpens.Add(1)
 				s.stats.breakerOpen.Store(true)
-				Note(s.cfg.Name + ".breaker-open")
+				Note(s.cfg.Name + breakerOpenSuffix)
 			}
 			s.cfg.logf("sidecar %s: start failed (%d): %v", s.cfg.Name, failures, err)
 			wait := backoff
@@ -139,7 +155,7 @@ func (s *Supervisor) loop() {
 			if !s.sleep(wait) {
 				return
 			}
-			backoff = min(backoff*2, s.maxBackoff)
+			backoff = s.nextBackoff(backoff)
 			continue
 		}
 		s.stats.breakerOpen.Store(false)
@@ -152,14 +168,12 @@ func (s *Supervisor) loop() {
 		s.watch(c)
 		s.setClient(nil)
 		_ = c.Close()
-		select {
-		case <-s.stop:
+		if s.stopped() {
 			return
-		default:
 		}
 		s.stats.crashes.Add(1)
-		Note(s.cfg.Name + ".crash")
-		if time.Since(started) >= s.healthyAfter {
+		Note(s.cfg.Name + crashSuffix)
+		if time.Since(started) >= healthyAfter {
 			backoff = s.minBackoff
 			failures = 0 // only a run that stayed up clears the count; a start that dies at once does not
 		}
@@ -167,7 +181,7 @@ func (s *Supervisor) loop() {
 		if !s.sleep(backoff) {
 			return
 		}
-		backoff = min(backoff*2, s.maxBackoff)
+		backoff = s.nextBackoff(backoff)
 	}
 }
 

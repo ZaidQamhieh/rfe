@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": [
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/markdown; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "notes.md",
+      "path": "<ROOT>/docs/notes.md",
+      "size": 8
+    },
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/plain; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "hello.txt",
+      "path": "<ROOT>/docs/hello.txt",
+      "size": 12
+    },
+    {
+      "created": "<created>",
+      "isDir": false,
+      "isSymlink": false,
+      "mimeType": "text/plain; charset=utf-8",
+      "mode": "-rw-r--r--",
+      "modified": "<modified>",
+      "name": "needle-alpha.txt",
+      "path": "<ROOT>/docs/sub/needle-alpha.txt",
+      "size": 27
+    }
+  ]
+}

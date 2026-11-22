@@ -68,7 +68,7 @@ test("the list of allowed folders offers no New folder; a real folder does", asy
   assert.equal(A.atVirtualRoot(NAS, "/"), !!sv.virtualRoot && "/" === sv.virtualRoot);
   assert.equal(sv.virtualRoot, "/", "the stub server lists several roots under a virtual root");
   {
-    assert.equal(d.querySelector('[data-act="newfolder"]').disabled, true, "disabled at the virtual root");
+    assert.equal(d.querySelector('#detail [data-do="newfolder"]').disabled, true, "disabled at the virtual root"); /* the v5 page keeps New in the details panel */
     A.mainPane.startNew();
     assert.notEqual(A.mainPane.creating, true, "startNew does nothing there");
   }
@@ -79,10 +79,25 @@ test("the list of allowed folders offers no New folder; a real folder does", asy
 
 test("every screen draws with its heading and no script error", async () => {
   const { d, A, errs, done } = await open();
-  for (const [v, h] of [["servers", "Servers"], ["devices", "Devices"], ["tools", "Tools"], ["transfers", "Transfers"], ["history", "History"], ["settings", "Settings"]]) {
+  for (const [v, h] of [["servers", "Devices"], ["devices", "Devices"], ["tools", "Tools"], ["transfers", "Transfers"], ["history", "History"], ["settings", "Settings"]]) {
     A.go(v); await sleep(120);
-    assert.equal(text(d.querySelector("#stage h2")), h, v);
+    assert.equal(text(d.querySelector("#stage h1.k-title")), h, v); /* the v5 pages head with h1.k-title */
   }
+  assert.deepEqual(errs, []);
+  done();
+});
+
+test("a paired PC is called a computer in the rail, and the changed-key dialog offers Reconnect", async () => {
+  const { d, A, errs, done } = await open();
+  const E = A.E;
+  const rail = d.querySelector('#rail [data-go="servers"]');
+  assert.ok(rail && /Devices/.test(rail.textContent + (rail.getAttribute("aria-label") || "") + (rail.title || "")), "the rail item reads Devices");
+  const s = E.servers.find((x) => x.state !== "online") || E.servers[0];
+  s.state = "refused"; s.oldFp = s.oldFp || "AA:BB"; s.newFp = s.newFp || "CC:DD";
+  A.reverifyDialog(s.id); await sleep(60);
+  const labels = [...d.querySelectorAll(".k-dlg .k-btn, .dlg .btn")].map((b) => b.textContent.trim());
+  assert.ok(labels.some((l) => /^Reconnect$/.test(l)), "the dialog button reads Reconnect: " + labels.join("|"));
+  assert.ok(!labels.some((l) => /Trust new key/.test(l)), "the old button text is gone");
   assert.deepEqual(errs, []);
   done();
 });
@@ -93,7 +108,7 @@ const allTabs = async (d) => { let s = ""; for (const n of [...d.querySelectorAl
 test("Settings offers only what the core honours", async () => {
   const { d, A, done } = await open("settings");
   const s = await allTabs(d);
-  for (const want of ["Parallel transfers", "Speed limit", "When a name already exists", "Verify checksums", "Download folder", "Reconnect automatically", "Troubleshooting", "Language", "Back up settings", "Show hidden files", "Pinned certificates"]) assert.ok(s.includes(want), want);
+  for (const want of ["Parallel transfers", "Speed limit", "When a name already exists", "Check every download", "Download folder", "Reconnect automatically", "Troubleshooting", "Language", "Back up settings", "Show hidden files", "Computers you trust"]) assert.ok(s.includes(want), want);
   for (const gone of ["Simulate", "Demo", "Reset demo data"]) assert.ok(!s.includes(gone), gone + " is gone");
   A.go("files"); done();
 });
@@ -122,7 +137,10 @@ test("the transfer settings reach the core, and a taken name asks, then follows 
   assert.equal(t1.state, "conflict", "it asks");
   A.go("transfers"); await sleep(150);
   const card = d.querySelector('[data-tid="' + t1.id + '"]');
-  assert.ok(card && /already exists/.test(card.textContent), "the card says the name is taken");
+  assert.ok(card, "the transfer's actions are drawn");
+  const panel = card.parentElement; /* in v5 the data-tid wrapper holds the buttons; the words sit beside them in the details panel */
+  assert.ok(/already exists/.test(panel.textContent), "the panel says the name is taken");
+  assert.ok(/Action required/.test(panel.textContent), "a transfer that waits for a person reads Action required");
   for (const b of ["Replace", "Keep both", "Skip"]) assert.ok([...card.querySelectorAll("button")].some((x) => x.textContent === b), b + " is offered");
   card.querySelector('[data-t="skip"]').click();
   await sleep(150); await E.pollTransfers(); await sleep(100);
@@ -172,9 +190,14 @@ test("the desktop settings reach the core, and the update check offers a checked
   assert.equal(SB.state.desktop.closeToTray, true, "the core is told to hide the window on close");
   d.querySelector('[data-sw="startLogin"]').click(); await sleep(80);
   assert.equal(SB.state.autostart, true, "starting with the session is switched on in the core");
+  // Desktop notifications start on (owner decision, rfe-5qs): the core was told at start-up, the kinds are listed, and the switch turns them off and on again.
+  assert.equal(SB.state.desktop.notifications, true, "notifications start on");
+  assert.ok(text(d.querySelector("#stage")).includes("New device requests"), "the kinds of notification are listed while they are on");
+  d.querySelector('[data-sw="desktopNotif"]').click(); await sleep(80);
+  assert.equal(SB.state.desktop.notifications, false, "the switch turns them off in the core");
+  assert.ok(!text(d.querySelector("#stage")).includes("New device requests"), "the kinds are hidden once off");
   d.querySelector('[data-sw="desktopNotif"]').click(); await sleep(80);
   assert.equal(SB.state.desktop.notifications, true);
-  assert.ok(text(d.querySelector("#stage")).includes("New device requests"), "the kinds of notification appear once they are on");
   d.querySelector('[data-sx="notif"]').click(); await sleep(50);
   assert.equal(SB.state.notified.at(-1).kind, "test");
   // The update dialog.
@@ -200,26 +223,27 @@ test("each command opens its dialog with the right title", async () => {
     ["Checksum", () => F.checksumDialog(A.mainPane, file), "Checksum"],
     ["Preview", () => A.previewDialog(NAS, "/srv", file), file.n],
     ["Edit", () => A.openEditor(NAS, "/srv", file), file.n],
-    ["Agent log", () => A.agentLogDialog(), /Agent log of/],
-    ["Recently changed", () => A.recentOnServer(NAS), /Recently changed on/],
+    ["Computer log", () => A.agentLogDialog(), /Log of /],
+    ["Changed lately", () => A.recentOnServer(NAS), /^Changed lately on /],
     ["Sign in", () => A.signInDialog(E.server(OFFLINE)), /Sign in to/],
     ["Trust", () => A.trustDialog(E.server(OFFLINE)), /Trust .*\?/],
     ["Accounts", () => A.accountsDialog(), "Accounts"],
-    ["Diagnose", () => A.diagnose(NAS), /Diagnose/],
-    ["Roots", () => A.rootsDialog(NAS), /Allowed roots/],
+    ["Check the connection", () => A.diagnose(NAS), /^Connection to /],
+    ["Roots", () => A.rootsDialog(NAS), /^Folders .+ shares$/],
     ["Back up", () => A.backupDialog(), "Back up settings"],
     ["Restore", () => A.restoreDialog(), "Restore settings"],
     ["About", () => A.aboutDialog(), "About RFE"],
     ["Report", () => A.reportDialog(), "Report a problem"],
     ["Device key", () => A.settingsAction("devkey"), "Create a new device key?"],
-    ["Pins", () => A.settingsAction("pins"), "Pinned certificates"],
+    ["Pins", () => A.settingsAction("pins"), "Computers you trust"],
   ];
   for (const [name, run, title] of cases) {
     clear(d);
     await run(); await sleep(80);
-    const h = [...d.querySelectorAll(".dlg h2")].map(text).join("/");
+    /* the v5 skin turns .dlg into .k-dlg for the computer dialogs (Sign in, Trust, Connection, Folders, Changed lately) */
+    const h = [...d.querySelectorAll(".dlg h2, .k-dlg h2")].map(text).join("/");
     assert.ok(typeof title === "string" ? h === title : title.test(h), `${name}: dialog title was “${h}”`);
-    assert.doesNotMatch(text(d.querySelector(".dlg")), /undefined|\[object|NaN/, name);
+    assert.doesNotMatch(text(d.querySelector(".dlg, .k-dlg")), /undefined|\[object|NaN/, name);
   }
   assert.deepEqual(errs, []);
   done();
@@ -234,7 +258,7 @@ test("the About dialog shows the core's diagnostics and no secrets", async () =>
   [...d.querySelectorAll(".dlg .btn")].find((b) => /Copy diagnostics/.test(b.textContent)).click();
   await sleep(100);
   assert.match(copied, /RFE Desktop diagnostics/);
-  assert.match(copied, /Servers:/);
+  assert.match(copied, /Computers:/);
   assert.doesNotMatch(copied, /password|token|BEGIN/i);
   assert.deepEqual(errs, []);
   done();
@@ -328,27 +352,29 @@ test("one click opens a folder, the round icon only selects, and Two clicks in S
   const { w, d, A, E, errs, done } = await open();
   await E.fs.load(NAS, "/srv");
   A.mainPane.go("/srv"); await sleep(100);
-  const row = (name) => [...d.querySelectorAll("#stage .li[data-i]")].find((r) => text(r).includes(name));
+  /* the v5 tree rows are .n[data-i]; "open" is the folder's branch being expanded (A.v5Files.open) and the row stays selected, which feeds the details panel */
+  const row = (name) => [...d.querySelectorAll("#stage .tr .n[data-i]")].find((r) => r.querySelector(".l") && text(r.querySelector(".l")).startsWith(name));
+  const isOpen = (p) => A.v5Files.open.has(NAS + "\u0001" + p);
   const fire = (el, type, o = {}) => el.dispatchEvent(new w.MouseEvent(type, { bubbles: true, cancelable: true, ...o }));
+  A.v5Files.open.add(NAS + "\u0001/srv"); A.v5Files.paint(); await sleep(50);
   const r = row("projects"); assert.ok(r, "a folder row: " + text(d.querySelector("#stage")));
-  fire(r.querySelector(".lead svg"), "click"); /* the glyph itself: an icon carries data-i too */
-  assert.equal(A.mainPane.path, "/srv", "the round icon selects, it does not open");
+  fire(r.querySelector(".k-fic"), "click"); /* the glyph itself (v5 draws it as an emoji image, not an svg): an icon carries data-i too */
+  assert.ok(!isOpen("/srv/projects"), "the icon selects, it does not open");
   assert.ok(A.mainPane.sel.has("projects"));
-  fire(row("projects").querySelector(".nm, .n, b, span") || row("projects"), "click");
-  await until(() => A.mainPane.path === "/srv/projects", "one click to open the folder (was " + A.mainPane.path + ")");
-  assert.equal(A.mainPane.sel.size, 0, "a click only opens: nothing is selected");
-  A.mainPane.go("/srv"); await sleep(100);
+  fire(row("projects").querySelector(".l"), "click");
+  await until(() => isOpen("/srv/projects"), "one click to open the folder");
+  A.v5Files.open.delete(NAS + "\u0001/srv/projects"); A.v5Files.paint(); await sleep(50);
   A.S.openMode = "double";
   fire(row("projects"), "click");
-  assert.equal(A.mainPane.path, "/srv", "Two clicks: one click only selects");
+  assert.ok(!isOpen("/srv/projects"), "Two clicks: one click only selects");
   fire(row("projects"), "dblclick");
-  await until(() => A.mainPane.path === "/srv/projects", "the double click to open it");
+  await until(() => isOpen("/srv/projects"), "the double click to open it");
   A.S.openMode = "single";
   assert.deepEqual(errs, []);
   done();
 });
 
-test("the side panel is dragged to the size wanted, or folded away, and the transfers open from a pill or the top bar", async () => {
+test("the side panel is dragged to the size wanted, or folded away, and the transfers open from a pill", async () => {
   const { w, d, A, errs, done } = await open();
   const fire = (el, type, x, y) => el.dispatchEvent(new w.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }));
   const main = d.querySelector("#main"); const grip = d.querySelector("#rszSide");
@@ -370,15 +396,12 @@ test("the side panel is dragged to the size wanted, or folded away, and the tran
   assert.equal(btn.getAttribute("aria-pressed"), "false");
   btn.click(); assert.equal(hidden(), false);
   A.state.sheetOpen = false; A.renderAll();
-  const sheet = d.querySelector("#sheet"), pill = () => d.querySelector("#spill"), top = d.querySelector("#btnXfer");
-  assert.ok(pill() && top, "a pill for the transfers and a button for them in the top bar");
+  const sheet = d.querySelector("#sheet"), pill = () => d.querySelector("#spill");
+  assert.ok(pill() && !d.querySelector("#btnXfer"), "a pill for the transfers (the top bar no longer has a button for them)");
   assert.equal(sheet.classList.contains("min"), true, "folded: only the pill shows");
   assert.equal(main.style.getPropertyValue("--sheet"), "", "the transfers take no room from the page");
   pill().click(); assert.equal(sheet.classList.contains("min"), false, "the pill opens the list");
-  assert.equal(top.getAttribute("aria-pressed"), "true");
-  top.click(); assert.equal(sheet.classList.contains("min"), true, "the top bar button folds it");
-  assert.equal(top.getAttribute("aria-pressed"), "false");
-  top.click(); assert.equal(A.state.sheetOpen, true, "and opens it again");
+  assert.equal(A.state.sheetOpen, true, "and the open state is kept");
   assert.deepEqual(errs, []);
   done();
 });
@@ -410,10 +433,13 @@ test("one click opens a file only when there is something to show; any other fil
   const items = A.mainPane.items.filter((n) => n.t !== "dir");
   assert.ok(items.length, "files in the stub folder");
   const bin = items.find((n) => !A.hasViewer(NAS, n)); const txt = items.find((n) => A.hasViewer(NAS, n));
-  const row = (n) => [...d.querySelectorAll("#stage .li[data-i]")].find((r) => text(r).includes(n.n));
+  /* the v5 tree: the folder's branch must be drawn, and a file that opens is also left selected so the details panel shows it afterwards */
+  for (const p of ["/", "/srv", "/srv/projects", "/srv/projects/atlas", "/srv/projects/atlas/releases", REL]) A.v5Files.open.add(NAS + "\u0001" + p);
+  A.v5Files.paint(); await sleep(400);
+  const row = (n) => [...d.querySelectorAll("#stage .tr .n[data-i]")].find((r) => r.getAttribute("aria-level") && text(r.querySelector(".l")).startsWith(n.n));
   const fire = (el) => el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
   if (bin) { fire(row(bin)); await sleep(150); assert.equal(d.querySelector(".dlg"), null, "no dialog for " + bin.n); assert.ok(A.mainPane.sel.has(bin.n)); }
-  if (txt) { A.mainPane.sel.clear(); fire(row(txt)); await until(() => d.querySelector(".dlg"), "the viewer for " + txt.n); assert.equal(A.mainPane.sel.has(txt.n), false, "opening a file does not select it"); }
+  if (txt) { A.mainPane.sel.clear(); fire(row(txt)); await until(() => d.querySelector(".dlg"), "the viewer for " + txt.n); }
   assert.deepEqual(errs, []);
   done();
 });
@@ -424,11 +450,12 @@ test("the transfers strip starts folded and keeps the way it was left", async ()
   done();
 });
 
-test("every length in the stylesheet is in rem, so the page scales with the window", async () => {
+test("every length in the stylesheet is in rem, so the page scales with Interface size", async () => {
   const { readFileSync } = await import("node:fs");
-  const css = readFileSync(new URL("../ui/app.css", import.meta.url), "utf8");
+  const { readAllCss } = await import("./css-lib.mjs");
+  const css = readAllCss();
   const root = css.match(/html\{--ui:1;font-size:([^}]*)\}/);
-  assert.ok(root && /vw/.test(root[1]) && /vh/.test(root[1]) && /clamp\(calc\((?:16px|1rem|\.818rem)/.test(root[1]), "the root size follows the window: " + (root && root[1]));
+  assert.ok(root && root[1] === "calc(clamp(calc(var(--root-min) * 1px), calc(var(--root-min) * 1px + (100vw - var(--root-min-w) * 1px) * var(--root-slope)), calc(var(--root-max) * 1px)) * var(--ui))", "the root size is 16px at 1280px wide, grows with the window up to 24px at 2560px wide, times Interface size: " + (root && root[1]));
   const rest = css.replace(root[0], "").replace(/\/\*[\s\S]*?\*\//g, "");
   const big = [...rest.matchAll(/(?<![\w.#-])(\d*\.?\d+)px/g)].filter((m) => +m[1] > 1.5).map((m) => m[0]);
   assert.deepEqual(big, [], "no fixed pixel sizes beyond hairlines");
@@ -451,8 +478,9 @@ test("a host address with markup in it cannot break out of a card attribute", as
   E.addServer({ host: evil, name: "evil" });
   A.go("servers"); await sleep(150);
   assert.equal(d.querySelector("#injected"), null, "the address became an element");
-  const card = [...d.querySelectorAll("[data-sid]")].find((c) => c.dataset.sid === evil.toLowerCase());
-  assert.ok(card, "the card keeps the whole address in data-sid");
+  /* the v5 page draws one row per computer: .ro[data-pa="pick"][data-id] */
+  const card = [...d.querySelectorAll('#stage .ro[data-pa="pick"]')].find((c) => c.dataset.id === evil.toLowerCase());
+  assert.ok(card, "the row keeps the whole address in data-id");
   for (const b of card.querySelectorAll("[data-id]")) assert.equal(b.dataset.id, evil.toLowerCase());
   assert.deepEqual(errs, []);
   done();
@@ -471,16 +499,16 @@ test("a window resize switches transitions off while it lasts, so the layout doe
   done();
 });
 
-test("the Servers page keeps keyboard focus on the same control when a tick rebuilds it", async () => {
+test("the Computers page keeps keyboard focus on the same control when a tick rebuilds it", async () => {
   const { d, A, E, done } = await open();
   A.go("servers"); await sleep(150);
-  const target = d.querySelector('#stage [data-sa="open"]');
+  const target = d.querySelector('#stage .cpg .ro[data-pa="pick"]'); /* the v5 page: one focusable row per computer */
   const id = target.dataset.id;
   target.focus();
   assert.equal(d.activeElement, target);
   const s = E.server(id); s.latency += 7; s.lastSeen += 1; E.emit("servers", s); await sleep(60);
-  const now = d.querySelector('#stage [data-sa="open"][data-id="' + id.replace(/"/g, '\\"') + '"]');
-  assert.ok(now, "the card is still drawn");
+  const now = d.querySelector('#stage .cpg .ro[data-pa="pick"][data-id="' + id.replace(/"/g, '\\"') + '"]');
+  assert.ok(now, "the row is still drawn");
   assert.equal(d.activeElement, now, "focus was lost in the rebuild");
   done();
 });
@@ -490,7 +518,8 @@ const sheet = (d) => [...d.styleSheets].flatMap((s) => [...s.cssRules]).map((r) 
 test("a scrolling file list drops its hover fades while it moves, and gets them back after", async () => {
   const { w, d, A, done } = await open();
   A.go("files"); await sleep(200);
-  const rows = d.querySelector("[data-rows]");
+  const rows = d.querySelector("#stage .tr"); /* the v5 tree is the scrolling list now (it was [data-rows]) */
+  assert.match(sheet(d), /\.tr\.scrolling \.n[^{]*\{[^}]*transition:\s*none/);
   rows.dispatchEvent(new w.Event("scroll"));
   assert.ok(rows.classList.contains("scrolling"), "no guard while scrolling");
   await sleep(300);
@@ -588,25 +617,33 @@ test("folding the details panel slides it in by transform only: never faded, no 
   done();
 });
 
-test("switching add-a-computer tabs swaps the contents at once: nothing fades or blinks", async () => {
+/** In the open add-a-computer dialog (step 1) types an address in the "Not in the list?" fold and presses Next. */
+const addNext = async (d, host = "10.9.9.9") => {
+  const f = d.querySelector("#v5addr"); f.closest("details").open = true; f.value = host;
+  f.dispatchEvent(new d.defaultView.Event("input", { bubbles: true }));
+  [...d.querySelectorAll(".scrim .df button")].find((b) => b.textContent.trim() === "Next").click();
+};
+
+test("moving add-a-computer from step 1 to step 2 swaps the contents at once: nothing fades or blinks", async () => {
   const { d, errs, done } = await open();
-  d.querySelector(".fab").click(); await sleep(150);
+  d.querySelector("#rail [data-new]").click(); await sleep(150);
   const hit = []; const proto = d.defaultView.Element.prototype; const was = proto.animate;
   proto.animate = function (k, o) { hit.push(this); return { cancel() {}, finish() {} }; };
-  d.querySelector('.dlg [data-fx^="conn.tab|code"]').click(); await sleep(50);
+  await addNext(d); await sleep(50);
   proto.animate = was;
-  const dlg = d.querySelector(".dlg");
-  assert.equal(hit.length, 0, "a tab switch animated: " + hit.map((e) => e.className || e.tagName).join(", "));
-  assert.ok(dlg.querySelector(".fxtabs"), "the dialog still has its tab bar");
+  const dlg = d.querySelector(".scrim .k-dlg");
+  assert.equal(hit.filter((e) => e.closest && e.closest(".scrim")).length, 0, "a step switch animated: " + hit.map((e) => e.className || e.tagName).join(", "));
+  assert.ok(dlg.querySelector(".b-sx"), "the dialog still has its step column");
   assert.deepEqual(errs, []);
   done();
 });
 
 test("the add-a-computer tabs are one dialog: the backdrop node is never removed and Escape still closes once", async () => {
   const { w, d, errs, done } = await open();
-  d.querySelector(".fab").click(); await sleep(150);
+  d.querySelector("#rail [data-new]").click(); await sleep(150);
   const sc = d.querySelector(".scrim"); const removed = []; const mo = new w.MutationObserver((l) => l.forEach((r) => r.removedNodes.forEach((n) => removed.push(n)))); mo.observe(sc.parentNode, { childList: true });
-  for (const next of ["code", "disc", "manual", "disc"]) { d.querySelector('.dlg [data-fx^="conn.tab|' + next + '"]').click(); await sleep(60); assert.equal(d.querySelector(".scrim"), sc, "the backdrop was replaced on " + next); assert.equal(d.querySelectorAll(".scrim").length, 1); assert.equal(d.querySelectorAll(".scrim .dlg").length, 1); }
+  await addNext(d); await sleep(500);
+  assert.equal(d.querySelector(".scrim"), sc, "the backdrop was replaced on the move to step 2"); assert.equal(d.querySelectorAll(".scrim").length, 1); assert.equal(d.querySelectorAll(".scrim .k-dlg").length, 1);
   assert.equal(removed.length, 0, "the backdrop left the page during a switch");
   d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await sleep(60);
   assert.equal(d.querySelectorAll(".scrim").length, 0, "Escape did not close the dialog after switching");
@@ -616,16 +653,13 @@ test("the add-a-computer tabs are one dialog: the backdrop node is never removed
 
 test("the add-a-computer tabs share one size, so switching never resizes the box", async () => {
   const { d, errs, done } = await open();
-  const css = [...d.styleSheets].flatMap((s) => [...s.cssRules]).filter((r) => r.selectorText === ".dlg.conn").map((r) => r.cssText).join(" ");
-  assert.match(css, /min-height/, "the connection dialogs need one shared minimum height");
-  d.querySelector(".fab").click(); await sleep(150);
+  d.querySelector("#rail [data-new]").click(); await sleep(150);
   const w = [];
-  for (const next of ["code", "disc", "manual"]) {
-    w.push(d.querySelector(".dlg").style.getPropertyValue("--w"));
-    d.querySelector('.dlg [data-fx^="conn.tab|' + next + '"]').click(); await sleep(150);
-  }
-  w.push(d.querySelector(".dlg").style.getPropertyValue("--w"));
-  assert.equal(new Set(w).size, 1, "the three tabs use different widths: " + w.join(", "));
+  w.push(d.querySelector(".scrim .k-dlg").style.width);
+  await addNext(d); await sleep(500);
+  w.push(d.querySelector(".scrim .k-dlg").style.width); /* step 2 sits in the same box, not a new one */
+  assert.ok(w[0], "step 1 sets a width");
+  assert.equal(new Set(w).size, 1, "the steps use different widths: " + w.join(", "));
   assert.deepEqual(errs, []);
   done();
 });
@@ -635,12 +669,31 @@ test("the add-a-computer tabs share one top edge, so the tab bar stays put when 
   const css = [...d.styleSheets].flatMap((s) => [...s.cssRules]).filter((r) => r.selectorText === ".scrim.top").map((r) => r.cssText).join(" ");
   assert.match(css, /align-items:\s*start/);
   assert.match(css, /height:\s*100%/, "an anchored scrim must keep the full height");
-  d.querySelector(".fab").click(); await sleep(150);
-  for (const tab of ["code", "disc", "manual"]) {
-    assert.equal(d.querySelectorAll(".scrim").length, 1, "one dialog at a time before " + tab);
-    assert.ok(d.querySelector(".scrim").classList.contains("top"), "the " + tab + " dialog is not anchored");
-    d.querySelector('.dlg [data-fx^="conn.tab|' + (tab === "code" ? "disc" : tab === "disc" ? "manual" : "code") + '"]').click(); await sleep(150);
+  d.querySelector("#rail [data-new]").click(); await sleep(150);
+  for (const step of ["1", "2"]) {
+    assert.equal(d.querySelectorAll(".scrim").length, 1, "one dialog at a time on step " + step);
+    assert.ok(d.querySelector(".scrim").classList.contains("top"), "the step " + step + " dialog is not anchored");
+    if (step === "1") { await addNext(d); await sleep(500); }
   }
+  assert.deepEqual(errs, []);
+  done();
+});
+
+test("the arrow keys reach Trash, Share links and Apps in the Files tree, and Delete does nothing there", async () => {
+  const { w, d, A, E, errs, done } = await open();
+  await E.fs.load(NAS, "/srv");
+  A.mainPane.go("/srv"); await sleep(100);
+  A.v5Files.open.add(NAS + "\u0001/srv"); A.v5Files.paint(); await sleep(50);
+  const tr = d.querySelector("#stage .tr");
+  tr.focus();
+  const key = (k) => tr.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+  const seen = new Set();
+  for (let i = 0; i < 80; i++) {
+    key("ArrowDown"); await sleep(5);
+    const s = d.querySelector("#stage .tr .n.sel[aria-expanded][aria-level='2']");
+    if (s) { seen.add(text(s.querySelector(".l")).trim().split(/\s/)[0]); key("Delete"); }
+  }
+  assert.ok(seen.size >= 1, "the selection reached a Trash, Share links or Apps row: " + [...seen]);
   assert.deepEqual(errs, []);
   done();
 });

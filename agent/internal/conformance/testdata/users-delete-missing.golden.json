@@ -1,0 +1,13 @@
+{
+  "status": 404,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "code": "NOT_FOUND",
+    "message": "no such user"
+  }
+}

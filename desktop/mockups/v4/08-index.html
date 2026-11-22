@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Index — results as a table, each column filters itself</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d08{--bg:#fafaf8;--sf:#fff;--rz:#f0f0ec;--t1:#161616;--t2:#4a4a46;--t3:#6d6d68;--line:rgba(22,22,22,.08);--line2:rgba(22,22,22,.15);--ac:#b4351f;--ac-ink:#a32f1b;--ac-soft:rgba(180,53,31,.08);--font:"Atkinson Hyperlegible",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.d08 .top{height:52px;flex:none;display:flex;align-items:center;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}.d08 .top .ct{margin-right:auto;font-size:13px;color:var(--t2)}
+.d08 .b-sr{background:rgba(22,22,22,.3)}
+.d08 .b-sr .m{left:calc(50% + 120px);top:48px;transform:translateX(-50%);width:980px;background:var(--sf);border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,.22),0 0 0 1px var(--line2);overflow:hidden}
+.d08 .qhd{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}.d08 .qhd b{font-size:16px}.d08 .qhd small{color:var(--t3);font-size:12px}.d08 .qhd .sp{flex:1}
+.d08 .qt{display:grid;grid-template-columns:28px 1.5fr 120px 1.4fr 96px 80px;align-items:center}
+.d08 .qcol{display:grid;gap:4px;padding:10px 8px;background:var(--rz);border-bottom:1px solid var(--line2);font-size:12px;color:var(--t2);align-self:stretch}.d08 .qcol button{display:flex;align-items:center;gap:4px;font-weight:700;color:var(--t1);font-size:12px}
+.d08 .qcol input,.d08 .qcol select{height:28px;border-radius:6px;border:0;box-shadow:inset 0 0 0 1px var(--line2);background:var(--sf);font:12px var(--font);padding:0 8px;color:var(--t1);width:100%;min-width:0}
+.d08 .qcol input.on{box-shadow:inset 0 0 0 1.5px var(--ac)}
+.d08 .qc{padding:0 8px;height:44px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);font-size:13px;min-width:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.d08 .qc.mono{font:12px var(--mono);color:var(--t2)}.d08 .qc:first-child{padding-left:14px}
+.d08 .qrow:hover .qc{background:var(--rz)}.d08 .qrow{display:contents}
+.d08 .qb{display:flex;align-items:center;gap:12px;padding:10px 18px;font-size:12px;color:var(--t3)}.d08 .qb .sp{flex:1}
+.d08 .qn{grid-column:1/-1;display:flex;gap:16px;align-items:center;padding:28px 18px;color:var(--t2);font-size:13px}.d08 .qn p{margin:0;flex:1}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d08">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Search answers as a table you can read across: name, computer, folder, changed, size. The head of each column is its own filter, so there is no separate filter panel to learn. Sort by any column; save the view.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row", 1], ["Overview, Servers, Devices, Transfers, Tools, History, Settings", "Fixed pages; lists open their details in the inspector on the right", 1], ["Search", "Search icon in the top bar, Ctrl K, / or the sidebar", 1], ["Filters", "In the head of each column", 2], ["Sort and save", "Click a column name to sort; Save view", 2]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty,S=B.S,hl=B.hl,sk=B.sk;
+
+document.getElementById('top').innerHTML=`<span class="ct">${EM?'No computers yet':'2 of 4 computers up · 48,210 items indexed'}</span>`+K.ib('search','Search (Ctrl K)','go:search')+K.C.actions();
+const col=(t,f,arrow='')=>`<div class="qcol"><button>${t}${arrow}</button>${f}</div>`;
+const opt=a=>`<select aria-label="filter">${a.map(o=>`<option>${o}</option>`).join('')}</select>`;
+const search=()=>`<div class="m" role="dialog" aria-label="Search"><div class="qhd">${E('card_index_dividers',22)}<b>Search</b><small>${EM?'this computer’s Downloads':'6 of 48,210 items · media-mini offline and nas not trusted were skipped'}</small><span class="sp"></span>${EM?'':K.btn('Save view',{k:'sm ghost',i:'star'})}${K.ib('x','Close (Esc)','sr:close')}</div>
+<div class="qt"><div class="qcol"></div>${col('Name',`<input class="on" value="${S.q}" placeholder="contains…" aria-label="Name contains">`,I('chevd',12))}${col('Computer',opt(EM?['This computer']:['Any','studio-pc','work-laptop']))}${col('Folder','<input placeholder="under…" aria-label="Folder">')}${col('Changed',opt(['Any time','Today','This week','This month','This year']),I('chevd',12))}${col('Size',opt(['Any','> 1 MB','> 100 MB','> 1 GB']))}
+${EM?`<div class="qn">${E('desktop_computer',32)}<p>No rows yet. Each computer you add brings its files into this table, one row per match.</p>${K.btn('Add a computer',{i:'plus',k:'pri',a:'dlg:newconn'})}</div>`:S.res.map(r=>`<div class="qrow" data-k="sr:go:files"><span class="qc">${K.fic(r.k)}</span><span class="qc"><span>${hl(r.n)}</span></span><span class="qc mono">${r.pc}</span><span class="qc mono">${r.path}</span><span class="qc mono">${r.date}</span><span class="qc mono">${r.size}</span></div>`).join('')}</div>
+<div class="qb"><span>${sk('Enter')} open in Files</span><span>${sk('Ctrl D')} download</span><span class="sp"></span><span>Sorted by changed, newest first</span></div></div>`;
+B.mount({search});
+
+</script></body></html>

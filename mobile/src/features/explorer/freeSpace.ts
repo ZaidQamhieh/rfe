@@ -1,6 +1,8 @@
 import type { Drive } from '../../core/api/models';
 
-const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+import { comparablePath } from './paths';
+
+const norm = (p: string) => comparablePath(p, true);
 
 /** The drive whose mount path is the longest prefix of [path], or undefined when none covers it. */
 export function driveFor(drives: readonly Drive[], path: string): Drive | undefined {

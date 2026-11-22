@@ -1,4 +1,5 @@
-import type { KeyValueStore } from '../storage/hostStore';
+import { GB } from '../format';
+import { safeParse, type KeyValueStore } from '../storage/hostStore';
 import { defaultVisibility, type VisibilityPrefs } from '../visibility';
 import { defaultSort, type EntryDensity, type SortField, type SortOrder } from '../models/sort';
 
@@ -14,16 +15,10 @@ export type AppDefaults = {
   sort: SortOrder;
   visibility: VisibilityPrefs;
   themeMode: ThemeMode;
-  dynamicColor: boolean;
-  notificationsEnabled: boolean;
   lowDiskThresholdBytes: number;
   appLockEnabled: boolean;
-  amoledDark: boolean;
-  seedColor: number | null;
-  watchedFolders: Set<string>;
-  compressDownloadsOnCellular: boolean;
   preloadPreviewOnCellular: boolean;
-  weeklyDigestEnabled: boolean;
+  foldersFirst: boolean;
 };
 
 export type DeviceOverrides = { gridView?: boolean; density?: EntryDensity; sort?: SortOrder; visibility?: VisibilityPrefs };
@@ -36,16 +31,10 @@ export const defaultAppDefaults = (): AppDefaults => ({
   sort: defaultSort(),
   visibility: defaultVisibility(),
   themeMode: 'system',
-  dynamicColor: false,
-  notificationsEnabled: true,
-  lowDiskThresholdBytes: 1024 * 1024 * 1024,
+  lowDiskThresholdBytes: GB,
   appLockEnabled: false,
-  amoledDark: false,
-  seedColor: null,
-  watchedFolders: new Set(),
-  compressDownloadsOnCellular: true,
   preloadPreviewOnCellular: false,
-  weeklyDigestEnabled: false,
+  foldersFirst: true,
 });
 
 export const K = {
@@ -57,16 +46,10 @@ export const K = {
   visHiddenExtensions: 'app.visibility.hiddenExtensions',
   visHiddenNames: 'app.visibility.hiddenNames',
   themeMode: 'app.themeMode',
-  dynamicColor: 'app.dynamicColor',
-  notifications: 'app.notificationsEnabled',
   lowDiskThreshold: 'app.lowDiskThresholdBytes',
   appLock: 'app.appLockEnabled',
-  amoled: 'app.amoledDark',
-  seedColor: 'app.seedColor',
-  watchedFolders: 'app.watchedFolders.v1',
-  compressCellular: 'app.compressDownloadsOnCellular',
   preloadCellular: 'app.preloadPreviewOnCellular',
-  weeklyDigest: 'app.weeklyDigestEnabled',
+  foldersFirst: 'app.foldersFirst',
   overrides: 'settings.deviceOverrides.v1',
 } as const;
 
@@ -74,7 +57,11 @@ const SORT_FIELDS: SortField[] = ['name', 'size', 'date', 'type'];
 const DENSITIES: EntryDensity[] = ['comfortable', 'compact'];
 const THEMES: ThemeMode[] = ['system', 'light', 'dark'];
 
-/** Typed reads over JSON-encoded kv values; any unreadable/mistyped value falls back to the default. */
+/**
+ * Typed reads over JSON-encoded kv values; any unreadable/mistyped value falls back to the default. Keys this version
+ * no longer knows (the old `app.amoledDark`, `app.seedColor`, `app.dynamicColor`, `app.watchedFolders.v1` ...) are never
+ * read, so they stay in storage unused.
+ */
 class Reader {
   constructor(private readonly kv: KeyValueStore) {}
   private async raw(key: string): Promise<unknown> {
@@ -107,25 +94,17 @@ class Reader {
   }
   async json(key: string): Promise<unknown> {
     const v = await this.raw(key);
-    return typeof v === 'string' ? safeParse(v) : v;
-  }
-}
-
-function safeParse(s: string): unknown {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return undefined;
+    return typeof v === 'string' ? safeParse(v, undefined) : v;
   }
 }
 
 function decodeStringSet(v: unknown): string[] {
-  const arr = typeof v === 'string' ? safeParse(v) : v;
+  const arr = typeof v === 'string' ? safeParse(v, undefined) : v;
   return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
 }
 
 const visibilityFromJson = (m: Record<string, unknown>): VisibilityPrefs => ({
-  hideDotfiles: typeof m.hideDotfiles === 'boolean' ? m.hideDotfiles : true,
+  hideDotfiles: typeof m.hideDotfiles === 'boolean' ? m.hideDotfiles : defaultVisibility().hideDotfiles,
   hiddenExtensions: new Set(decodeStringSet(m.hiddenExtensions)),
   hiddenNames: new Set(decodeStringSet(m.hiddenNames)),
 });
@@ -138,23 +117,17 @@ export async function loadSettings(kv: KeyValueStore): Promise<SettingsState> {
   const app: AppDefaults = {
     gridView: await r.bool(K.gridView, d.gridView),
     density: await r.oneOf(K.density, DENSITIES, d.density),
-    sort: { field: await r.oneOf(K.sortField, SORT_FIELDS, 'name'), ascending: await r.bool(K.sortAscending, true) },
+    sort: { field: await r.oneOf(K.sortField, SORT_FIELDS, d.sort.field), ascending: await r.bool(K.sortAscending, d.sort.ascending) },
     visibility: {
-      hideDotfiles: await r.bool(K.visHideDotfiles, true),
+      hideDotfiles: await r.bool(K.visHideDotfiles, d.visibility.hideDotfiles),
       hiddenExtensions: await r.stringSet(K.visHiddenExtensions),
       hiddenNames: await r.stringSet(K.visHiddenNames),
     },
-    themeMode: await r.oneOf(K.themeMode, THEMES, 'system'),
-    dynamicColor: await r.bool(K.dynamicColor, d.dynamicColor),
-    notificationsEnabled: await r.bool(K.notifications, d.notificationsEnabled),
+    themeMode: await r.oneOf(K.themeMode, THEMES, d.themeMode),
     lowDiskThresholdBytes: await r.int(K.lowDiskThreshold, d.lowDiskThresholdBytes),
     appLockEnabled: await r.bool(K.appLock, d.appLockEnabled),
-    amoledDark: await r.bool(K.amoled, d.amoledDark),
-    seedColor: await r.int(K.seedColor, null),
-    watchedFolders: await r.stringSet(K.watchedFolders),
-    compressDownloadsOnCellular: await r.bool(K.compressCellular, d.compressDownloadsOnCellular),
     preloadPreviewOnCellular: await r.bool(K.preloadCellular, d.preloadPreviewOnCellular),
-    weeklyDigestEnabled: await r.bool(K.weeklyDigest, d.weeklyDigestEnabled),
+    foldersFirst: await r.bool(K.foldersFirst, d.foldersFirst),
   };
   const overrides: Record<string, DeviceOverrides> = {};
   const blob = await r.json(K.overrides);
@@ -166,17 +139,19 @@ export async function loadSettings(kv: KeyValueStore): Promise<SettingsState> {
       if (typeof m.gridView === 'boolean') o.gridView = m.gridView;
       if (typeof m.density === 'string' && (DENSITIES as string[]).includes(m.density)) o.density = m.density as EntryDensity;
       if ('sortField' in m) {
-        const f = typeof m.sortField === 'string' && (SORT_FIELDS as string[]).includes(m.sortField) ? (m.sortField as SortField) : 'name';
-        o.sort = { field: f, ascending: typeof m.sortAscending === 'boolean' ? m.sortAscending : true };
+        const f = typeof m.sortField === 'string' && (SORT_FIELDS as string[]).includes(m.sortField) ? (m.sortField as SortField) : defaultSort().field;
+        o.sort = { field: f, ascending: typeof m.sortAscending === 'boolean' ? m.sortAscending : defaultSort().ascending };
       }
       if (typeof m.visibility === 'object' && m.visibility !== null) o.visibility = visibilityFromJson(m.visibility as Record<string, unknown>);
-      if (Object.keys(o).length > 0) overrides[hostId] = o;
+      if (hasOverride(o)) overrides[hostId] = o;
     }
   }
   return { app, overrides };
 }
 
-/** Effective view for a host: device override, else app default. */
+/** Whether a device override sets anything; empty overrides are dropped. */
+export const hasOverride = (o: DeviceOverrides): boolean => Object.keys(o).length > 0;
+
 export function resolveView(s: SettingsState, hostId: string) {
   const o = s.overrides[hostId] ?? {};
   return { gridView: o.gridView ?? s.app.gridView, density: o.density ?? s.app.density, sort: o.sort ?? s.app.sort };
@@ -213,16 +188,10 @@ export class SettingsRepo {
         return kv.set(K.visHiddenNames, enc(JSON.stringify([...v.hiddenNames])));
       }
       case 'themeMode': return kv.set(K.themeMode, enc(value));
-      case 'dynamicColor': return kv.set(K.dynamicColor, enc(value));
-      case 'notificationsEnabled': return kv.set(K.notifications, enc(value));
       case 'lowDiskThresholdBytes': return kv.set(K.lowDiskThreshold, enc(value));
       case 'appLockEnabled': return kv.set(K.appLock, enc(value));
-      case 'amoledDark': return kv.set(K.amoled, enc(value));
-      case 'seedColor': return value === null ? kv.remove(K.seedColor) : kv.set(K.seedColor, enc(value));
-      case 'watchedFolders': return kv.set(K.watchedFolders, enc(JSON.stringify([...(value as Set<string>)])));
-      case 'compressDownloadsOnCellular': return kv.set(K.compressCellular, enc(value));
       case 'preloadPreviewOnCellular': return kv.set(K.preloadCellular, enc(value));
-      case 'weeklyDigestEnabled': return kv.set(K.weeklyDigest, enc(value));
+      case 'foldersFirst': return kv.set(K.foldersFirst, enc(value));
     }
   }
 

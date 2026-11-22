@@ -9,6 +9,14 @@ import (
 
 // --------- transfers ---------
 
+// Transfer statuses. The SQL in this file and in the store's queries repeats
+// these values as literals; keep them in step.
+const (
+	TransferOpen      = "open"
+	TransferCompleted = "completed"
+	TransferFailed    = "failed"
+)
+
 // Transfer is an in-progress or completed upload session.
 type Transfer struct {
 	ID             string
@@ -23,7 +31,10 @@ type Transfer struct {
 	TotalChunks    int
 	DeviceID       string
 	UpdatedAt      int64 // unix seconds, stamped on each received chunk; 0 = never
-	Overwrite      bool  // may Complete replace an existing target? (PR-50)
+	Overwrite      bool  // may Complete replace an existing target?
+	// IdempotencyKey is the client's key from the open request ("" = none). It is written when the row is
+	// created and is unique per DeviceID; reads do not populate it.
+	IdempotencyKey string
 }
 
 // TransferHistoryRetention is how long the host keeps completed/failed upload
@@ -62,13 +73,22 @@ func (t *Transfer) ExpectedChunkLen(n int) int {
 	return int(remaining)
 }
 
+// keyArg is the SQL value for an idempotency key: NULL for none, so rows without a key never collide in the
+// unique index.
+func keyArg(key string) any {
+	if key == "" {
+		return nil
+	}
+	return key
+}
+
 // CreateTransfer inserts a new transfer row.
 func (s *DB) CreateTransfer(t *Transfer) error {
 	_, err := s.db.Exec(
-		`INSERT INTO transfers (id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,overwrite)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO transfers (id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,overwrite,idempotency_key)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		t.ID, t.TargetPath, t.TotalSize, t.ChunkSize, t.SHA256,
-		"open", t.TempPath, t.TotalChunks, t.DeviceID, t.Overwrite,
+		TransferOpen, t.TempPath, t.TotalChunks, t.DeviceID, t.Overwrite, keyArg(t.IdempotencyKey),
 	)
 	return err
 }
@@ -78,14 +98,14 @@ func (s *DB) CreateTransfer(t *Transfer) error {
 // is false when a quota is full; a database error is returned separately.
 func (s *DB) CreateTransferWithinLimits(t *Transfer, limits TransferLimits) (bool, error) {
 	res, err := s.db.Exec(`
-INSERT INTO transfers (id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,overwrite)
-SELECT ?,?,?,?,?, 'open',?,?,?,?
+INSERT INTO transfers (id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,overwrite,idempotency_key)
+SELECT ?,?,?,?,?, 'open',?,?,?,?,?
 WHERE (SELECT COUNT(*) FROM transfers WHERE status='open') < ?
   AND COALESCE((SELECT SUM(total_size) FROM transfers WHERE status='open'),0) <= ? - ?
   AND (SELECT COUNT(*) FROM transfers WHERE status='open' AND device_id=?) < ?
   AND COALESCE((SELECT SUM(total_size) FROM transfers WHERE status='open' AND device_id=?),0) <= ? - ?`,
 		t.ID, t.TargetPath, t.TotalSize, t.ChunkSize, t.SHA256,
-		t.TempPath, t.TotalChunks, t.DeviceID, t.Overwrite,
+		t.TempPath, t.TotalChunks, t.DeviceID, t.Overwrite, keyArg(t.IdempotencyKey),
 		limits.MaxHostSessions, limits.MaxHostBytes, t.TotalSize,
 		t.DeviceID, limits.MaxDeviceSessions, t.DeviceID, limits.MaxDeviceBytes, t.TotalSize,
 	)
@@ -102,6 +122,20 @@ func (s *DB) GetTransfer(id string) (*Transfer, error) {
 		`SELECT id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,updated_at,overwrite,
                 (SELECT COUNT(*) FROM transfer_chunks c WHERE c.transfer_id=transfers.id)
          FROM transfers WHERE id=?`, id,
+	)
+	return scanTransfer(row)
+}
+
+// GetTransferByKey returns the session deviceID opened with the idempotency key, in any status, or nil when
+// there is none. An empty key matches nothing.
+func (s *DB) GetTransferByKey(deviceID, key string) (*Transfer, error) {
+	if key == "" {
+		return nil, nil
+	}
+	row := s.db.QueryRow(
+		`SELECT id,target_path,total_size,chunk_size,sha256,status,temp_path,total_chunks,device_id,updated_at,overwrite,
+                (SELECT COUNT(*) FROM transfer_chunks c WHERE c.transfer_id=transfers.id)
+         FROM transfers WHERE device_id=? AND idempotency_key=?`, deviceID, key,
 	)
 	return scanTransfer(row)
 }
@@ -198,10 +232,10 @@ WHERE id=? AND status='open' AND updated_at=?
 
 // MarkChunkReceived atomically records chunk n as received.
 //
-// The read-modify-write of received_chunks must happen inside a single
-// transaction: without one, two concurrent chunk uploads can both read the
-// same JSON array, add their own chunk number, and write back — and one
-// update silently clobbers the other (lost update).
+// Chunks are rows keyed by (transfer_id, chunk_no), so a re-sent chunk is an
+// INSERT OR IGNORE no-op and concurrent uploads cannot lose each other's
+// chunks. The existence check and the insert share one transaction so a
+// deleted session is not resurrected.
 func (s *DB) MarkChunkReceived(id string, n int) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -220,7 +254,7 @@ func (s *DB) MarkChunkReceived(id string, n int) error {
 	}
 	// OR IGNORE makes a re-sent chunk a no-op rather than an error: the
 	// primary key is the idempotency, so there is no read-modify-write left to
-	// lose an update (PR-42).
+	// lose an update.
 	if _, err := tx.Exec(
 		`INSERT OR IGNORE INTO transfer_chunks (transfer_id, chunk_no) VALUES (?,?)`, id, n,
 	); err != nil {
@@ -270,7 +304,7 @@ func (s *DB) ChunkNumbers(id string) ([]int, error) {
 // retention window when the session reaches a terminal state.
 func (s *DB) SetTransferStatus(id, status string) error {
 	terminalAt := int64(0)
-	if status == "completed" || status == "failed" {
+	if status == TransferCompleted || status == TransferFailed {
 		terminalAt = time.Now().Unix()
 	}
 	_, err := s.db.Exec(`UPDATE transfers SET status=?, terminal_at=? WHERE id=?`, status, terminalAt, id)
@@ -410,7 +444,7 @@ func (s *DB) CountTransfersByStatus() (map[string]int, error) {
 // ActiveTransferWindow bounds how recently a chunk must have landed for an
 // "open" transfer to count as genuinely in-flight right now, as opposed to
 // one of the thousands of stale never-finalized rows the table accumulates.
-// ponytail: fixed window heuristic, not a decay/heartbeat model — revisit if
+// The window is a fixed heuristic, not a decay/heartbeat model; revisit if
 // slow (multi-minute-per-chunk) transfers need to still read as "active".
 const ActiveTransferWindow = 30 * time.Second
 
@@ -462,7 +496,7 @@ func (s *DB) ListTransferDevices() ([]TransferDevice, error) {
 
 // scanTransfer reads a transfer row. ReceivedChunks is deliberately NOT
 // populated: loading every chunk number to answer "is chunk n here?" is the
-// quadratic behaviour PR-42 removed. Callers that need the set ask
+// quadratic behaviour removed. Callers that need the set ask
 // ChunkNumbers; ReceivedCount covers the rest.
 func scanTransfer(row *sql.Row) (*Transfer, error) {
 	var t Transfer

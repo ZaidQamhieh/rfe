@@ -1,5 +1,5 @@
 /* RFE Tonal - part 6: Properties (permissions), troubleshooting (log detail, keystore, device key, agent log), wake a computer, recently changed files. */
-(function () {
+rfeModule('fx6', ['fx5'], function () {
   'use strict';
   const A = window.A, E = A.E, U = A.U, $ = A.$, $$ = A.$$, esc = A.esc, ic = A.ic, st = A.state, F = A.fx, H = A.fxHandlers;
   const { audit, rel } = F;
@@ -29,21 +29,22 @@
   /* ================= wake a computer ================= */
   const wake = (s) => { if (!s.mac) { A.snack('The MAC address of ' + s.name + ' is not known yet. Connect to it once so it can be woken later.', { error: true }); return; } E.call('wake_computer', { host: s.id, mac: s.mac }).then(() => { audit('Wake-on-LAN sent to ' + s.name); A.snack('Wake signal sent to ' + s.name + '. It can take a minute to start.'); }).catch(fail); };
   const sme = A.serverMenuExtra;
-  A.serverMenuExtra = (s) => sme(s).concat(s.state === 'online' ? [{ icon: 'info', label: 'Status…', onClick: () => A.statusDialog(s.id) }] : []).concat(s.state === 'online' ? [] : [{ icon: 'power', label: 'Wake computer', disabled: !s.mac, onClick: () => wake(s) }]);
+  A.serverMenuExtra = (s) => sme(s).concat(s.state === 'online' ? [{ icon: 'info', label: 'Status…', onClick: () => A.statusDialog(s.id) }] : []).concat(s.state === 'online' || E.wakeDenied(s) ? [] : [{ icon: 'power', label: 'Wake computer', disabled: !s.mac, onClick: () => wake(s) }]);
 
-  /* ================= recently changed on a server ================= */
+  /* ================= recently changed on a server =================
+     The list is the files moved to or from that computer by this app (Engine.recentFiles), newest first; the computer's disk is never scanned. */
   A.recentOnServer = (id) => {
-    const s = E.server(id); if (!s || s.state !== 'online') { A.snack('Connect to a server first.', { error: true }); return; }
-    E.call('files_recent', { host: id, limit: 40 }).then((list) => {
+    const s = E.server(id); if (!s || s.state !== 'online') { A.snack('Connect to a computer first.', { error: true }); return; }
+    Promise.resolve(E.recentFiles(id, { limit: 40 })).then((list) => {
       const rows = list.map((e, i) => '<div class="evrow" data-ri="' + i + '" style="cursor:pointer">' + ic(e.isDir ? 'folder' : 'file') + '<span>' + esc(e.name) + '<br><small class="mono">' + esc(e.path) + '</small></span><small>' + (e.modified ? rel(Date.parse(e.modified)) : '') + '</small></div>').join('');
-      A.dialog({ icon: 'clock', title: 'Recently changed on ' + s.name, width: 600, noFocus: true, body: list.length ? rows : '<div class="fxsub">Nothing was changed lately in the folders this login can open.</div>', actions: [{ label: 'Close', kind: 'f' }],
+      A.dialog({ icon: 'clock', title: 'Recently changed on ' + s.name, width: A.DIALOG_W, noFocus: true, body: list.length ? rows : '<div class="fxsub">No files have been moved to or from this computer yet.</div>', actions: [{ label: 'Close', kind: 'f' }],
         onOpen: (c) => c.el.addEventListener('click', (ev) => { const r = ev.target.closest('[data-ri]'); if (!r) return; const e = list[+r.dataset.ri]; c.close(); A.openPath(id, e.path, !e.isDir); }) });
     }).catch(fail);
   };
 
   /* ================= server status: what the agent reports about itself ================= */
   A.statusDialog = (id) => {
-    const s = E.server(id); if (!s || s.state !== 'online') { A.snack('Connect to a server first.', { error: true }); return; }
+    const s = E.server(id); if (!s || s.state !== 'online') { A.snack('Connect to a computer first.', { error: true }); return; }
     const NR = '<span class="tag">not reported</span>';
     const v = (x, f) => (x == null ? NR : f(x));
     const kv = (k, val) => '<div class="kv2"><div><b>' + k + '</b><small>' + val + '</small></div></div>';
@@ -63,37 +64,58 @@
 
   /* ================= troubleshooting ================= */
   const T = { level: '' };
-  const loadLevel = () => E.call('app_settings').then((r) => { T.level = r.logLevel; if (st.view === 'settings') A.pageSettings(); }).catch(() => {});
+  const loadLevel = () => E.call('app_settings').then((r) => { T.level = r.logLevel; if (st.view === 'settings') A.pageSettings(); }).catch(A.noop);
   const logServer = () => { const m = A.mainPane.host; return (m !== 'local' && E.server(m) && E.server(m).state === 'online' && E.server(m)) || E.servers.find((x) => x.state === 'online'); };
   A.agentLogDialog = () => {
-    const s = logServer(); if (!s) { A.snack('Connect to a server to read its log.', { error: true }); return; }
+    const s = logServer(); if (!s) { A.snack('Connect to a computer to read its log.', { error: true }); return; }
     E.call('agent_log', { host: s.id }).then((r) => {
       const lines = r.lines || [];
-      A.dialog({ icon: 'activity', title: 'Agent log of ' + s.name, width: 720, noFocus: true,
+      A.dialog({ icon: 'activity', title: 'Log of ' + s.name, width: 720, noFocus: true,
         body: r.forbidden ? '<div class="fxsub">This login cannot read the audit log or the agent log. Sign in as the owner of the computer.</div>' : '<div class="fld"><input id="lgf" placeholder="Filter the log" spellcheck="false" aria-label="Filter the log"></div><div id="lgb" class="codev" style="max-height:21.25rem;overflow:auto"></div>',
         actions: [{ label: 'Close', kind: 'f' }],
         onOpen: (c) => { if (r.forbidden) return; const draw = () => { const q = $('#lgf', c.el).value.trim().toLowerCase(); const m = lines.filter((l) => !q || (l.ts + ' ' + l.message).toLowerCase().includes(q)); $('#lgb', c.el).innerHTML = m.length ? m.map((l) => '<div class="evrow"><small class="mono">' + esc(l.ts) + '</small><span>' + esc(l.message) + '</span></div>').join('') : '<div class="fxsub">' + (lines.length ? 'No log line matches these filters.' : "The agent's log is empty.") + '</div>'; }; $('#lgf', c.el).addEventListener('input', draw); draw(); } });
     }).catch(fail);
   };
+  A.backupsDialog = () => {
+    const s = logServer(); if (!s) { A.snack('Connect to a computer to see its backups.', { error: true }); return; }
+    E.call('backups_status', { host: s.id }).then((r) => {
+      const m = (t) => t ? ' <span class="mono">' + esc(t) + '</span>' : '';
+      const row = (a, b) => '<div class="evrow"><span>' + esc(a) + '</span><span>' + b + '</span></div>';
+      const st = (ok, good, bad, time, err) => esc(ok ? good : bad) + m(time) + m(ok ? '' : err);
+      const lb = r.lastBackup, lv = r.lastVerification, of = r.offsite || {}, sc = r.scheduler || {}, ln = r.launcher;
+      const rows = [
+        row('Last backup', lb ? st(lb.ok, 'Done', 'Failed', lb.time, lb.error) : esc('None yet')),
+        row('Last check of a backup', lv ? st(lv.ok, 'Good', 'Failed', lv.time, lv.error) : esc('Not checked yet')),
+        row('Copy to another place', of.configured ? st(of.ok, 'Done', 'Failed', of.lastTime, of.error) : esc('Not set up')),
+        row('Automatic backups', esc(sc.enabled ? 'On' : 'Off') + m(sc.lastRun) + m(sc.lastError)),
+        row('Safe updates', ln ? esc('On') + m(ln.current) + m(ln.pending) + m((ln.bad || []).join(', ')) : esc('Off') + m(r.launcherError)),
+      ].join('');
+      A.dialog({ icon: 'shield', title: 'Backups of ' + s.name, width: 640, noFocus: true,
+        body: r.forbidden ? '<div class="fxsub">This login cannot read the backup status. Sign in as the owner of the computer.</div>' : '<div class="codev">' + rows + '</div>',
+        actions: [{ label: 'Close', kind: 'f' }] });
+    }).catch(fail);
+  };
   const keystore = () => { A.snack('Testing the keystore (it may ask you to unlock it)…'); E.call('check_keystore').then(() => A.snack('The keystore works: a test secret was saved, read back and removed.')).catch((e) => A.snack('The keystore is not working. ' + ((e && e.message) || e), { error: true })); };
   const deviceKey = () => A.dialog({ icon: 'key', cls: 'danger', title: 'Create a new device key?', width: 520, enter: 'go',
-    body: '<div>The key that identifies this computer to the servers is replaced the next time you sign in. The old one stays registered on each server until it is removed there. Logins saved for your servers are removed too; you sign in to each again.</div>',
+    body: '<div>The key that identifies this computer to the computers is replaced the next time you sign in. The old one stays registered on each computer until it is removed there. Logins saved for your computers are removed too; you sign in to each again.</div>',
     actions: [{ label: 'Cancel', kind: 'tx' }, { id: 'go', label: 'Create a new device key', kind: 'ed', icon: 'key', cb: () => { E.call('reset_device_key').then(() => E.loadServers()).then(() => { audit('Device key of this computer reset'); A.snack('A new device key will be created the next time you sign in.'); A.renderAll(); }).catch(fail); } }] });
   const setLevel = (lv) => E.call('set_log_level', { level: lv }).then((r) => { T.level = r; A.pageSettings(); }).catch((e) => { fail(e); A.pageSettings(); });
 
   const se0 = A.settingsExtra;
   A.settingsExtra = (k) => {
     const h = se0(k); const lv = T.level || 'info';
-    const grp = '<div class="sg"><h3>Troubleshooting</h3>' + k.row('Log detail', '', '<div class="seg">' + [['error', 'Errors'], ['info', 'Normal'], ['debug', 'Detailed']].map((o) => '<button data-sx="loglevel:' + o[0] + '" class="' + (lv === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div>') +
-      k.row('Agent log', '', '<button class="btn" data-sx="agentlog">View</button>') +
-      k.row('Check the keystore', '', '<button class="btn" data-sx="keystore">Check</button>') +
-      k.row('Device key', '', '<button class="btn e" data-sx="devkey">New key…</button>') + '</div>';
+    const grp = '<div class="sg"><h3>Troubleshooting</h3>' + k.row('Log detail', 'The last 500 events, kept in memory only','<div class="seg">' + [['error', 'Errors'], ['info', 'Normal'], ['debug', 'Detailed']].map((o) => '<button data-sx="loglevel:' + o[0] + '" class="' + (lv === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div>') +
+      k.row('Computer log', 'What the computer wrote down lately; support may ask for it', '<button class="btn" data-sx="agentlog">View</button>') +
+      k.row('Backup status', 'When this computer last saved its data, and whether safe updates are on', '<button class="btn" data-sx="backups">View</button>') +
+      k.row('Check secure storage', 'Saves, reads back and removes a test secret', '<button class="btn" data-sx="keystore">Check</button>') +
+      k.row('This computer’s identity', 'Make this computer a new device at the next sign-in', '<button class="btn e" data-sx="devkey">Reset…</button>') + '</div>';
     return h.replace('<div class="sg"><h3>About</h3>', grp + '<div class="sg"><h3>About</h3>');
   };
   const sa0 = A.settingsAction;
   A.settingsAction = (a) => {
     if (a.startsWith('loglevel:')) { setLevel(a.slice(9)); return true; }
     if (a === 'agentlog') { A.agentLogDialog(); return true; }
+    if (a === 'backups') { A.backupsDialog(); return true; }
     if (a === 'keystore') { keystore(); return true; }
     if (a === 'devkey') { deviceKey(); return true; }
     return sa0(a);
@@ -101,15 +123,20 @@
   A.paletteExtra.push((C) => {
     const m = A.mainPane.host; if (m !== 'local' && E.server(m) && E.server(m).state === 'online') C('clock', 'Recently changed files on ' + A.hostName(m), () => A.recentOnServer(m));
     if (m !== 'local' && E.server(m) && E.server(m).state === 'online') C('info', 'Status of ' + A.hostName(m), () => A.statusDialog(m));
-    C('activity', 'Agent log', () => A.agentLogDialog()); C('key', 'Check the keystore', keystore);
-    E.servers.filter((s) => s.state !== 'online' && s.mac).forEach((s) => C('power', 'Wake ' + s.name, () => wake(s)));
+    C('activity', 'Computer log', () => A.agentLogDialog()); C('key', 'Check secure storage', keystore);
+    E.servers.filter((s) => s.state !== 'online' && s.mac && !E.wakeDenied(s)).forEach((s) => C('power', 'Wake ' + s.name, () => wake(s)));
   });
 
   /* ================= the desktop around the window: tray, notifications, starting with the session ================= */
   const S = A.S; const D = { tray: null };
   if (S.channel === undefined) S.channel = 'stable';
-  const pushDesktop = () => E.call('desktop_set_prefs', { closeToTray: !!S.closeToTray, notifications: !!S.desktopNotif }).catch(() => {});
+  /* A.osNotify treats only an explicit false as off, so the switches of the pairing and update notices must start on, as the notices do. */
+  if (S.nPair === undefined) S.nPair = true; if (S.nUpdate === undefined) S.nUpdate = true;
+  /* Desktop notifications start on (the owner's decision); a saved choice, on or off, is kept. */
+  if (S.desktopNotif === undefined) S.desktopNotif = true;
+  const pushDesktop = () => E.call('desktop_set_prefs', { closeToTray: !!S.closeToTray, notifications: !!S.desktopNotif }).catch(A.noop);
   const loadDesktop = async () => {
+    /* A failed probe means this system does not offer the feature, so it stays off. */
     try { D.tray = !!(await E.call('desktop_has_tray')); } catch (e) { D.tray = false; }
     try { S.startLogin = !!(await E.call('desktop_autostart_state')); } catch (e) { S.startLogin = false; }
     if (st.view === 'settings') A.pageSettings();
@@ -118,10 +145,11 @@
   const OS_KIND = { ok: ['done', 'notifyDone'], error: ['error', 'notifyErrors'], pair: ['pair', 'nPair'], update: ['update', 'nUpdate'] };
   A.osNotify = (kind, text) => {
     const m = OS_KIND[kind]; if (!m || !S.desktopNotif || S[m[1]] === false || document.hasFocus()) return;
-    E.call('desktop_notify', { kind: m[0], title: kind === 'error' ? 'RFE: something failed' : kind === 'pair' ? 'RFE: a device wants to pair' : kind === 'update' ? 'RFE: an update is available' : 'RFE', body: text }).catch(() => {});
+    E.call('desktop_notify', { kind: m[0], title: kind === 'error' ? 'RFE: something failed' : kind === 'pair' ? 'RFE: a device wants to pair' : kind === 'update' ? 'RFE: an update is available' : 'RFE', body: text }).catch((e) => console.warn('The system did not show a notification:', (e && e.message) || e));
   };
   E.on((type, n) => { if (type === 'notify' && n) A.osNotify(n.kind, n.text); });
   A.onSwitch = (key) => {
+    if (key === 'autoUpdate' && S.autoUpdate) autoCheck(); /* turned on: look now, not at the next start */
     if (key === 'closeToTray' || key === 'desktopNotif') { pushDesktop(); if (key === 'desktopNotif') A.pageSettings(); }
     else if (key === 'startLogin') {
       E.call('desktop_set_autostart', { on: !!S.startLogin }).then((on) => { S.startLogin = !!on; A.save(); A.snack(on ? 'RFE starts hidden in the tray when you sign in' : 'RFE no longer starts when you sign in'); A.pageSettings(); })
@@ -137,7 +165,7 @@
       row('Start RFE when I sign in', '', sw('startLogin')) +
       row('Desktop notifications', '', sw('desktopNotif')) +
       (S.desktopNotif ? row('Notify when a transfer finishes', '', sw('notifyDone')) + row('Notify about errors', '', sw('notifyErrors')) + row('New device requests', '', sw('nPair')) + row('Updates', '', sw('nUpdate')) : '') +
-      row('Try it', '', '<button class="btn" data-sx="notif">' + ic('bell') + 'Test notification</button>') + '</div>';
+      row('Test notification', '', '<button class="btn" data-sx="notif" aria-label="Test notification">' + ic('bell') + 'Send</button>') + '</div>';
     return h.replace('<div class="sg"><h3>Files</h3>', desktop + '<div class="sg"><h3>Files</h3>');
   };
   const sa1 = A.settingsAction;
@@ -147,7 +175,7 @@
     return sa1(a);
   };
   if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
-    window.__TAURI__.event.listen('tray-action', (ev) => { if (ev && ev.payload === 'pair' && A.pairDialog) A.pairDialog(); }).catch(() => {});
+    window.__TAURI__.event.listen('tray-action', (ev) => { if (ev && ev.payload === 'pair' && A.pairDialog) A.pairDialog(); }).catch(A.noop);
   }
 
   /* ================= looking for a newer version (nothing installs by itself) ================= */
@@ -159,11 +187,11 @@
     if (UP.busy) main = '<div class="fxsub">Looking for a new version…</div>';
     else if (UP.err) main = '<div class="fxsub" role="alert">' + esc(UP.err) + '</div>';
     else if (r) {
-      main = '<div class="kv2"><div><b>RFE Desktop</b><small>Installed ' + esc(r.current) + ' · channel ' + esc(S.channel) + '</small></div>' + (r.available ? '<span class="tag pri">' + esc(r.latest) + ' available</span>' : '<span class="tag ok">Up to date</span>') + '</div>' +
+      main = '<div class="kv2"><div><b>' + A.APP_NAME + '</b><small>Installed ' + esc(r.current) + ' · channel ' + esc(S.channel) + '</small></div>' + (r.available ? '<span class="tag pri">' + esc(r.latest) + ' available</span>' : '<span class="tag ok">Up to date</span>') + '</div>' +
         (r.available ? '<h3 class="dsh">What’s new in ' + esc(r.latest) + '</h3>' + (r.notes.length ? '<ul class="notes">' + r.notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '<div class="fxsub">No notes were published.</div>') +
           (r.package ? '<div class="fxsub">' + esc(r.package.name) + ' · ' + U.fmtBytes(r.package.size) + ' · checked against the release’s SHA-256 list before it is kept</div>' : '<div class="fxsub">This release has no package for this system.</div>') : '') +
         (UP.dl ? '<div class="fxsub" role="status">Downloading and checking the package…</div>' : '') +
-        (UP.saved ? '<div class="fxsub" role="status">Saved and checked: <span class="mono">' + esc(UP.saved) + '</span>. Install it with your package manager (for a .deb: <span class="mono">sudo apt install ./the-file.deb</span>; for an .rpm: <span class="mono">sudo dnf install ./the-file.rpm</span>) or run the AppImage. RFE never installs it for you.</div>' : '');
+        (UP.saved ? '<div class="fxsub" role="status">Saved and checked: <span data-nolocal>' + esc(UP.saved) + '</span>. Install it with your package manager (for a .deb: <span class="mono">sudo apt install ./the-file.deb</span>; for an .rpm: <span class="mono">sudo dnf install ./the-file.rpm</span>) or run the AppImage. RFE never installs it for you.</div>' : '');
     } else main = '';
     body.innerHTML = main +
       '<div class="sr" style="padding:.75rem 0 0"><div class="l"><b>Update channel</b><small>Beta also offers pre-releases and may be less stable</small></div><div class="seg">' + [['stable', 'Stable'], ['beta', 'Beta']].map((o) => '<button data-uc="' + o[0] + '" class="' + (S.channel === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div></div>' +
@@ -185,21 +213,96 @@
         E.call('update_download', { version: r.latest, name: r.package.name }).then((path) => { UP.saved = path; audit('Update ' + r.latest + ' downloaded and checked'); }).catch((e) => { UP.err = (e && e.message) || String(e); }).finally(() => { UP.dl = false; if (c.el.isConnected) drawUpdate(c); });
         return false; } }],
     onOpen: (c) => {
-      drawUpdate(c); if (!UP.res || Date.now() - (S.lastUpdateCheck || 0) > 60000) checkNow(c);
+      drawUpdate(c); if (!UP.res || Date.now() - (S.lastUpdateCheck || 0) > A.T.minute) checkNow(c);
       c.el.addEventListener('click', (e) => {
         const ch = e.target.closest('[data-uc]'); if (ch) { S.channel = ch.dataset.uc; A.save(); UP.res = null; checkNow(c); return; }
-        const sw = e.target.closest('[data-ua]'); if (sw) { S.autoUpdate = !S.autoUpdate; A.save(); drawUpdate(c); }
+        const sw = e.target.closest('[data-ua]'); if (sw) { S.autoUpdate = !S.autoUpdate; A.save(); drawUpdate(c); if (S.autoUpdate) autoCheck(); }
       });
     } });
-  /* Once a day, when the person asked for it. */
+  /* Looks for a newer version when the person asked for it and a day has passed since the last look; runs at start, hourly while the app is open, and when the switch is turned on. One look at a time. */
+  let autoBusy = false;
   const autoCheck = async () => {
-    if (!S.autoUpdate || Date.now() - (S.lastUpdateCheck || 0) < 864e5) return;
+    if (autoBusy || !S.autoUpdate || Date.now() - (S.lastUpdateCheck || 0) < A.T.day) return;
+    autoBusy = true;
     try {
       const r = await E.call('update_check', { channel: S.channel }); S.lastUpdateCheck = Date.now(); A.save(); UP.res = r;
-      if (r.available && S.notifiedUpdate !== r.latest) { S.notifiedUpdate = r.latest; A.save(); A.snack('RFE Desktop ' + r.latest + ' is available', { action: 'View', onAction: A.updateDialog }); A.osNotify('update', 'RFE Desktop ' + r.latest + ' is available'); }
-    } catch (e) { /* a failed look is tried again at the next start */ }
+      if (r.available && S.notifiedUpdate !== r.latest) { S.notifiedUpdate = r.latest; A.save(); A.snack(A.APP_NAME + ' ' + r.latest + ' is available', { action: 'View', onAction: A.updateDialog }); A.osNotify('update', A.APP_NAME + ' ' + r.latest + ' is available'); }
+    } catch (e) { /* a failed look is tried again at the next tick */ } finally { autoBusy = false; }
   };
   A.paletteExtra.push((C) => { C('download', 'Check for updates', A.updateDialog); });
-  pushDesktop(); loadDesktop(); setTimeout(autoCheck, 8000);
+  pushDesktop(); loadDesktop(); setTimeout(autoCheck, A.T.autoCheck); setInterval(autoCheck, A.T.hour);
   loadLevel();
-})();
+});
+
+/* ===== tooltips: a label above the trigger inside dialogs, below it elsewhere ===== */
+rfeModule('fx6-tooltips', ['ui'], function () {
+  'use strict';
+  const A = window.A;
+  const DELAY = 450, GAP = 6, EDGE = 4;
+  let tipEl = null, cur = null, timer = 0, watch = null;
+
+  /* Where a tooltip of `size` goes for a trigger box `r` in a window `vp`: centred on the trigger and kept inside the window. It prefers above in a dialog and below elsewhere, and takes the other side only when the preferred one has no room (if neither has, it keeps the preferred one). */
+  A.tipPlace = (r, size, vp, inDlg) => {
+    const room = { up: r.top - GAP - size.h >= EDGE, down: r.bottom + GAP + size.h <= vp.h - EDGE };
+    const want = inDlg ? 'up' : 'down', other = inDlg ? 'down' : 'up';
+    const side = !room[want] && room[other] ? other : want;
+    const left = Math.max(EDGE, Math.min((r.left + r.right) / 2 - size.w / 2, vp.w - size.w - EDGE));
+    return { side, left, top: side === 'up' ? r.top - GAP - size.h : r.bottom + GAP };
+  };
+
+  /* The one tooltip element. It lives on <body>, outside every dialog, so no dialog's overflow or stacking can cut it off. */
+  const el = () => {
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); tipEl.setAttribute('aria-hidden', 'true'); document.body.appendChild(tipEl); }
+    return tipEl;
+  };
+
+  /* Hides the tooltip and forgets its trigger. */
+  const hide = () => {
+    clearTimeout(timer); timer = 0; cur = null;
+    if (watch) { watch.disconnect(); watch = null; }
+    if (tipEl) tipEl.classList.remove('on');
+  };
+
+  /* An icon-only dialog button (no visible text, no title or data-tip) shows its aria-label as the label. */
+  const iconName = (t) => {
+    if (!t.matches('.dlg button.ib[aria-label]:not([title]):not([data-tip])') || t.textContent.trim()) return '';
+    return t.getAttribute('aria-label').trim();
+  };
+
+  /* Shows the label of `t`. Inside a dialog a plain title is taken over (its native tooltip would be slow and unthemed), keeping the title's text as the accessible name when the control has none. */
+  const show = (t) => {
+    if (!t.isConnected) return;
+    const inDlg = !!t.closest('.dlg');
+    if (inDlg && t.hasAttribute('title')) {
+      const ti = t.getAttribute('title'); t.removeAttribute('title');
+      if (ti && !t.hasAttribute('data-tip')) t.setAttribute('data-tip', ti);
+      if (ti && !t.hasAttribute('aria-label') && !t.textContent.trim()) t.setAttribute('aria-label', ti);
+    }
+    const text = t.getAttribute('data-tip') || iconName(t); if (!text) return;
+    const p = el(); p.textContent = text; p.classList.remove('on', 'up', 'down');
+    const s = p.getBoundingClientRect();
+    const pl = A.tipPlace(t.getBoundingClientRect(), { w: s.width, h: s.height }, { w: window.innerWidth, h: window.innerHeight }, inDlg);
+    p.style.left = pl.left + 'px'; p.style.top = pl.top + 'px'; p.classList.add(pl.side, 'on');
+    cur = t;
+    if (!watch) { watch = new MutationObserver(() => { if (cur && !cur.isConnected) hide(); }); watch.observe(document.body, { childList: true, subtree: true }); }
+  };
+
+  /* The element that carries a tooltip: any [data-tip], any [title] inside a dialog, and an icon-only button inside a dialog. */
+  const target = (n) => {
+    if (!n || !n.closest) return null;
+    const t = n.closest('[data-tip], .dlg [title]'); if (t) return t;
+    const b = n.closest('.dlg button.ib[aria-label]'); return b && iconName(b) ? b : null;
+  };
+
+  document.addEventListener('mouseover', (e) => {
+    const t = target(e.target); if (t === cur && t) return;
+    hide(); if (t) timer = setTimeout(() => show(t), DELAY);
+  });
+  document.addEventListener('mouseout', (e) => { if (!cur && !timer) return; const to = e.relatedTarget; if (to && cur && cur.contains(to)) return; hide(); });
+  document.addEventListener('focusin', (e) => { const t = target(e.target); hide(); let kb = false; try { kb = !!t && t.matches(':focus-visible'); } catch (x) { /* no such selector */ } if (kb) show(t); });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('keydown', hide, true);
+  document.addEventListener('mousedown', hide, true);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('blur', hide);
+});

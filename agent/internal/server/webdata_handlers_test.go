@@ -37,7 +37,7 @@ func asDevice(r *http.Request, id string) *http.Request {
 	return r.WithContext(withDevice(r.Context(), &store.Device{ID: id, ViaLogin: false}))
 }
 
-// PR-03: a non-admin device must not delete another device's transfer row,
+// a non-admin device must not delete another device's transfer row,
 // and must not learn that the row exists.
 func TestDeleteTransferHandler_NonOwnerForbidden(t *testing.T) {
 	db, _ := newTestDeps(t)
@@ -69,7 +69,7 @@ func TestDeleteTransferHandler_NonOwnerForbidden(t *testing.T) {
 	}
 }
 
-// PR-03: /transfers/list must scope rows to the caller and withhold the
+// /transfers/list must scope rows to the caller and withhold the
 // whole-host aggregates and device/user filter lists from a non-admin.
 func TestListTransfersHandler_ScopedToCaller(t *testing.T) {
 	db, _ := newTestDeps(t)
@@ -119,7 +119,7 @@ func TestListTransfersHandler_ScopedToCaller(t *testing.T) {
 	}
 }
 
-// PR-03: the admin-only middleware gates the control-plane routes.
+// the admin-only middleware gates the control-plane routes.
 func TestAdminOnly(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	tests := []struct {

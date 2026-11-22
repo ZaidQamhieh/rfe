@@ -10,6 +10,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -26,8 +28,11 @@ import (
 
 const (
 	shareDefaultExpiry = 15 * time.Minute
-	shareMaxExpiry     = 24 * time.Hour
-	shareMaxFileSize   = 500 << 20 // 500 MiB per the R1 threat model.
+	shareMaxExpiry     = 7 * 24 * time.Hour
+	// shareExpiryGrace keeps a share token valid for this long past its expiry time.
+	shareExpiryGrace    = time.Second
+	shareMaxFileSizeMiB = 500 // per the R1 threat model.
+	shareMaxFileSize    = shareMaxFileSizeMiB << 20
 
 	// T2: the token is 32 bytes of crypto/rand (2^256 space) so brute force is
 	// already infeasible, but the unauthenticated /share/{token} route is
@@ -40,6 +45,14 @@ const (
 	// share tokens (T6).
 	shareSweepInterval = 5 * time.Minute
 )
+
+// shareTooLargeMsg is the 413 message for a file over shareMaxFileSize.
+var shareTooLargeMsg = fmt.Sprintf("shared files may not exceed %d MiB", shareMaxFileSizeMiB)
+
+// writeShareNotFound writes the one 404 a share link returns, whether it expired, was revoked, or never existed (T1/T6).
+func writeShareNotFound(w http.ResponseWriter) {
+	writeError(w, http.StatusNotFound, "NOT_FOUND", "share link not found or expired")
+}
 
 func hashShareToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
@@ -69,15 +82,15 @@ func mintShareHandler(cfg Config, db *store.DB, ops *fsops.Ops) http.HandlerFunc
 
 		var req mintShareRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON body")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "invalid JSON body")
 			return
 		}
 		if req.Path == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "path required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, pathRequiredMsg)
 			return
 		}
 		if req.ExpiresInSeconds < 0 || req.ExpiresInSeconds > int64(shareMaxExpiry/time.Second) {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "expiresInSeconds exceeds the 24h maximum")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "expiresInSeconds exceeds the 7d maximum")
 			return
 		}
 
@@ -97,11 +110,11 @@ func mintShareHandler(cfg Config, db *store.DB, ops *fsops.Ops) http.HandlerFunc
 			return
 		}
 		if !info.Mode().IsRegular() {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "only regular files can be shared")
+			writeError(w, http.StatusUnprocessableEntity, "NOT_A_FILE", "only regular files can be shared")
 			return
 		}
 		if info.Size() > shareMaxFileSize {
-			writeError(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "shared files may not exceed 500 MiB")
+			writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", shareTooLargeMsg)
 			return
 		}
 
@@ -111,14 +124,14 @@ func mintShareHandler(cfg Config, db *store.DB, ops *fsops.Ops) http.HandlerFunc
 		}
 		expiresAt := time.Now().Add(expiresIn)
 
-		token, err := randomToken(32)
+		token, err := randomToken(tokenBytes)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to generate token")
+			writeError(w, http.StatusInternalServerError, "INTERNAL", tokenGenerateFailedMsg)
 			return
 		}
 		hash := hashShareToken(token)
 
-		// Stamp the minting device so list/revoke can be scoped to it (PR-03).
+		// Stamp the minting device so list/revoke can be scoped to it.
 		var ownerID string
 		if d := deviceFromContext(r); d != nil {
 			ownerID = d.ID
@@ -176,7 +189,7 @@ func serveShareHandler(db *store.DB, ops *fsops.Ops, sharingEnabled func() bool)
 			writeInternal(w, "serve share", err)
 			return
 		}
-		ok := tok != nil && time.Now().Before(tok.Expires.Add(time.Second))
+		ok := tok != nil && time.Now().Before(tok.Expires.Add(shareExpiryGrace))
 		ownerID := ""
 		if tok != nil {
 			ownerID = tok.DeviceID
@@ -194,10 +207,17 @@ func serveShareHandler(db *store.DB, ops *fsops.Ops, sharingEnabled func() bool)
 			case derr != nil:
 				writeInternal(w, "serve share", derr)
 				return
-			case dev == nil || dev.Revoked || (!dev.ViaLogin && !(dev.CanShare && dev.CanDownload)):
+			case dev == nil || dev.Revoked || (!dev.ViaLogin && !(dev.CanBrowse && dev.CanShare && dev.CanDownload)):
 				ok = false
 			case dev.JailRoot != "":
 				serveOps = ops.Jailed(dev.JailRoot)
+			}
+		}
+		// Check the minted path against the device's current jail before the token
+		// is spent, so a link the jail refuses is not burned by the refusal.
+		if ok {
+			if _, rerr := serveOps.Resolve(tok.Path); errors.Is(rerr, fsops.ErrForbidden) {
+				ok = false
 			}
 		}
 		var path string
@@ -213,7 +233,7 @@ func serveShareHandler(db *store.DB, ops *fsops.Ops, sharingEnabled func() bool)
 		}
 		if !ok {
 			// Don't distinguish "expired" from "never existed" (T1/T6).
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "share link not found or expired")
+			writeShareNotFound(w)
 			return
 		}
 
@@ -225,17 +245,17 @@ func serveShareHandler(db *store.DB, ops *fsops.Ops, sharingEnabled func() bool)
 		// files; validate the opened descriptor before sending any bytes.
 		f, err := serveOps.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "share link not found or expired")
+			writeShareNotFound(w)
 			return
 		}
 		defer f.Close()
 		info, err := f.Stat()
 		if err != nil || !info.Mode().IsRegular() {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "share link not found or expired")
+			writeShareNotFound(w)
 			return
 		}
 		if info.Size() > shareMaxFileSize {
-			writeError(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "shared files may not exceed 500 MiB")
+			writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", shareTooLargeMsg)
 			return
 		}
 		setUntrustedFileResponseHeaders(w, info.Name())
@@ -259,6 +279,10 @@ type shareIPRateEntry struct {
 	windowStart time.Time
 	hits        int
 }
+
+// unknownIPKey is the one shared bucket for a request whose source address is empty, so an unattributable
+// request is limited together instead of escaping the limit.
+const unknownIPKey = "<unknown>"
 
 // shareIPLimiter keeps a fixed-size, per-source-IP budget for the public
 // single-use share endpoint. When the map is full, expired entries are
@@ -292,7 +316,7 @@ func (l *shareIPLimiter) allow(ip string) bool {
 
 func (l *shareIPLimiter) allowAt(ip string, now time.Time) bool {
 	if ip == "" {
-		ip = "<unknown>"
+		ip = unknownIPKey
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -328,18 +352,18 @@ func revokeShareHandler(db *store.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hash := chi.URLParam(r, "tokenHash")
 		if hash == "" {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "tokenHash required")
+			writeError(w, http.StatusBadRequest, codeBadRequest, "tokenHash required")
 			return
 		}
 		// Only the device that minted the link (or an admin) may revoke it —
 		// otherwise any paired device can kill every other device's shares.
-		// Non-owners get 404, so a foreign hash isn't confirmed (PR-03).
+		// Non-owners get 404, so a foreign hash isn't confirmed.
 		t, err := db.GetShareToken(hash)
 		if err != nil {
 			writeInternal(w, "get share token", err)
 			return
 		}
-		if t == nil || !callerOwnsShare(r, t) {
+		if t == nil || !callerOwnsDevice(r, t.DeviceID) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "no such share")
 			return
 		}
@@ -352,26 +376,12 @@ func revokeShareHandler(db *store.DB) http.HandlerFunc {
 	}
 }
 
-// callerOwnsShare reports whether the authenticated device minted this share
-// token, or is an admin device. Mirrors callerOwnsTransfer's rule: tokens with
-// no recorded owner (minted before the device_id column) are admin-only.
-func callerOwnsShare(r *http.Request, t *store.ShareToken) bool {
-	d := deviceFromContext(r)
-	if d == nil {
-		return false
-	}
-	if t.DeviceID != "" && t.DeviceID == d.ID {
-		return true
-	}
-	return isAdminDevice(d)
-}
-
 // --------- GET /v1/share (authenticated) ---------
 
 func listSharesHandler(db *store.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A non-admin sees only the links it minted; the full list names other
-		// devices' shared paths (PR-03).
+		// devices' shared paths.
 		caller := deviceFromContext(r)
 		scope := ""
 		if !isAdminDevice(caller) {
@@ -402,13 +412,15 @@ func listSharesHandler(db *store.DB) http.HandlerFunc {
 
 // StartShareSweeper launches a background goroutine that deletes expired
 // share tokens every shareSweepInterval (T6). It never stops — the agent
-// process owns its lifetime, same as the mDNS advertisement in main.go.
+// process owns its lifetime, same as the mDNS advertisement in cmd/agent/main.go.
 func StartShareSweeper(db *store.DB) {
 	go func() {
 		ticker := time.NewTicker(shareSweepInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			_, _ = db.SweepExpiredShareTokens()
+			if _, err := db.SweepExpiredShareTokens(); err != nil {
+				log.Printf("share sweeper: %v", err)
+			}
 		}
 	}()
 }

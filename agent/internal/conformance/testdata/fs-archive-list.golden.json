@@ -1,0 +1,43 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "entries": [
+      {
+        "isDir": false,
+        "modified": "<modified>",
+        "path": "docs/hello.txt",
+        "size": 12
+      },
+      {
+        "isDir": false,
+        "modified": "<modified>",
+        "path": "docs/notes.md",
+        "size": 8
+      },
+      {
+        "isDir": false,
+        "modified": "<modified>",
+        "path": "docs/sub/needle-alpha.txt",
+        "size": 27
+      },
+      {
+        "isDir": true,
+        "modified": "<modified>",
+        "path": "docs/",
+        "size": "<dirSize>"
+      },
+      {
+        "isDir": true,
+        "modified": "<modified>",
+        "path": "docs/sub/",
+        "size": "<dirSize>"
+      }
+    ]
+  }
+}

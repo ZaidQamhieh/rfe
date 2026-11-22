@@ -1,15 +1,19 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
 
+// defaultRestartDelay is the initial value of restartDelay.
+const defaultRestartDelay = 300 * time.Millisecond
+
 // restartDelay lets the HTTP response reach the caller before the restart
 // command tears down this process. Var (not const) so tests can shrink it.
-var restartDelay = 300 * time.Millisecond
+var restartDelay = defaultRestartDelay
 
 // restartSupportedFn/restartAgentFn are package vars (not direct calls to
 // restartSupported/restartAgent) so tests can stub out the real systemctl
@@ -33,7 +37,9 @@ func restartHandler(db *store.DB) http.HandlerFunc {
 		writeJSON(w, http.StatusAccepted, map[string]bool{"ok": true})
 		go func() {
 			time.Sleep(restartDelay)
-			_ = restartAgentFn()
+			if err := restartAgentFn(); err != nil {
+				log.Printf("agent restart: %v", err)
+			}
 		}()
 	}
 }

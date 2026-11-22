@@ -1,4 +1,4 @@
-// The first-run flow in the real window: New connection, compare the fingerprint, trust, sign in,
+// The first-run flow in the real window: Add a computer, compare the fingerprint, trust, sign in,
 // see this computer on Devices, sign out. Real WebKit, real keyring, a real agent; nothing is faked.
 // Screenshots go to E2E_SHOTS when it is set.
 //

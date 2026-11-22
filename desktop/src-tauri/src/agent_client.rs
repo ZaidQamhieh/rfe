@@ -24,6 +24,22 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const CLIENT_VERSION: &str = concat!("desktop-", env!("CARGO_PKG_VERSION"));
+/// The request header that carries `CLIENT_VERSION` to the agent.
+pub const CLIENT_VERSION_HEADER: &str = "X-RFE-Client-Version";
+/// Request header an apiVersion 3 agent reads the pair-poll nonce from (compat C3).
+pub const PAIR_NONCE_HEADER: &str = "X-RFE-Pair-Nonce";
+/// Query parameter agents before apiVersion 3 read the pair-poll nonce from.
+pub const PAIR_NONCE_QUERY: &str = "nonce";
+/// HTTP status the agent answers when it no longer accepts the token.
+pub const STATUS_UNAUTHORIZED: u16 = 401;
+/// HTTP status the agent answers when this login is not allowed to do the thing asked.
+pub const STATUS_FORBIDDEN: u16 = 403;
+/// The agent's error code that goes with `STATUS_UNAUTHORIZED`.
+pub const CODE_UNAUTHORIZED: &str = "UNAUTHORIZED";
+/// The agent refused the request outright (jail, policy or account scope).
+pub const CODE_FORBIDDEN: &str = "FORBIDDEN";
+/// This device lacks the grant the request needs.
+pub const CODE_CAPABILITY_DENIED: &str = "CAPABILITY_DENIED";
 
 #[derive(Debug)]
 pub enum AgentError {
@@ -73,8 +89,8 @@ pub const KNOWN_CODES: &[&str] = &[
     "DEVICE_KEY_MISMATCH",
     "RATE_LIMITED",
     "PAIR_BUSY",
-    "UNAUTHORIZED",
-    "FORBIDDEN",
+    CODE_UNAUTHORIZED,
+    CODE_FORBIDDEN,
     "NOT_FOUND",
     "BAD_REQUEST",
     "INTERNAL",
@@ -111,8 +127,8 @@ pub fn known_message(code: &str) -> Option<&'static str> {
             "The agent already has pairing requests waiting for approval on the PC. Answer them or \
              wait for them to expire, then try again."
         }
-        "UNAUTHORIZED" => "The agent no longer accepts this login. Sign in again.",
-        "FORBIDDEN" => {
+        CODE_UNAUTHORIZED => "The agent no longer accepts this login. Sign in again.",
+        CODE_FORBIDDEN => {
             "This login is not allowed to do that. Sign in with the account, not a pairing code, \
              to manage devices."
         }
@@ -207,7 +223,7 @@ impl ServerCertVerifier for PinVerifier {
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Whole-request limit for ordinary calls. Above the agent's own 15 s search and recents budgets, so
 /// the agent's partial "ran out of time" answer arrives instead of being cut off.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Whole-request limit for calls that read or rewrite a whole tree (copy, move, archive, checksum,
 /// delete, trash). The agent runs them to completion inside the request.
 const LONG_OP_TIMEOUT: Duration = Duration::from_secs(300);
@@ -329,7 +345,8 @@ pub fn validate_hostport(hostport: &str) -> Result<(), AgentError> {
     Ok(())
 }
 
-fn net(e: reqwest::Error) -> AgentError {
+/// A transport failure as an `AgentError`, with the whole cause chain in the text.
+pub(crate) fn net(e: reqwest::Error) -> AgentError {
     // The request URL can carry a secret (the approval poll's nonce is a query parameter).
     let e = e.without_url();
     let mut msg = e.to_string();
@@ -353,6 +370,37 @@ pub async fn capture_fingerprint(hostport: &str) -> Result<String, AgentError> {
         .map_err(net)?;
     let fp = seen.lock().unwrap().clone();
     fp.ok_or_else(|| AgentError::Local("the agent presented no certificate".into()))
+}
+
+/// What another computer says about its account-server key (`GET /v1/accounts/key`, no sign-in).
+/// The fingerprint it claims is not read: the caller works it out from the key.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountKeyReply {
+    #[serde(default)]
+    pub name: String,
+    pub public_key: String,
+}
+
+/// An account-server key is a few dozen bytes; anything bigger is not one.
+const MAX_ACCOUNT_KEY_BODY: usize = 64 << 10;
+
+/// Asks the computer at `hostport` for its account-server key. The connection is not pinned (the
+/// owner compares the key's fingerprint with the other computer's screen before trusting it), and no
+/// credentials are sent. A computer whose account server is off answers 403 ACCOUNT_SERVER_DISABLED.
+pub async fn fetch_account_key(hostport: &str) -> Result<AccountKeyReply, AgentError> {
+    validate_hostport(hostport)?;
+    let http = build_http(Mode::Capture(Arc::new(Mutex::new(None))))?;
+    let resp = http
+        .get(format!("https://{hostport}/v1/accounts/key"))
+        .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
+        .send()
+        .await
+        .map_err(net)?;
+    if !resp.status().is_success() {
+        return Err(error_of(resp).await);
+    }
+    read_json(resp, MAX_ACCOUNT_KEY_BODY).await
 }
 
 #[derive(Deserialize)]
@@ -440,9 +488,8 @@ pub enum PairPoll {
     Approved(LoginOk),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
-#[derive(Default)]
 struct PollBody {
     status: String,
     device_token: String,
@@ -534,7 +581,7 @@ async fn parse<T: serde::de::DeserializeOwned>(resp: reqwest::Response) -> Resul
 }
 
 /// The error for a non-success response: the agent's `{code, message}` body when it has one.
-async fn error_of(resp: reqwest::Response) -> AgentError {
+pub(crate) async fn error_of(resp: reqwest::Response) -> AgentError {
     let code = resp.status().as_u16();
     let body = read_capped(resp, MAX_ERROR_BODY).await.unwrap_or_default();
     match serde_json::from_slice::<ApiError>(&body) {
@@ -584,9 +631,9 @@ impl AgentClient {
     /// The TLS pin already guarantees the certificate; the agent's own statement of its
     /// fingerprint is a second check that fails loudly if the two ever differ.
     fn check_fingerprint(&self, ok: &LoginOk) -> Result<(), AgentError> {
-        if !ok.cert_fingerprint.is_empty()
-            && normalize_fingerprint(&ok.cert_fingerprint) != self.fingerprint
-        {
+        // An empty fingerprint is refused too: a reply that omits it cannot confirm the agent
+        // is the one that was pinned.
+        if normalize_fingerprint(&ok.cert_fingerprint) != self.fingerprint {
             return Err(AgentError::Local(
                 "the agent reports a different fingerprint than the pinned one".into(),
             ));
@@ -705,6 +752,21 @@ impl AgentClient {
         parse::<serde_json::Value>(resp).await.map(|_| ())
     }
 
+    /// Builds the pair-poll request. The nonce is sent in BOTH the query (agents before apiVersion 3
+    /// read only that) and the header (an apiVersion 3 agent reads only that); the route is
+    /// unauthenticated, so the agent's version cannot be learned first, and each agent ignores the
+    /// form it does not know. `request_id` must already be checked by the caller.
+    pub(crate) fn pair_poll_request(
+        &self,
+        request_id: &str,
+        client_nonce: &str,
+    ) -> reqwest::RequestBuilder {
+        self.http
+            .get(format!("{}/pair/request/{request_id}", self.base))
+            .query(&[(PAIR_NONCE_QUERY, client_nonce)])
+            .header(PAIR_NONCE_HEADER, client_nonce)
+    }
+
     /// Asks how a pairing request stands (`GET /pair/request/{id}`). The approval, with the
     /// token, is handed out once: a second poll gets `NOT_FOUND`.
     pub async fn poll_pair_request(
@@ -712,15 +774,13 @@ impl AgentClient {
         request_id: &str,
         client_nonce: &str,
     ) -> Result<PairPoll, AgentError> {
-        if request_id.is_empty() || !request_id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        if !valid_pair_request_id(request_id) {
             return Err(AgentError::Local(format!(
                 "unexpected request id {request_id:?}"
             )));
         }
         let body: PollBody = parse(
-            self.http
-                .get(format!("{}/pair/request/{request_id}", self.base))
-                .query(&[("nonce", client_nonce)])
+            self.pair_poll_request(request_id, client_nonce)
                 .send()
                 .await
                 .map_err(net)?,
@@ -761,7 +821,7 @@ impl AgentClient {
             .http
             .delete(format!("{}/devices/{device_id}", self.base))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION)
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
             .send()
             .await
             .map_err(net)?;
@@ -777,7 +837,7 @@ impl AgentClient {
             self.http
                 .get(format!("{}/devices", self.base))
                 .bearer_auth(token)
-                .header("X-RFE-Client-Version", CLIENT_VERSION)
+                .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
                 .send()
                 .await
                 .map_err(net)?,
@@ -800,7 +860,7 @@ impl AgentClient {
                 .get(format!("{}{path}", self.base))
                 .query(query)
                 .bearer_auth(token)
-                .header("X-RFE-Client-Version", CLIENT_VERSION)
+                .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
                 .send()
                 .await
                 .map_err(net)?,
@@ -831,7 +891,7 @@ impl AgentClient {
             .request(method.clone(), format!("{}{route}", self.base))
             .timeout(route_timeout(&method, route))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION);
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION);
         if !query.is_empty() {
             req = req.query(query);
         }
@@ -860,7 +920,7 @@ impl AgentClient {
             .request(method.clone(), format!("{}{route}", self.base))
             .timeout(route_timeout(&method, route))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION);
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION);
         if !query.is_empty() {
             req = req.query(query);
         }
@@ -908,6 +968,40 @@ impl AgentClient {
         read_capped(resp, max).await
     }
 
+    /// A signed-in GET of raw bytes that may be large (a video to play). It is refused with `over`
+    /// as soon as the agent says the body is longer than `max`, and again if more than `max` bytes
+    /// arrive anyway. It waits as long as a long operation, since a big file takes longer than a thumbnail.
+    pub(crate) async fn authed_large_bytes(
+        &self,
+        token: &str,
+        route: &str,
+        query: &[(&str, &str)],
+        max: usize,
+        over: &str,
+    ) -> Result<Vec<u8>, AgentError> {
+        let mut resp = self
+            .authed_request(token, reqwest::Method::GET, route, query)?
+            .timeout(LONG_OP_TIMEOUT)
+            .send()
+            .await
+            .map_err(net)?;
+        if !resp.status().is_success() {
+            return Err(error_of(resp).await);
+        }
+        let announced = resp.content_length();
+        if announced.is_some_and(|n| n > max as u64) {
+            return Err(AgentError::Local(over.into()));
+        }
+        let mut out = Vec::with_capacity(announced.unwrap_or(0) as usize);
+        while let Some(chunk) = resp.chunk().await.map_err(net)? {
+            if out.len() + chunk.len() > max {
+                return Err(AgentError::Local(over.into()));
+            }
+            out.extend_from_slice(&chunk);
+        }
+        Ok(out)
+    }
+
     /// A signed-in PUT of raw bytes whose answer is JSON (saving a text file).
     pub(crate) async fn authed_put<T: serde::de::DeserializeOwned>(
         &self,
@@ -942,7 +1036,7 @@ impl AgentClient {
             self.http
                 .request(method, format!("{}{path}", self.base))
                 .bearer_auth(token)
-                .header("X-RFE-Client-Version", CLIENT_VERSION)
+                .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
                 .send()
                 .await
                 .map_err(net)?,
@@ -968,7 +1062,7 @@ impl AgentClient {
             .http
             .get(format!("{}{path}", self.base))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION)
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
             .timeout(timeout)
             .send()
             .await
@@ -1025,7 +1119,7 @@ impl AgentClient {
             self.http
                 .post(format!("{}/pairing/generate", self.base))
                 .bearer_auth(token)
-                .header("X-RFE-Client-Version", CLIENT_VERSION)
+                .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
                 .json(&serde_json::json!({ "ttlSeconds": ttl_seconds }))
                 .send()
                 .await
@@ -1051,7 +1145,7 @@ impl AgentClient {
             .http
             .request(method, format!("{}{path}", self.base))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION);
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION);
         if let Some(b) = body {
             req = req.json(b);
         }
@@ -1109,7 +1203,7 @@ impl AgentClient {
             self.http
                 .get(format!("{}/pair/requests", self.base))
                 .bearer_auth(token)
-                .header("X-RFE-Client-Version", CLIENT_VERSION)
+                .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
                 .send()
                 .await
                 .map_err(net)?,
@@ -1136,7 +1230,7 @@ impl AgentClient {
             .http
             .post(format!("{}/pair/requests/{request_id}/{verb}", self.base))
             .bearer_auth(token)
-            .header("X-RFE-Client-Version", CLIENT_VERSION)
+            .header(CLIENT_VERSION_HEADER, CLIENT_VERSION)
             .send()
             .await
             .map_err(net)?;
@@ -1157,16 +1251,6 @@ impl AgentClient {
     pub(crate) fn transport(&self) -> (&reqwest::Client, &str) {
         (&self.http, &self.base)
     }
-}
-
-/// The error for a non-success response (the agent's `{code, message}` body when it has one).
-pub(crate) async fn response_error(resp: reqwest::Response) -> AgentError {
-    error_of(resp).await
-}
-
-/// A transport failure as an `AgentError`, with the whole cause chain in the text.
-pub(crate) fn network_error(e: reqwest::Error) -> AgentError {
-    net(e)
 }
 
 #[cfg(test)]
@@ -1291,5 +1375,42 @@ mod pair_id_tests {
         assert!(!valid_pair_request_id("../x"));
         assert!(!valid_pair_request_id("a/b"));
         assert!(!valid_pair_request_id(&"a".repeat(65)));
+    }
+}
+
+#[cfg(test)]
+mod pair_poll_tests {
+    use super::*;
+
+    fn built(nonce: &str) -> reqwest::Request {
+        let fp = "ab".repeat(32);
+        AgentClient::pinned("127.0.0.1:8765", &fp)
+            .unwrap()
+            .pair_poll_request("req1", nonce)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn the_nonce_goes_in_the_header_for_an_apiversion_3_agent() {
+        let req = built("abc123");
+        let got = req.headers().get(PAIR_NONCE_HEADER).expect("nonce header");
+        assert_eq!(got.to_str().unwrap(), "abc123");
+    }
+
+    #[test]
+    fn the_nonce_stays_in_the_query_for_an_older_agent() {
+        let req = built("abc123");
+        let pairs: Vec<(String, String)> = req
+            .url()
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect();
+        assert_eq!(
+            pairs,
+            vec![(PAIR_NONCE_QUERY.to_owned(), "abc123".to_owned())]
+        );
+        assert_eq!(req.method(), reqwest::Method::GET);
+        assert!(req.url().path().ends_with("/pair/request/req1"));
     }
 }

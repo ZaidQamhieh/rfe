@@ -1,8 +1,8 @@
 //! Looking for a newer RFE Desktop on the project's GitHub releases, and fetching it.
 //!
 //! The app never installs anything by itself. A check reads the public list of releases (tags
-//! `desktop-vX.Y.Z`, with a pre-release for the beta channel) and says what is newer than this
-//! version. A download takes the package that fits how the app runs (the AppImage when it runs from
+//! `host-vX.Y.Z`, which carry the agent and this app together, or the older `desktop-vX.Y.Z`; a
+//! pre-release for the beta channel) and says what is newer than this version. A download takes the package that fits how the app runs (the AppImage when it runs from
 //! one, else the `.deb`) into the downloads folder, compares its SHA-256 with the release's
 //! `SHA256SUMS` file and only then gives it its name. Installing is left to the person: the
 //! package manager for a `.deb`, a double click for an AppImage.
@@ -16,11 +16,23 @@ use std::time::Duration;
 
 /// The releases of the project, newest first.
 pub const RELEASES_URL: &str = "https://api.github.com/repos/ZaidQamhieh/rfe/releases?per_page=50";
-const TAG_PREFIX: &str = "desktop-v";
+/// The start of a release page address the app will open (only the project's GitHub host).
+const RELEASE_PAGE_PREFIX: &str = "https://github.com/";
+/// Release tags that carry this app: `host-v` (agent and app together), `desktop-v` before that.
+const TAG_PREFIXES: [&str; 2] = ["host-v", "desktop-v"];
+/// The agent's own files in a `host-v` release; never offered as this app's package.
+const AGENT_ASSET_PREFIX: &str = "agent-";
+
+/// The version part of a tag that carries this app, or `None` for another product's tag.
+fn tag_version(tag: &str) -> Option<&str> {
+    TAG_PREFIXES.iter().find_map(|p| tag.strip_prefix(p))
+}
 /// The biggest package this app will fetch.
 const MAX_PACKAGE: u64 = 400 << 20;
 const MAX_LIST: usize = 4 << 20;
 const MAX_NOTES: usize = 2000;
+/// Largest signature file accepted for a release's checksum list.
+const MAX_SIG_BYTES: usize = 4096;
 
 #[derive(Deserialize)]
 struct ApiAsset {
@@ -190,16 +202,26 @@ pub fn package_suffix(appimage: bool, os_release: &str) -> &'static str {
 
 /// Which package of a release has this file ending (see `package_suffix`).
 pub fn package_for<'a>(names: impl Iterator<Item = &'a str>, suffix: &str) -> Option<&'a str> {
-    names
-        .into_iter()
-        .find(|n| n.ends_with(suffix) && !n.contains('/') && !n.contains('\\'))
+    names.into_iter().find(|n| {
+        n.ends_with(suffix)
+            && !n.starts_with(AGENT_ASSET_PREFIX)
+            && !n.contains('/')
+            && !n.contains('\\')
+    })
 }
+
+/// Whole-request limit for update checks and downloads from the release host.
+const UPDATE_TIMEOUT: Duration = Duration::from_secs(60);
+/// Time to reach the release host, before any request is sent.
+const UPDATE_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+/// Whole-request limit for one update package download (up to `MAX_PACKAGE` bytes).
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(1800);
 
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(format!("RFE-Desktop/{}", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(60))
-        .connect_timeout(Duration::from_secs(15))
+        .timeout(UPDATE_TIMEOUT)
+        .connect_timeout(UPDATE_CONNECT_TIMEOUT)
         // Only ever to an https address, so a redirect cannot downgrade the connection.
         .redirect(reqwest::redirect::Policy::custom(|a| {
             if a.previous().len() >= 5 || a.url().scheme() != "https" {
@@ -288,10 +310,10 @@ pub async fn check_at(
     suffix: &str,
 ) -> Result<UpdateView, String> {
     let me = Version::parse(current).ok_or("this app's own version is not readable")?;
-    let list = releases(url, |r| !r.draft && r.tag_name.starts_with(TAG_PREFIX)).await?;
+    let list = releases(url, |r| !r.draft && tag_version(&r.tag_name).is_some()).await?;
     let mut best: Option<(Version, &ApiRelease)> = None;
     for r in &list {
-        let Some(v) = r.tag_name.strip_prefix(TAG_PREFIX).and_then(Version::parse) else {
+        let Some(v) = tag_version(&r.tag_name).and_then(Version::parse) else {
             continue;
         };
         if r.draft || ((r.prerelease || v.is_pre()) && !beta) {
@@ -321,11 +343,11 @@ pub async fn check_at(
     });
     Ok(UpdateView {
         current: current.to_string(),
-        latest: r.tag_name[TAG_PREFIX.len()..].to_string(),
+        latest: tag_version(&r.tag_name).unwrap_or_default().to_string(),
         available,
         prerelease: v.is_pre() || r.prerelease,
         notes: if available { notes_of(&r.body) } else { vec![] },
-        page: if r.html_url.starts_with("https://github.com/") {
+        page: if r.html_url.starts_with(RELEASE_PAGE_PREFIX) {
             r.html_url.clone()
         } else {
             String::new()
@@ -348,11 +370,11 @@ pub fn sum_for(sums: &str, name: &str) -> Option<String> {
 /// against the release's `SHA256SUMS` and returns where it was saved.
 pub async fn download_at(
     url: &str,
-    tag_version: &str,
+    version: &str,
     name: &str,
     dir: &Path,
 ) -> Result<PathBuf, String> {
-    download_signed_by(url, tag_version, name, dir, &RELEASE_KEY).await
+    download_signed_by(url, version, name, dir, &RELEASE_KEY).await
 }
 
 /// The release signing public key (ed25519, raw). The matching private key signs `SHA256SUMS` in
@@ -386,17 +408,18 @@ pub fn sums_signature_ok(sums: &[u8], sig_hex: &str, key: &[u8; 32]) -> bool {
 /// `download_at` with the key to check `SHA256SUMS` against.
 pub async fn download_signed_by(
     url: &str,
-    tag_version: &str,
+    version: &str,
     name: &str,
     dir: &Path,
     key: &[u8; 32],
 ) -> Result<PathBuf, String> {
     let http = client()?;
-    let want = format!("{TAG_PREFIX}{tag_version}");
-    let list = releases(url, |r| !r.draft && r.tag_name == want).await?;
-    let release = list
+    let wanted = |r: &ApiRelease| !r.draft && tag_version(&r.tag_name) == Some(version);
+    let list = releases(url, wanted).await?;
+    // A host-v release wins over a desktop-v one of the same version (there should be only one).
+    let release = TAG_PREFIXES
         .iter()
-        .find(|r| r.tag_name == want && !r.draft)
+        .find_map(|p| list.iter().find(|r| wanted(r) && r.tag_name.starts_with(p)))
         .ok_or("that release is no longer listed")?;
     let pkg = release
         .assets
@@ -448,7 +471,7 @@ pub async fn download_signed_by(
     if !sig_resp.status().is_success() {
         return Err("the signature of that release could not be fetched".into());
     }
-    let sig = String::from_utf8(capped(sig_resp, 4096).await?)
+    let sig = String::from_utf8(capped(sig_resp, MAX_SIG_BYTES).await?)
         .map_err(|_| "the signature of that release is not text".to_string())?;
     if !sums_signature_ok(&sums_bytes, &sig, key) {
         return Err("the release's checksums are not signed by the project's release key".into());
@@ -508,7 +531,7 @@ async fn fetch_checked(
 ) -> Result<(), String> {
     let mut resp = http
         .get(url)
-        .timeout(Duration::from_secs(1800))
+        .timeout(DOWNLOAD_TIMEOUT)
         .send()
         .await
         .map_err(offline)?;

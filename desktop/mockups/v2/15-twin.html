@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Twin — two equal panes and the function keys</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d15{--ac:#0f62fe;--ac-ink:#0f5ae8;--ac-soft:rgba(15,98,254,.08);--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;--row:28px;--fs:13px;--r:4px;display:flex;flex-direction:column}
+.d15 .mb{height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);font-size:13px;background:var(--sf)}
+.d15 .mb>button{height:28px;padding:0 10px;border-radius:5px;color:var(--t2)} .d15 .mb>button:hover,.d15 .mb>button.on{background:var(--rz);color:var(--t1)}
+.d15 .mb em{font-style:normal;color:var(--neg);font:11px var(--mono);margin-left:4px}
+.d15 .mb .r{margin-left:auto;display:flex;gap:2px;align-items:center} .d15 .mb .k-ib{width:28px;height:28px} .d15 .mb .k-av{width:24px;height:24px;font-size:11px}
+.d15 .stage{flex:1;overflow:auto;padding:20px 28px;min-height:0}
+.d15 .stage:has(.tw){overflow:hidden;display:flex;padding:0}
+.d15 .tw{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0}
+.d15 .pn{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--line)}
+.d15 .pn:last-child{border-right:0}
+.d15 .ph{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line);font:13px var(--mono);color:var(--t2)}
+.d15 .ph b{color:var(--t1);font-weight:500} .d15 .pn.act .ph{box-shadow:inset 0 2px 0 var(--ac);background:var(--ac-soft)}
+.d15 .ph .sp{flex:1}
+.d15 .ls{flex:1;overflow:auto;font:13px var(--mono)}
+.d15 .lr{display:grid;grid-template-columns:20px 1fr 88px 120px;gap:12px;align-items:center;height:28px;padding:0 12px;color:var(--t1)}
+.d15 .lr .i{color:var(--t3)} .d15 .lr span:nth-child(n+3){color:var(--t3);text-align:right}
+.d15 .lr.hd{color:var(--t3);font:12px var(--font);border-bottom:1px solid var(--line);height:28px}
+.d15 .lr.cur{background:var(--ac);color:#fff} .d15 .lr.cur .i,.d15 .lr.cur span{color:#fff}
+.d15 .lr.mk{color:var(--ac-ink)}
+.d15 .lr:not(.hd):hover{background:var(--rz)}.d15 .lr.cur:hover{background:var(--ac)}
+.d15 .pf{height:28px;flex:none;display:flex;align-items:center;gap:16px;padding:0 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--t3)}
+.d15 .xl{height:32px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--t2);background:var(--sf)}
+.d15 .xl .k-bar{width:180px;margin:0} .d15 .xl .warn{color:var(--warn)}
+.d15 .fk{height:36px;flex:none;display:grid;grid-template-columns:repeat(10,1fr);border-top:1px solid var(--line)}
+.d15 .fk button{display:flex;gap:6px;align-items:center;justify-content:center;font-size:12px;color:var(--t2);border-right:1px solid var(--line)}
+.d15 .fk button:hover{background:var(--rz);color:var(--t1)} .d15 .fk kbd{min-width:24px}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d15">
+ <div class="mb" id="mb"></div>
+ <main class="stage" id="st"></main>
+ <div class="xl" id="xl"></div>
+ <div class="fk" id="fk"></div>
+</div>
+<script>
+window.IDEA='The two-pane file manager many people already know, made for one PC talking to another. Each pane can show any computer, this one included; Tab moves between them and F5 copies the marked files to the other side. The other pages open from a small menu bar and give the panes back with Esc.';
+window.MAP=[['Navigation','Menu bar; Esc back to the panes',1],['Switch computer','Alt F1 or Alt F2 for the left or right pane, or click the pane header',1],['Connect and trust','Computer menu, New connection',2],['Servers and status','Computer menu, Status; Servers page',2],['Files and preview','Both panes; F3 views, F4 edits text',0],['Upload and download','F5 copies to the other pane, F6 moves',1],['Pair a phone','QR icon in the menu bar',1],['Pairing requests','Devices with the count in the menu bar',1],['Transfers','Transfer line above the keys; Transfers page',0],['Search','Alt F7, or /',1],['Tools','Tools in the menu bar',1],['History and audit','History in the menu bar',1],['Settings','Settings in the menu bar',1],['Tray and notifications','Bell in the menu bar',1]];
+const I=K.I,D=K.D;
+const MB=[['twin','Panes'],['servers','Servers'],['devices','Devices<em>2</em>'],['transfers','Transfers'],['search','Search'],['tools','Tools'],['history','History'],['settings','Settings']];
+function mb(v){document.getElementById('mb').innerHTML=`<button data-k="menu:server">Computer ${I('chevd',12)}</button>`+MB.map(m=>`<button class="${v===m[0]?'on':''}" data-k="go:${m[0]}">${m[1]}</button>`).join('')+`<div class="r">${K.C.actions({no:['refresh']})}</div>`;}
+const fk=[['F1','Help'],['F2','Rename'],['F3','View'],['F4','Edit'],['F5','Copy'],['F6','Move'],['F7','Folder'],['F8','Trash'],['F9','Share'],['F10','Menu']];
+const fkA={F3:'dlg:preview',F4:'dlg:editor',F5:'toast:Copying 2 files to this computer · ~/Downloads',F6:'dlg:copyto',F7:'dlg:newfolder',F8:'dlg:delete',F9:'dlg:share',F10:'dlg:palette',F2:'dlg:batch'};
+document.getElementById('fk').innerHTML=fk.map(f=>`<button data-k="${fkA[f[0]]||'toast:Keys: Tab switches panes, Insert marks, Alt F7 searches'}"><kbd>${f[0]}</kbd>${f[1]}</button>`).join('');
+document.getElementById('xl').innerHTML=`${I('upload',14)}walkthrough-full.mov → studio-pc ${K.bar(71)} 71% · 52.4 MB/s · 23 s<span class="sp" style="flex:1"></span><span class="warn" data-k="go:transfers" style="cursor:pointer">3 need you</span><span>1 queued</span>`;
+const row=(f,c)=>`<div class="lr${c||''}" data-row="${f.n}">${K.E(f.k||'doc',16)}<span>${f.k==='dir'?f.n+'/':f.n}</span><span>${f.k==='dir'?'&lt;dir&gt;':f.s}</span><span>${f.m}</span></div>`;
+const twin=()=>`<div class="tw"><section class="pn act"><div class="ph">${K.dot('ok')}${K.E('server',16)}<b>studio-pc</b>:/home/sam/Projects/garden-plan<span class="sp"></span>${K.tag('studio')}${K.ib('chevd','Choose a computer (Alt F1)','menu:browse')}</div><div class="ls"><div class="lr hd"><span></span><span>Name</span><span>Size</span><span>Modified</span></div><div class="lr"><span class="i">${I('up',14)}</span><span>..</span><span></span><span></span></div>${D.files.map(f=>row(f,f.n===D.sel?' cur':f.n==='north-bed-before.jpg'?' mk':'')).join('')}</div><div class="pf"><span>2 marked · 7.9 MB</span><span>11 items</span><span style="margin-left:auto">812 GB free</span></div></section>
+<section class="pn"><div class="ph">${K.E('laptop',16)}<b>this computer</b>:~/Downloads<span class="sp"></span>${K.ib('chevd','Choose a computer (Alt F2)','menu:browse')}</div><div class="ls"><div class="lr hd"><span></span><span>Name</span><span>Size</span><span>Modified</span></div><div class="lr"><span class="i">${I('up',14)}</span><span>..</span><span></span><span></span></div>${D.local.map(f=>row(f)).join('')}</div><div class="pf"><span>6 items</span><span style="margin-left:auto">212 GB free</span></div></section></div>`;
+K.mount({stage:document.getElementById('st'),state:{view:'twin'},views:{twin,files:twin},onGo:v=>{mb(v);}});
+</script></body></html>

@@ -1,0 +1,52 @@
+/* v3 base: window grid, the fixed navigation (v2 design 12) and the fixed file system (v2 design 11).
+   Designs set the tokens and style their own top, bottom and rail; they do not restyle these parts. */
+.rfe { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.rfe > .side { border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; background: var(--sf); min-height: 0; overflow: auto; }
+.rfe > .side .lg { display: flex; gap: 8px; align-items: center; font-weight: 500; padding: 4px 8px 16px; }
+.rfe > .side h4 { font: 500 12px var(--font); color: var(--t3); margin: 20px 8px 8px; }
+.rfe > .side .pc { display: flex; gap: 8px; align-items: center; height: 32px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: var(--t2); }
+.rfe > .side .pc:hover { background: var(--rz); } .rfe > .side .pc small { margin-left: auto; font: 11px var(--mono); color: var(--t3); }
+.rfe > .side .gap { flex: 1; }
+.rfe .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.rfe .top:empty, .rfe .bot:empty, .rfe .rail:empty { display: none; }
+.rfe .body { flex: 1; display: flex; min-height: 0; }
+.rfe .stage { flex: 1; overflow: auto; padding: 24px 28px; min-width: 0; min-height: 0; }
+.rfe .stage:has(.ol) { padding: 0; overflow: hidden; display: flex; }
+.rfe .k-files { flex: 1; }
+
+/* file system */
+.rfe .ol { flex: 1; display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+.rfe .tr { overflow: auto; padding: 16px 24px; }
+.rfe .n { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; height: 34px; padding-right: 8px; border-radius: 6px; font-size: 14px; }
+.rfe .n:hover { background: var(--rz); } .rfe .n.sel { background: var(--ac-soft); }
+.rfe .n .l { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
+.rfe .n .l small { color: var(--t3); font: 12px var(--mono); }
+.rfe .n .m { font: 12px var(--mono); color: var(--t3); display: flex; gap: 16px; align-items: center; }
+.rfe .n .ia { display: none; gap: 2px; } .rfe .n:hover .ia, .rfe .n.sel .ia { display: flex; } .rfe .n:hover .m span, .rfe .n.sel .m span { display: none; }
+.rfe .n .ia .k-ib { width: 28px; height: 28px; }
+.rfe .n.pc { height: 44px; font-weight: 500; margin-top: 8px; }
+.rfe .n.pc .l small { font-weight: 400; }
+.rfe .n .tw { width: 16px; color: var(--t3); display: inline-flex; }
+.rfe .n.note { color: var(--t2); font-size: 13px; }
+.rfe .olside { border-left: 1px solid var(--line); padding: 20px; overflow: auto; }
+.rfe .olside h3 { font: 500 15px var(--font); margin: 12px 0 4px; display: flex; gap: 8px; align-items: center; }
+
+/* empty states */
+.b-empty { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 56px 24px; max-width: 520px; margin: 24px auto; }
+.b-empty b { font-weight: 500; font-size: 16px; } .b-empty p { margin: 0 0 8px; color: var(--t2); }
+.b-empty.left { justify-items: start; text-align: left; margin: 24px 0; }
+.b-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 10px; color: var(--t2); font-size: 13px; }
+.b-steps b { color: var(--t1); font-weight: 500; }
+
+/* viewer: one design shown twice */
+body.mk.inframe { padding: 0; background: transparent; display: block; min-height: 0; }
+body.mk.inframe .win { border-radius: 0; box-shadow: none; }
+.mk-pair { display: grid; gap: 12px; justify-items: center; }
+.mk-pair h2 { font: 500 13px system-ui; color: #c9cbcf; margin: 16px 0 0; width: 1280px; }
+.mk-pair h2 span { color: #8f9297; font-weight: 400; margin-left: 8px; }
+.mk-pair iframe { width: 1280px; height: 800px; border: 0; border-radius: 12px; box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); background: #111; }
+
+/* only the side and the main column take grid space; overlays never add a row */
+.rfe { grid-template-rows: minmax(0, 1fr); }
+.rfe > :where(#dock, #pop) { position: absolute; }
+.rfe .top .k-btn { flex: none; white-space: nowrap; }

@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "created": "<created>",
+    "isDir": false,
+    "isSymlink": false,
+    "mimeType": "<shellscript mime>",
+    "mode": "-rwxr-xr-x",
+    "modified": "<modified>",
+    "name": "run.sh",
+    "path": "<ROOT>/data/run.sh",
+    "size": 10
+  }
+}

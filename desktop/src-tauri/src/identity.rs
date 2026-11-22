@@ -52,13 +52,13 @@ impl Identity {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
             Err(e) => return Err(format!("read {}: {e}", legacy_path.display())),
         };
-        let stored = match store.get(&acct)? {
-            Some(json) => Some(
+        let stored = store
+            .get(&acct)?
+            .map(|json| {
                 Self::from_file(json.as_bytes())
-                    .map_err(|e| format!("the keystore identity is damaged ({e})"))?,
-            ),
-            None => None,
-        };
+                    .map_err(|e| format!("the keystore identity is damaged ({e})"))
+            })
+            .transpose()?;
         match (stored, legacy) {
             (Some(id), None) => Ok(id),
             (Some(id), Some(old)) => {

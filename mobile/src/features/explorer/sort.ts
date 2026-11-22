@@ -1,9 +1,6 @@
 import type { Entry } from '../../core/api/models';
 
-import { defaultSort, type EntryDensity, type SortField, type SortOrder } from '../../core/models/sort';
-
-// The sort model lives in core so persisted settings can name it without depending on a feature.
-export { defaultSort, type EntryDensity, type SortField, type SortOrder };
+import type { SortOrder } from '../../core/models/sort';
 
 const chunks = (s: string) => s.toLowerCase().match(/\d+|\D+/g) ?? [];
 
@@ -29,8 +26,8 @@ export function naturalCompare(a: string, b: string): number {
 
 const ms = (s?: string) => (s ? Date.parse(s) || 0 : 0);
 
-/** Directories first, then files; each group sorted by [sort]. Stable, and independent of which other entries exist. */
-export function sortEntries(entries: readonly Entry[], sort: SortOrder): Entry[] {
+/** Directories first (unless [foldersFirst] is off), then files; each group sorted by [sort]. Stable, and independent of which other entries exist. */
+export function sortEntries(entries: readonly Entry[], sort: SortOrder, foldersFirst = true): Entry[] {
   const cmp = (a: Entry, b: Entry): number => {
     let r: number;
     switch (sort.field) {
@@ -52,6 +49,7 @@ export function sortEntries(entries: readonly Entry[], sort: SortOrder): Entry[]
     }
     return sort.ascending ? r : -r;
   };
+  if (!foldersFirst) return [...entries].sort(cmp);
   const dirs = entries.filter((e) => e.isDir).sort(cmp);
   const files = entries.filter((e) => !e.isDir).sort(cmp);
   return [...dirs, ...files];

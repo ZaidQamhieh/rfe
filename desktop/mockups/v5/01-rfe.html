@@ -1,0 +1,68 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>RFE desktop v5 — the final design</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+.d5{--bg:#f7f7f5;--sf:#fff;--rz:#f0f0ec;--t1:#1c1d1a;--t2:#51534c;--t3:#666860;--line:rgba(28,29,26,.08);--line2:rgba(28,29,26,.14);--ac:#4d6b1f;--ac-ink:#3f5819;--ac-soft:rgba(77,107,31,.08);--pos:#3d7a3a;--neg:#b42318;--warn:#955a00;--font:"Figtree",system-ui,sans-serif;--mono:"JetBrains Mono",monospace}
+.d5 .top{height:54px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 20px;border-bottom:1px solid var(--line)}
+/* search: a panel beside the sidebar, opened from the Search item */
+.d5.sr-open .side [data-k="go:search"]{background:var(--sf);color:var(--t1);box-shadow:inset 0 0 0 1px var(--line)}
+.d5 .b-sr{left:240px;background:rgba(29,32,22,.12)}
+.d5 .b-sr .m{grid-template-columns:minmax(0,1fr);left:0;top:0;bottom:0;width:440px;background:var(--sf);box-shadow:16px 0 40px rgba(29,32,22,.12),1px 0 0 var(--line2);display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}
+.d5 .s-f{display:flex;align-items:center;gap:10px;margin:16px 16px 12px;height:44px;padding:0 12px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--ac);color:var(--t3)}
+.d5 .s-f input{flex:1;min-width:0;border:0;outline:0;background:none;font:16px var(--font);color:var(--t1)}
+.d5 .s-sc{padding:0 16px 12px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.d5 .s-sc p{margin:0;font-size:12px;color:var(--t3)}
+.d5 .s-pl{display:flex;flex-wrap:wrap;gap:6px}
+.d5 .s-pl button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;font-size:12px;color:var(--t2);box-shadow:inset 0 0 0 1px var(--line2)}
+.d5 .s-pl button.on{background:var(--rz);color:var(--t1);box-shadow:inset 0 0 0 1px var(--line2)}
+.d5 .s-pl button:disabled{color:var(--t3);box-shadow:inset 0 0 0 1px var(--line)}
+.d5 .s-pl button.fl{margin-left:auto}
+.d5 .s-ls{overflow:auto;padding:8px}
+.d5 .s-g{display:flex;align-items:center;gap:8px;font:500 12px var(--font);color:var(--t2);margin:10px 8px 4px}
+.d5 .s-r{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer;min-height:48px}
+.d5 .s-r:hover,.d5 .s-r.on{background:var(--rz)}
+.d5 .s-r b{font-weight:400;font-size:14px}.d5 .s-r small{display:block;font:12px var(--mono);color:var(--t3);margin-top:2px}
+.d5 .s-r .ia{display:none;gap:2px}.d5 .s-r.on .ia,.d5 .s-r:hover .ia{display:flex}.d5 .s-r .ia .k-ib{width:28px;height:28px}
+.d5 .s-mo{display:block;font-size:13px;color:var(--ac-ink);cursor:pointer;padding:6px 8px 4px 42px}
+.d5 .s-ch{padding:4px 8px;display:grid;gap:4px}.d5 .s-ch h5{font:500 12px var(--font);color:var(--t3);margin:8px 0 4px}
+.d5 .s-ch button{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:8px;font-size:13px;color:var(--t1);text-align:left}.d5 .s-ch button:hover{background:var(--rz)}
+.d5 .s-ft span{white-space:nowrap}.d5 .s-ft{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--t3)}.d5 .s-ft .sp{flex:1}
+.d5 .s-no{display:grid;gap:10px;justify-items:start;padding:24px 8px;color:var(--t2);font-size:14px}.d5 .s-no b{color:var(--t1);font-weight:500}.d5 .s-no p{margin:0}
+/* show all: the results as a table, each column filters itself */
+.d5 .rt{display:grid;grid-template-columns:108px 1.6fr 120px 1.4fr 96px 80px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;background:var(--sf)}
+.d5 .rt .hc{display:grid;gap:4px;padding:10px 8px;background:var(--rz);font-size:12px;color:var(--t2)}.d5 .rt .hc b{font-weight:500;color:var(--t1)}
+.d5 .rt .hc input,.d5 .rt .hc select{height:28px;border-radius:6px;border:0;box-shadow:inset 0 0 0 1px var(--line2);background:var(--sf);font:12px var(--font);padding:0 8px;color:var(--t1);width:100%;min-width:0}
+.d5 .rt .c{display:flex;align-items:center;padding:0 8px;height:44px;border-top:1px solid var(--line);font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.d5 .rt .c.mono{font:12px var(--mono);color:var(--t2)}.d5 .rt .c:first-child{padding-left:12px}
+.d5 .rt .c span{overflow:hidden;text-overflow:ellipsis}
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d5">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The final design. Plain words everywhere: nothing asks you to check keys or type ports; a new PC is let in by matching one number on both screens, the way Bluetooth pairing works. The technical part (addresses, keys, versions) still exists, folded under Technical details. Search opens beside the sidebar from the Search item.";
+window.MAP=[['Navigation','Left sidebar: Overview, the pages, your computers, Add a computer',1],['Add a computer','Add a computer in the sidebar or on Computers: three steps, find it, allow it on the PC, ready',1],['Search','Search in the sidebar, Ctrl K or /',1],['Show all results','Search, Show all: a table in which each column filters',2],['Files','One tree across every computer; actions on the row',1],['Computers, Devices, Transfers, History','A list; the selected row opens on the right with its actions',1],['A PC that changed','Needs your OK in the sidebar: one dialog explains it in plain words',1],['Technical details','Folded at the foot of a computer, an event or a dialog',2],['Settings','Settings in the sidebar',1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty,S=B.S,hl=B.hl,sk=B.sk;
+document.getElementById('top').innerHTML=K.C.actions();
+S.recent=EM?[]:['walkthrough','thesis draft'];
+const inScope=()=>D.servers.filter(s=>s.dot==='ok'&&!S.off.has(s.name)).map(s=>s.name);
+const scope=()=>EM?`<p>Searching this computer’s Downloads</p><div class="s-pl"><button class="on">${E('laptop',14)}This computer</button><button class="fl">${I('filter',14)}Filters</button></div>`:`<p>Searching ${inScope().length} of ${D.servers.length} computers</p><div class="s-pl">${D.servers.map(s=>`<button class="${s.dot==='ok'&&!S.off.has(s.name)?'on':''}" data-k="sr:pick" data-multi data-pc="${s.dot==='ok'?s.name:''}"${s.dot==='ok'?'':' disabled'} title="${s.dot==='ok'?'Click to leave it out':s.dot==='bad'?'Waiting for your OK':'Offline'}">${K.dot(s.dot)}${s.name}${s.dot==='ok'?'':' · '+(s.dot==='bad'?'needs OK':'offline')}</button>`).join('')}<button class="fl" data-k="menu:sfilt">${I('filter',14)}Filters</button></div>`;
+K.MENU.sfilt=[['Kind',null],['Any kind','close'],['Pictures','close','image'],['Documents','close','file'],['Folders','close','folder'],'-',['Changed',null],['Any time','close'],['This week','close'],['This month','close'],'-',['Size',null],['Any size','close'],['Bigger than 100 MB','close']];
+const row=(r,on)=>`<div class="s-r${on?' on':''}" data-k="sr:go:files">${K.fic(r.k)}<span><b>${hl(r.n)}</b><small>${r.path.split('/').slice(-2).join(' › ')} · ${r.size} · ${r.date}</small></span><span class="ia">${K.ib('folder','Open the folder (Ctrl Enter)','sr:go:files')}${K.ib('download','Download (Ctrl D)')}</span></div>`;
+const search=()=>`<div class="m" role="dialog" aria-label="Search"><label class="s-f">${I('search',18)}<input value="${S.q}" placeholder="Search your computers" aria-label="Search">${sk('Esc')}</label><div class="s-sc">${scope()}</div>
+<div class="s-ls">${EM?`<div class="s-no">${E('desktop_computer',36)}<b>Add a computer to search it</b><p>Until then, search looks in this computer’s Downloads folder.</p>${K.btn('Add a computer',{i:'plus',k:'pri',a:'dlg:newconn'})}</div>`:S.q?(inScope().length?inScope().map((pc,g)=>{const rs=S.res.filter(r=>r.pc===pc);return `<div class="s-g">${K.dot('ok')}${pc}<span class="mut">· ${rs.length}</span></div>${rs.slice(0,3).map((r,i)=>row(r,!g&&!i)).join('')}${rs.length>3?`<a class="s-mo" data-k="sr:go:results">${rs.length-3} more on ${pc}</a>`:''}`}).join(''):`<div class="s-no"><b>No computer is switched on</b><p>Switch one on above to search it.</p></div>`):`<div class="s-ch"><h5>Saved</h5>${S.saved.map(x=>`<button>${I('star',14)}${x}</button>`).join('')}<h5>Recent</h5>${S.recent.map(x=>`<button>${I('history',14)}${x}</button>`).join('')}</div>`}</div>
+<div class="s-ft"><span>${sk('Enter')} open</span>${EM?`<span>${sk('Ctrl Enter')} folder</span>`:''}<span>${sk('Ctrl D')} download</span><span class="sp"></span>${EM?'':K.btn('Show all '+S.res.filter(r=>inScope().includes(r.pc)).length,{k:'sm',a:'sr:go:results'})}</div></div>`;
+const RF={kind:'Any',name:S.q,pc:'Any',folder:'',when:'Any time',size:'Any'};
+const KIND={Pictures:'img',Documents:'doc',Folders:'dir',Text:'txt'};
+const mb=(x)=>{const m=/([\d.]+) (KB|MB|GB)/.exec(x);return m?+m[1]*{KB:1/1024,MB:1,GB:1024}[m[2]]:-1};
+const age=(x)=>(new Date('1 Nov 2026')-new Date(x+' 2026'))/864e5;
+const rows=()=>S.res.filter(r=>(RF.kind==='Any'||r.k===KIND[RF.kind])&&r.n.toLowerCase().includes(RF.name.toLowerCase())&&(RF.pc==='Any'||r.pc===RF.pc)&&r.path.toLowerCase().includes(RF.folder.toLowerCase())&&(RF.when==='Any time'||age(r.date)<=(RF.when==='This week'?7:31))&&(RF.size==='Any'||mb(r.size)>(RF.size==='Over 1 MB'?1:100)));
+const cells=()=>rows().map(r=>`<span class="c">${K.fic(r.k)}</span><span class="c"><span>${hl(r.n,RF.name||'\u0000')}</span></span><span class="c mono">${r.pc}</span><span class="c mono"><span>${r.path.split('/').slice(-2).join(' › ')}</span></span><span class="c mono">${r.date}</span><span class="c mono">${r.size}<span class="ia" style="margin-left:auto;display:flex">${K.ib('folder','Open the folder','go:files')}${K.ib('download','Download','toast:Downloading '+r.n)}</span></span>`).join('');
+const line=()=>EM?'Nothing to search yet':`${rows().length} for “${RF.name||'anything'}” on studio-pc and work-laptop · nas and media-mini were left out`;
+const col=(t,f)=>`<div class="hc"><b>${t}</b>${f}</div>`,opt=(k,a)=>`<select aria-label="${k}" data-rf="${k}">${a.map(o=>`<option${RF[k]===o?' selected':''}>${o}</option>`).join('')}</select>`;
+const results=()=>K.head('Search results',line(),K.btn('Save this search',{k:'sm ghost',i:'star'}))+`<div class="rt">${col('Kind',opt('kind',['Any','Pictures','Documents','Folders','Text']))}${col('Name',`<input value="${K.esc(RF.name)}" aria-label="Name contains" data-rf="name">`)}${col('Computer',opt('pc',['Any','studio-pc','work-laptop']))}${col('Folder',`<input placeholder="Inside…" aria-label="Folder" data-rf="folder" value="${K.esc(RF.folder)}">`)}${col('Changed',opt('when',['Any time','This week','This month']))}${col('Size',opt('size',['Any','Over 1 MB','Over 100 MB']))}${cells()}</div>`;
+const change=(e)=>{const f=e.target.closest&&e.target.closest('.rt [data-rf]');if(!f)return;RF[f.dataset.rf]=f.value;const rt=document.querySelector('#st .rt');rt.querySelectorAll('.c').forEach(c=>c.remove());rt.insertAdjacentHTML('beforeend',cells());document.querySelector('#st .k-ph .k-sub').textContent=line();};
+B.mount({search,views:{results},change});
+</script></body></html>

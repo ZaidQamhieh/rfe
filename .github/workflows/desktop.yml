@@ -1,7 +1,7 @@
 name: Desktop (Tauri)
 
 # The desktop app lives in desktop/. It is not part of the Android release, so release.yml and ci.yml ignore desktop/**;
-# this workflow is its only gate. Its tests run against an agent built from the same checkout.
+# this workflow is its gate (host-release.yml calls it with the release agent, which goes into the .deb and .rpm). Its tests run against an agent built from the same checkout.
 on:
   push:
     branches: [master, main]
@@ -9,15 +9,20 @@ on:
   pull_request:
     branches: [master, main]
     paths: ['desktop/**', 'agent/**', 'protocol/**', '.github/workflows/desktop.yml']
-  # Callable so desktop-release.yml can require these gates and reuse the bundles from the same run.
+  # Callable so host-release.yml can require these gates and reuse the bundles from the same run.
   workflow_call:
+    inputs:
+      agent-artifact:
+        description: Artifact holding the linux-amd64 agent archive to put into the .deb and .rpm (release only)
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
   group: desktop-${{ github.workflow }}-${{ github.ref }}
-  # A tag run (a desktop release calls this workflow) is never cancelled.
+  # A tag run (a host release calls this workflow) is never cancelled.
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
@@ -36,7 +41,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           cache: ${{ runner.environment == 'github-hosted' }}
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache-dependency-path: agent/go.sum
 
       # Tauri 2 on Linux links against WebKitGTK; the tests build the whole crate, so the dev packages are needed.
@@ -98,7 +103,8 @@ jobs:
         env:
           RFE_ALLOW_OLD_AGENT: '1'
         run: |
-          tag=$(git tag -l 'agent-v*' --sort=-creatordate | grep -v -- '-rc' | head -n 1 || true)
+          # Agent releases are host-v* tags (agent and desktop together); agent-v* before that.
+          tag=$(git tag -l 'host-v*' 'agent-v*' --sort=-creatordate | grep -v -- '-rc' | head -n 1 || true)
           if [ -z "$tag" ]; then
             echo "::notice::no stable agent tag yet, skipping"
             exit 0
@@ -179,17 +185,35 @@ jobs:
       - name: tauri-cli
         run: npm install --no-save --prefix "$RUNNER_TEMP/tauri-cli" @tauri-apps/cli@2.12.1 && echo "$RUNNER_TEMP/tauri-cli/node_modules/.bin" >> "$GITHUB_PATH"
 
+      # The agent archive of this host release run comes from the cache the Package job saved (artifact uploads are blocked
+      # once the free storage allowance is used).
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.agent-artifact != ''
+        with:
+          path: agent/agent-v*-linux-amd64.tar.gz
+          key: agent-linux-amd64-${{ github.run_id }}
+          fail-on-cache-miss: true
+
       # linuxdeploy and its AppImage plugin are downloaded by the bundler at build time and are not
-      # pinned by it; the artifact is for testing, and release signing/provenance is a separate task.
+      # pinned by it. A release (agent-artifact set) puts the agent into the .deb and .rpm; a push or PR bundles the app
+      # alone, as a test artifact.
       - name: Bundle
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           NO_STRIP: 'true'
+          AGENT_ARTIFACT: ${{ inputs.agent-artifact }}
         # A version bump changes Cargo.lock, so the cache above can restore target/ from an older version; the bundler
         # leaves that version's .deb behind, and two .deb files break the steps below and the release.
         run: |
+          set -euo pipefail
           rm -rf target/release/bundle
-          tauri build --ci --bundles deb,rpm,appimage
+          overlay=()
+          if [[ -n "$AGENT_ARTIFACT" ]]; then
+            archives=("$GITHUB_WORKSPACE"/agent/agent-v*-linux-amd64.tar.gz)
+            test "${#archives[@]}" -eq 1 && test -f "${archives[0]}"
+            overlay=(--config "$(../scripts/agent-overlay.sh "${archives[0]}" "$RUNNER_TEMP/agent-stage")")
+          fi
+          tauri build --ci --bundles deb,rpm,appimage "${overlay[@]}"
 
       # What a launcher and a software centre read, from the package that was just built: the
       # desktop entry, the AppStream metadata and the icon sizes.
@@ -203,6 +227,15 @@ jobs:
           for size in 16 24 32 48 64 128 256 512; do
             test -f "$root/usr/share/icons/hicolor/${size}x${size}/apps/rfe-desktop.png"
           done
+          if [[ -n "${{ inputs.agent-artifact }}" ]]; then
+            for f in rfe rfe-indexd rfe-thumbd rfe-sidecars.txt; do test -f "$root/usr/bin/$f"; done
+            test -x "$root/usr/bin/rfe"
+            test -f "$root/usr/lib/systemd/user/rfe.service"
+            # The package takes over the agent-only package; without these, installing it beside `rfe` fails.
+            for field in Provides Conflicts Replaces; do
+              dpkg-deb -f target/release/bundle/deb/*.deb "$field" | grep -qw rfe
+            done
+          fi
 
       # What a release publishes next to the packages: the SBOM, and SHA256SUMS over everything.
       # The sums are checked straight away with the script a downloader uses. Build provenance
@@ -217,17 +250,17 @@ jobs:
           cd dist
           ../scripts/verify-download.sh SHA256SUMS ./*.deb ./*.rpm ./*.AppImage ./rfe-desktop.sbom.json
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      # Only a tagged (host release) run needs the packages afterwards; uploading ~100+ MB on every push filled the
+      # account's artifact quota (it is recalculated only every 6-12 hours). A full quota must not fail the gate either.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref_type == 'tag'
         with:
-          name: rfe-desktop-linux
+          key: rfe-desktop-linux-${{ github.run_id }}
           path: |
             desktop/dist/*.deb
             desktop/dist/*.rpm
             desktop/dist/*.AppImage
             desktop/dist/rfe-desktop.sbom.json
-            desktop/dist/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 14
 
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: runner.environment == 'github-hosted' && github.ref_type != 'tag' && steps.cache-bundle.outputs.cache-hit != 'true'

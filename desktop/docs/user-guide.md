@@ -39,9 +39,9 @@ Until then, build it yourself: [README.md](../README.md).
 
 ## The window
 
-The window has a rail on the left (**Files**, **Servers**, **Devices**, **Transfers**, **Search**, **Tools**,
-**History**, **Settings**, and the **New connection** button above them), a search box and a few buttons
-along the top, and the page in the middle. On **Files** the middle holds the folder of the server you are
+The window has a rail on the left (**Files**, **Devices**, **Transfers**, **Search**, **Tools**,
+**History**, **Settings**, and the **Add a computer** button above them), a search box and a few buttons
+along the top, and the page in the middle. On **Files** the middle holds the folder of the computer you are
 working on, and a side panel with two tabs, **Details** and **Local files** (this computer); drag items
 from one to the other to upload or download. A **Transfers** pill at the bottom right shows what is being transferred: a ring that fills as files move, and
 the number waiting. Click the pill, or the transfers button in the top bar, to open the list above it and again to fold it
@@ -63,18 +63,18 @@ closes it; **Show the welcome screen** in the command palette brings it back.
 
 ## Connect and trust an agent
 
-1. Press **New connection** (the plug button at the top of the rail, or the button on **Servers**). On
+1. Press **Add a computer** (the plug button at the top of the rail, or the button on **Devices**). On
    **Manual**, give the computer a name, type its address (a host name or IP address) and the port, and
    press **Connect**. The app connects without sending any password and reads the agent's certificate.
 2. A dialog, **Trust NAME?**, shows the certificate's SHA-256 fingerprint. On the PC run
    `rfe status` and compare the two. Press **They match: trust** only if they match exactly. This is
    the step that protects you from a different machine on the network answering in the agent's place:
    the agent's certificate is self-signed, so the fingerprint is the only identity it has. **Cancel**
-   stops, and nothing was sent to the server.
+   stops, and nothing was sent to the computer.
 3. After you trust it, the app remembers the fingerprint for that exact `host:port`. Every later
    connection to that address must present the same certificate or the app refuses it.
 
-The other two tabs of **New connection** are shortcuts to the same steps. **Find on network** lists
+The other two tabs of **Add a computer** are shortcuts to the same steps. **Find on network** lists
 agents on the same network that advertise themselves (mDNS, `_rfe._tcp`). **Add** only fills in the
 address and starts the connection; it does not sign in or trust anything. Anyone on the network can
 advertise a service with that name, so a listed agent is exactly as unverified as one you typed: you
@@ -83,18 +83,18 @@ when you press the button. Agents on other networks, or on networks that block m
 corporate networks), are not listed; type their address. **Pairing code** takes the name, the address and
 a code, and is described under Sign in.
 
-If the certificate changes (the agent was reinstalled or its data folder was deleted), the server's card
+If the certificate changes (the agent was reinstalled or its data folder was deleted), the computer's card
 turns red and asks you to compare again; its old files and logins are not used until you do. Only
 continue if you know why it changed.
 
-To make the app forget an agent, open **Servers**, press the three dots on its card and choose **Forget
-server**, then **Forget** in the dialog. If you were signed in to it, you are signed out on this computer;
-the device stays valid on the agent until it is revoked there. Unfinished transfers to that server are
+To make the app forget an agent, open **Devices**, press the three dots on its card and choose **Forget
+computer**, then **Forget** in the dialog. If you were signed in to it, you are signed out on this computer;
+the device stays valid on the agent until it is revoked there. Unfinished transfers to that computer are
 cancelled.
 
 ## Sign in
 
-After you trust an agent a **Sign in** dialog follows; a server that is not signed in also shows **Sign
+After you trust an agent a **Sign in** dialog follows; a computer that is not signed in also shows **Sign
 in** on its card. It has three tabs.
 
 | | Account | Pairing code | Ask the PC |
@@ -125,7 +125,7 @@ When you are signed in with the account, **Devices** shows **Pair a phone**: a p
 code for the RFE phone app, so you do not have to walk to the PC and run `rfe pair`. (The button
 with the QR icon at the top of the window opens the same thing in a dialog.)
 
-1. Choose the server at the top of **Devices** if you have several. The app asks the agent for a code
+1. Choose the computer in **Devices** if you have several, then open its "Devices on <computer>" section. The app asks the agent for a code
    when the page opens and shows it with the time it has left (2, 5 or 10 minutes, as set in Settings).
 2. On the phone, scan the QR code (**RFE for Android → Add computer → Scan QR**) or type the address and
    the code. The phone is paired as an ordinary device with browse access only; give it more under
@@ -145,7 +145,7 @@ mints nothing.
 ## Pairing requests
 
 When a phone or another computer asks to be paired with **Ask the PC**, you can answer it here instead
-of at the terminal. **Devices** lists every request the agent is holding, oldest first, each with:
+of at the terminal. The "Devices on <computer>" section of **Devices** lists every request the agent is holding, oldest first, each with:
 
 | Column | What it is |
 |---|---|
@@ -155,9 +155,9 @@ of at the terminal. **Devices** lists every request the agent is holding, oldest
 | Match code | The code the agent worked out for this request. The device asking shows its own code. |
 
 **Accept only if the code matches the one shown on the device asking.** The code is computed from the
-certificate each side saw, so a machine in the middle shows a different one. **Accept…** opens a
+certificate each side saw, so a machine in the middle shows a different one. **Allow…** opens a
 confirmation showing the code again; confirm there. The device can then collect its login, and it starts
-with browse access only. **Reject** answers at once. Either way the row leaves the list and the window
+with browse access only. **Refuse** answers at once. Either way the row leaves the list and the window
 says what it did. A red dot on **Devices** in the rail counts the requests that are waiting.
 
 The list refreshes by itself every few seconds while the page is open. Only an account sign-in can answer
@@ -174,15 +174,15 @@ expires.
 (the window remembers which while it is open). **Appearance** has the theme, row density, **Interface size**
 and **Open files and folders**. **Language and accessibility** has the language, reduced motion and high
 contrast. **Transfers** holds the number of parallel transfers, the speed limit, what to do when a name
-already exists, the checksum check and the download folder (**Change…** opens the system's folder chooser,
+already exists, **Check every download** and the download folder (**Change…** opens the system's folder chooser,
 **Reset** returns to the default); see **Transfers** below for what each does. **Connection** has automatic
 reconnection and the notifications inside the app. **Files** has **Move deleted items to Trash**, how long to
 **Keep items in Trash**, the choice to be asked where each download goes and to show hidden files.
-**Security** has **Approve new devices here**, the **Pairing code lifetime**, the list of pinned
-certificates and **Sign out all phones**. **Desktop** has **Close to the system tray**, **Start RFE when I
+**Security** has **Approve new devices here**, the **Pairing code lifetime**, **Computers you trust** (the
+computers whose certificate you accepted) and **Sign out all phones**. **Desktop** has **Close to the system tray**, **Start RFE when I
 sign in**, **Desktop notifications** and a **Test notification** button. **Backup** has **Back up…** and
 **Restore…** for the app's own settings (a file you choose; it holds no password, token or key).
-**Troubleshooting** has the log detail, **Agent log**, **Check the keystore** and **Device key**. **Help**
+**Troubleshooting** has the log detail, **Computer log**, **Check secure storage** and **This computer's identity**. **Help**
 shows the keyboard shortcuts. **About** has the version, **Details**, **Report a problem**, **Check for
 updates** and the welcome tour.
 
@@ -216,7 +216,7 @@ updates** and the welcome tour.
   system notifications, only while the app is not the window in front. **Test notification** shows one
   now.
 - **Check for updates** (also on **About**) asks GitHub's public list of releases whether a newer
-  `desktop-v…` release exists on the chosen channel (**Stable**, or **Beta** which also offers
+  `host-v…` release (or an older `desktop-v…` one) exists on the chosen channel (**Stable**, or **Beta** which also offers
   pre-releases). **Download** saves the package that fits how the app runs (the AppImage when it runs from
   one or on Arch, the `.rpm` on Fedora, RHEL and openSUSE, else the `.deb`) in your download folder, and keeps it only if its SHA-256 is the one in the
   release's `SHA256SUMS`. The app never installs anything: use your package manager or run the AppImage.
@@ -224,23 +224,25 @@ updates** and the welcome tour.
   the app talks to GitHub.
 
 The log level controls what the app keeps in memory (the last 500 events); nothing is written to disk.
-**Agent log** shows the recent lines of the connected computer's own log, if this login may read it.
-**Check the keystore** saves, reads back and removes a test secret in the system keystore. **New key…**
+**Computer log** shows the recent lines of the connected computer's own log, if this login may read it.
+**Backup status** shows when the connected computer last saved its data, whether that backup and its copy to another place worked, and which version runs under safe updates.
+**Check secure storage** saves, reads back and removes a test secret in the system keystore. **Reset…**
+(on **This computer's identity**)
 makes this computer a new device the next time you sign in; the saved logins are removed, and the old
-device stays on each server until it is removed there.
+device stays on each computer until it is removed there.
 
-**Report a problem** builds the diagnostics report for a bug report: versions, the servers' addresses and
+**Report a problem** builds the diagnostics report for a bug report: versions, the computers' addresses and
 pinned fingerprints, the recent errors and the log. It holds no password, token or key (secrets the app
-handles are masked out of the log even if one slipped in). It does name the servers' addresses, and the
+handles are masked out of the log even if one slipped in). It does name the computers' addresses, and the
 log names the hosts you tried, so read it before you post it in public. **Copy** puts it on the
 clipboard.
 
 <!-- feature:file-browser -->
 ## Files
 
-**Files** shows the folder of the server you are working on (choose it from the **Browse on** menu in the
-top bar, or open a server from **Servers**) and, in the side panel, a **Local files** tab for this
-computer. A server that is not connected shows its state and the button that
+**Files** shows the folder of the computer you are working on (choose it from the **Browse on** menu in the
+top bar, or open a computer from **Devices**) and, in the side panel, a **Local files** tab for this
+computer. A computer that is not connected shows its state and the button that
 fixes it (Connect, Retry, Trust, Sign in); a login that may not open any folder shows "No folder is open
 to this login".
 
@@ -294,30 +296,37 @@ checks it again against the folders it allows, including links: nothing outside 
 <!-- end feature:file-browser -->
 
 <!-- feature:multi-hosts -->
-## Servers
+## Computers
 
-You can keep several agents and use them at the same time. **Servers** shows one card for each agent you
+You can keep several agents and use them at the same time. **Devices** shows one card for each agent you
 have trusted: its name and address, the state (Connected, Connecting, Sign in, Lost, Offline, Key
 changed), the route, system, agent version, response time and disk use, and the buttons that fit the
 state.
 
-- **Open** (on a connected server) shows its files. **Disconnect** stops using it without forgetting
+- **Open** (on a connected computer) shows its files. **Disconnect** stops using it without forgetting
   anything; **Connect** starts again, with no password, because the login is saved.
-- **Sign in** (on a server that has none) opens the sign-in dialog with the account name filled in.
+- **Sign in** (on a computer that has none) opens the sign-in dialog with the account name filled in.
 - The three dots hold **Browse files**, **Edit connection** (the name only: the address belongs to the
   trusted key, so a different address is a new connection), **Status…**, **Run diagnostics** and **Forget
-  server**. **Forget server** deletes that server's saved login from the keystore, forgets its trusted
+  computer**. **Forget computer** deletes that computer's saved login from the keystore, forgets its trusted
   certificate (you compare its fingerprint again if you ever add it back) and takes it off the list,
   after a confirmation. The device stays registered on the agent until it is revoked there: sign out
   first if you want that.
-- **Add a server** (or **New connection**) is described under Connect and trust an agent. The login you
-  had on the other servers stays saved.
+- **Add a computer** is described under Connect and trust an agent. The login you
+  had on the other computers stays saved.
+- **Kind of device.** Each computer is a **PC**, **Laptop**, **Server** or **Mobile** (PC until you choose).
+  Choose it under **What kind of device is it?** in the first step of **Add a computer**, or later under
+  **Kind of device** in **Settings for** the computer. It is kept for that computer in this window only and
+  shows as a small drawing in front of its name in the list and above its details. It also hides options that
+  do not fit: a **Server** and a **Mobile** have no **Wake it when it is asleep** (and no **Wake computer**
+  button, and are never woken automatically); a **Mobile** also has no **Downloads from it go to**. PC and Laptop
+  show everything. A computer added with a pairing code starts as a PC; change it in its settings.
 
-Each server has its own certificate pin and its own login token. A token is only ever sent to the agent
-it came from. A server that stops answering turns to **Lost**: its transfers are paused and resume when
+Each computer has its own certificate pin and its own login token. A token is only ever sent to the agent
+it came from. A computer that stops answering turns to **Lost**: its transfers are paused and resume when
 it is back, and the app retries by itself unless **Reconnect automatically** is off in Settings.
 **Status…** asks the agent for its health and, for an account sign-in, its load (see Status of a
-server). A host that was saved by an older version shows up automatically; nothing is lost.
+computer). A host that was saved by an older version shows up automatically; nothing is lost.
 <!-- /feature:multi-hosts --><!-- /feature:multi-hosts -->
 
 ## What is kept, and where
@@ -335,14 +344,16 @@ compare fingerprints again).
 <!-- feature:device-actions -->
 ## Manage devices
 
-**Devices** lists the phones and computers paired with the server you choose at the top, with when each
+Under the computer you choose in **Devices**, the "Devices on <computer>" section lists the phones and computers paired with it, with when each
 was last seen and what it may do. When you signed in with an **account**, each row has actions (a
 computer paired with a code or approved on the PC sees only itself and gets none), under **Permissions**
 and the three dots:
 
 - **Permissions** opens the device's access: which file actions it may use (browse, download, upload,
   change, delete, make share links), whether it may see or start apps, a read-only switch, and a folder
-  limit (an absolute path inside the agent's folders; empty means no limit). Only the settings you change
+  limit (a folder inside the agent's folders). “Choose folder…” opens the system's folder dialog on this
+  computer and saves the folder you pick; **No limit** (shown once a limit is set) removes it, so the
+  device can reach every folder the agent allows. Only the settings you change
   are sent. A device that itself signed in with an account ignores the file permissions; the read-only
   switch and the folder limit still apply to it.
 - **Revoke access** blocks the device: the agent refuses its login from then on, and the row stays in
@@ -358,7 +369,7 @@ signed in. (The PC-side `rfe` shows the same names.)
 
 **This computer's own row** is marked **This app**. Revoking or removing it signs this window out, and
 changing its own access can lock it out. The dialog then says "This is the sign-in this app uses" and the
-app itself refuses the action unless that dialog confirms it. After it, the server asks you to sign in
+app itself refuses the action unless that dialog confirms it. After it, the computer asks you to sign in
 again.
 
 Messages of these actions:
@@ -376,6 +387,31 @@ Messages of these actions:
 | No setting was changed | Saving needs at least one changed setting. |
 | The folder limit must be one path, up to 4096 characters, or empty. | Type one absolute path, or clear the box for no limit. |
 | The agent refused that change: ... | The agent said no, and the text after the colon is its reason, for example a folder limit that is not inside the agent's folders. Nothing was changed. |
+
+### Account server
+
+Settings, Security, **Account server**, **Manage...**, is about the connected computer. It shows whether that computer
+offers an account server (turn it on or off there; on, it shows its name and key fingerprint) and which other
+computer's account server it trusts. To trust one, choose or type the other computer's address (`host:port`), press
+**Look up its key**, compare the fingerprint with the one on that computer's own Settings, Security, Account server
+(or `rfe accounts status`), tick that they are the same and press **Trust this account server**. The app then asks for the password of the
+account you are signed in with on that computer; it is sent with that one request and is not saved. A trusted
+account server's accounts sign in to the computer with full owner access, so only trust a computer you own.
+**Stop trusting** removes the pin and signs out everyone that server had signed in. The same is
+`rfe accounts trust`, `untrust`, `enable`, `disable` and `status` on the PC.
+
+| The window says | What it means and what to do |
+|---|---|
+| Trusting an account server needs this computer's account password. Enter the password of the account you are signed in with. | The agent answered 403 `CAPABILITY_DENIED` because the request carried no password. Type the password of the account this app is signed in with (the one made with `rfe adduser`) in the prompt and press **Trust this account server** again. |
+| That is not the password of the account this app is signed in with, so nothing was trusted. | The agent answered 401 `INVALID_CREDENTIALS`: the password does not match the signed-in account. Nothing was pinned. Check it and try again; each wrong try counts toward the account's failed-password limit. |
+| Too many wrong passwords for this account in a short time. | The agent answered 429: the account's failed-password limit is used up, and it refuses even the right password until the limit resets. Wait a few minutes, then try again. |
+| Enter your password | The password box of the trust prompt was empty, so nothing was sent. |
+| This sign-in cannot change the account server. | The agent answered 403 to a sign-in that came from a pairing code or from an account server. Only the computer's own account password may change which account server it trusts. Sign in with that password, or use `rfe accounts` on the PC. |
+| That computer's account server is turned off. | The computer you looked up has not turned the account server on, so it has no key to give. Turn it on there (Settings, Security, Account server, or `rfe accounts enable`) and look up its key again. |
+| This agent has no account server support. | The agent is too old for it. Update the agent. |
+| That computer sent something that is not an account-server key | The reply to the key look-up was not a 32-byte Ed25519 public key. Nothing was changed; check the address. |
+| The key no longer matches the fingerprint you confirmed | The key changed between the look-up and the trust press. Nothing was trusted. Look the key up again and compare the fingerprint again. |
+| Enter the address of the computer you want to trust | Look-up needs `host:port`, for example `192.168.1.20:8765`. Choose a computer you know to fill it in. |
 | Revoked, Removed, Saved the access of | The action worked. "This computer is signed out; sign in again to continue." follows when it was this computer's own row. |
 | The list could not be refreshed | The action worked, but loading the list again failed (the text after the colon says why). Press Refresh. |
 
@@ -387,6 +423,7 @@ Find the message the window shows. Messages from the agent:
 |---|---|---|
 | Wrong username or password. | `INVALID_CREDENTIALS` | Check the username and password (the password is case-sensitive). Accounts are made on the PC with `rfe adduser`. |
 | That pairing code is wrong, expired or already used. Generate a new one on the PC. | `INVALID_CODE` | Pairing codes work once and expire. Run `rfe pair` on the PC for a new one. |
+| PAIR_REPLACES: this computer already has a device with this id and a different key, so a pairing code cannot replace it — ask for approval on the computer instead, or remove the old device there first (rfe remove <id>) | `PAIR_REPLACES` | The agent already knows a device with this id under a different key (for example after a reinstall), and a pairing code cannot replace it. The code is not used up. Ask the agent to approve this computer on the PC instead (the sign-in without a code), or run `rfe devices` and `rfe remove <id>` on the PC to forget the old device, then pair again. |
 | The agent no longer accepts this sign-in attempt (it expired or was already used). Try again. | `INVALID_NONCE` | Press the button again. Each attempt asks the agent for a fresh challenge. |
 | The agent could not verify this computer's device key. Try again; if it keeps failing, report it. | `INVALID_SIGNATURE` | Try again. If it keeps happening, open Settings, set the log level to Detailed, and report it. |
 | The agent requires a device key proof that this app did not send. This is a bug in the app. | `DEVICE_KEY_REQUIRED` | The app and the agent disagree about the sign-in protocol. Update the app (see agent-compatibility.md); if both are current, report it. |
@@ -403,9 +440,14 @@ Messages from this app:
 
 | The window says | What it means and what to do |
 |---|---|
-| agent address must be host:port (put an IPv6 address in brackets, like [::1]:8765) | The address has a scheme, path or typo. Use `host:port`, for example `192.168.1.20:8765`. |
+| agent address must be host:port (put an IPv6 address in brackets, like [::1]:8765) | The address has a scheme, path or typo. Use `host:port`, for example `192.168.1.20:8765`. Add computer shows this under the address field when the text is not a host name or IP address; an IPv6 address may be typed with or without brackets (`[::1]:8765`, `::1`). |
+| An address with a zone name (like %eth0) is not supported. Use the PC’s address without the zone, or its host name. | An IPv6 link-local address with a `%` zone cannot be used to reach a PC. Use its other address (for example the LAN or Tailscale one) or its host name. |
+| Use a port from 1 to 65535 | The port in the address is not a number in that range. The default is 8765. |
+| Could not sign out of | Settings for a computer: signing out failed, and the text after the colon says why. You are still signed in on this computer; try again. |
+| the RFE agent did not answer within 10 seconds and was stopped; try again | Pairing a phone with no computer added, or an action on the Devices page of this PC: the agent program on this PC did not finish in time (it may be busy or stuck), so the app stopped it. Nothing was changed by the call that timed out; try again. If it keeps happening, run `rfe status` in a terminal, or restart the agent. |
+| Pairing requests could not be refreshed | The Devices page could not ask a computer for the phones waiting to pair (the text after the colon says why). The list below the message is the last one that was read, so it may be out of date; a request may have expired or been answered elsewhere. Press Try again, or check the connection to that computer. |
 | cannot reach the agent securely | Nothing answered, or the connection failed. Check that the agent is running, the address and port are right, and no firewall is in the way. The text after the colon is the reason. |
-| This agent's certificate is not the one you trusted | The agent presented a different certificate than the one you pinned. Do not sign in. If you did replace or reinstall the agent, open Servers and choose Forget server on its card, then add it again and compare the new fingerprint. If you did not, something else is answering at that address. |
+| This agent's certificate is not the one you trusted | The agent presented a different certificate than the one you pinned. Do not sign in. If you did replace or reinstall the agent, open Devices and choose Forget computer on its card, then add it again and compare the new fingerprint. If you did not, something else is answering at that address. |
 | the agent presented no certificate | The address answers but not with TLS. It is not an RFE agent. |
 | the agent reports a different fingerprint than the pinned one | The agent's own report disagrees with the certificate it presented. Do not continue; compare fingerprints again. |
 | fingerprint must be 64 hex characters | Internal check; reconnect from the first screen. |
@@ -413,7 +455,7 @@ Messages from this app:
 | unexpected request id, unexpected device id, unknown pairing status | The agent sent a value the app refuses to use. Update the agent and the app; if both are current, report it. |
 | enter the pairing code | The pairing code field is empty. |
 | This agent is too old to approve a new computer from the PC | Approval needs `agent-v1.0.0` or newer. Pair with a code or sign in with an account, or update the agent. |
-| The request was rejected on the PC. | The owner pressed reject. Ask again if it was a mistake. |
+| The request was rejected on the PC. | The owner pressed Refuse. Ask again if it was a mistake. |
 | The request expired or was already used. Ask again. | The request ran out of time, or its answer was already collected. Press the button again. |
 | The request timed out. Ask again. | Nobody answered on the PC in time. |
 | The PC approved this computer, but saving the login failed | The agent hands out the approval only once and the keystore refused to keep it. Fix the keystore ([keystore.md](keystore.md)), then ask again. |
@@ -421,28 +463,28 @@ Messages from this app:
 | is no longer a trusted agent; connect and compare its fingerprint again | The pin was forgotten while a login for it existed. Connect to the agent again from the first screen. |
 | Sign out first; the saved login belongs to the current device key. | A new device key can only be made while signed out. Making one also removes the logins saved for your other agents (their devices stay registered on those agents until removed there), so you sign in to each again. |
 | Signed out on this computer only | The agent could not be told. Revoke this computer on the PC (`rfe revoke <id>`) so its old login stops working. |
-| This transfer belongs to <agent> | The transfer was started on another agent and you have since switched to a different one. It does nothing to the wrong computer. Switch back to that agent (Servers) and press Retry, or cancel it. |
+| This transfer belongs to <agent> | The transfer was started on another agent and you have since switched to a different one. It does nothing to the wrong computer. Switch back to that agent (Devices) and press Retry, or cancel it. |
 | is damaged (...); delete it to create a new device identity | An `identity.json` left by an early version cannot be read. Delete that file; the app makes a new device key at the next sign-in. |
 | cannot start network discovery, network discovery stopped | The app could not listen for mDNS answers (no network interface, or the system refused). Type the agent's address instead. |
 | unknown log level | Choose one of the levels in the list. |
 | is damaged (...); delete it to start over | `state.json` cannot be read. Delete it (Settings shows where) and set the app up again. |
 | read, create, open, write or rename a path failed | The app's data folder cannot be used: check that it exists and that you own it. |
 | tls config, http client, random | The system could not set up a secure connection or random numbers. Report it. |
-| this server is not in the saved list | The server was removed (perhaps from another window) before the action ran. Open Servers again. |
+| this computer is not in the saved list | The computer was removed (perhaps from another window) before the action ran. Open Devices again. |
 | enter a name for the host | The new name is empty. Type a name, or press Cancel. |
 | the name can be at most 64 characters | Use a shorter name. |
 | the name cannot contain control characters | The name has a line break or another control character. Type it again on one line. |
 | `hosts.json` is damaged (...); delete it to start over | The list of saved hosts cannot be read. Delete `hosts.json` (Settings shows the folder): the list is rebuilt from the agents you trusted, and every login stays where it is. Until then signing in to a second agent is refused so the list is not overwritten. |
 | `hosts.json` was written by a newer version of this app | A newer app wrote the list. Update this app, or delete `hosts.json` to start over as above. |
-| Signed out on this server. Sign in to continue. | You switched to a server that has no saved login (you signed out of it, or only trusted it). Sign in; the account name is filled in. |
-| Type the new server's address. Your current login stays saved. | Shown when you press **Add a server**. Nothing was changed on the server you were using. |
+| Signed out on this computer. Sign in to continue. | You switched to a computer that has no saved login (you signed out of it, or only trusted it). Sign in; the account name is filled in. |
+| Type the new computer's address. Your current login stays saved. | Shown when you press **Add a computer**. Nothing was changed on the computer you were using. |
 | This login cannot create pairing codes. Only a session signed in with the account can; a computer paired with a code or approved on the PC cannot. | The agent refused (`FORBIDDEN`) because this computer is not an account session. Sign out and sign in with the account, or run `rfe pair` on the PC. |
 | This pairing code has expired. Generate a new one. | The code's lifetime (2, 5 or 10 minutes, set in Settings) is up and it was removed from the window. Press **New code**. |
 | unexpected response: the agent sent no pairing code | The agent answered without a code. Update the agent and the app; if both are current, report it. |
 | This login cannot answer pairing requests. | This computer was paired with a code or approved on the PC, and the agent lets only an account answer. Sign out and sign in with the account, or use `rfe pair accept` or `reject` on the PC. |
 | This agent is too old to list pairing requests | Answering from the window needs `agent-v1.0.0` or newer. Update the agent, or answer on the PC. |
 | The agent holds at most 3 waiting requests. | Shown when three are waiting: a fourth is refused (the device asking sees that the PC is busy) until you answer one or one expires. |
-| Accepted ..., Rejected ... | Your answer reached the agent. An accepted device collects its login on its own. |
+| Accepted ..., Refused ... | Your answer reached the agent. An accepted device collects its login on its own. |
 | That request already expired or was answered on the PC. | The request ran out of time, or someone answered it (at the PC, or from another window) a moment before you did. Nothing was changed by your press. Ask the device to try again if it was a good one. |
 
 <!-- feature:file-browser -->
@@ -472,12 +514,12 @@ in [keystore.md](keystore.md).
 
 | The window says | What it means and what to do |
 |---|---|
-| Connect to a server first. | The action needs a connected server and none is selected or connected. Connect one from **Servers**. |
-| Open a connected server first to upload into it. | Uploading goes to the server shown on the left of **Files**; open one that is connected. |
-| Open a connected server in Files first. | Adding a favorite or a folder rule needs a connected server open in **Files**. |
-| Select one file on a connected server in Files first. | The action works on exactly one file of a server (for example **Checksum…**). |
-| Pick a server first: switch the main view to a server. | The left list shows **This computer**; choose a server in the **Browse on** menu first. |
-| Copying between two servers isn’t supported. | Download to this computer first, then upload to the other server. |
+| Connect to a computer first. | The action needs a connected computer and none is selected or connected. Connect one from **Devices**. |
+| Open a connected computer first to upload into it. | Uploading goes to the computer shown on the left of **Files**; open one that is connected. |
+| Open a connected computer in Files first. | Adding a favorite or a folder rule needs a connected computer open in **Files**. |
+| Select one file on a connected computer in Files first. | The action works on exactly one file of a computer (for example **Checksum…**). |
+| Pick a computer first: switch the main view to a computer. | The left list shows **This computer**; choose a computer in the **Browse on** menu first. |
+| Copying between two computers isn’t supported. | Download to this computer first, then upload to the other computer. |
 | Nothing to transfer | Nothing is selected, or the selection holds no files. |
 | Open the folder in Files to extract. | **Extract here** works on an archive you opened in **Files**. |
 | Trash is already empty | There is nothing in the agent's trash to restore or discard. |
@@ -510,13 +552,12 @@ in [keystore.md](keystore.md).
 | Deleted forever: | The item was discarded from the trash and cannot come back. |
 | That folder can’t be opened: | The folder is not allowed to this login, or no longer exists; the text after the colon is the agent's reason. |
 | Could not start: | The window could not read its saved settings or hosts when it opened. The text after the colon says why; restart the app, and report it if it stays. |
-| This sign-in cannot change what a device may do. | Only an account sign-in may change a device's permissions. |
 | The MAC address of | **Wake computer** needs the agent's MAC address, which it reports when it is on; without it nothing can be sent. |
 | Wake signal sent to | A wake-on-LAN packet was sent. It does not say whether the computer woke; give it a minute and press **Retry**. |
-| The keystore works: a test secret was saved, read back and removed. | **Check the keystore** succeeded. |
-| The keystore is not working. | **Check the keystore** failed; the text after it says why (see keystore.md). |
-| A new device key will be created the next time you sign in. | **New key…** worked. Sign in to each server again; the old device stays on each server until it is removed there. |
-| Tick the box to confirm you compared the fingerprints. | Trusting a server needs the box ticked, so a fingerprint is never accepted by accident. |
+| The keystore works: a test secret was saved, read back and removed. | **Check secure storage** succeeded. |
+| The keystore is not working. | **Check secure storage** failed; the text after it says why (see keystore.md). |
+| A new device key will be created the next time you sign in. | **Reset…** on **This computer's identity** worked. Sign in to each computer again; the old device stays on each computer until it is removed there. |
+| Tick the box to confirm you compared the fingerprints. | Trusting a computer needs the box ticked, so a fingerprint is never accepted by accident. |
 | Describe the problem first | **Report a problem** needs a few words before it makes the report. |
 | The clipboard is not available here | The system refused to copy. Select the text and press Ctrl+C. |
 | a search needs 1 to 256 characters | The search box is empty or longer than 256 characters. |
@@ -534,6 +575,10 @@ in [keystore.md](keystore.md).
 | This file is too large to show as text (over 1 MB). | Download it to read it. |
 | This file is not text. | The preview only shows text; download the file. |
 | This picture is too large to preview (over 8 MB). | Download it to see it. |
+| Downloads can only be saved in a folder inside your home folder or your Downloads folder, so nothing was downloaded. | The folder chosen for this computer is not inside your home folder or your Downloads folder (or is a link that leads out of them). Choose a folder inside one of them. |
+| This video is too big to play here. Download it instead. | The viewer plays a video of up to 256 MiB. Download it and open it in a video player. |
+| This kind of video cannot be played here. Download it instead. | The viewer plays mp4, webm, mov, m4v and ogg files. Other video types (for example mkv or avi) open after a download. |
+| Could not play this video | The file may be damaged, or its picture or sound format is not one the window can play. Download it and open it in a video player. |
 | This file would start a program, so it is not opened from here. | The app never runs programs from a list; open it in your file manager if you mean to. |
 | That folder does not exist on this computer. | The download folder you chose is gone; choose another in **Settings → Transfers**. |
 | Too many files with that name in the folder. | The folder already has `name (1)` to `name (999)`; clean it up. |
@@ -546,7 +591,7 @@ in [keystore.md](keystore.md).
 ## Apps on the PC
 
 **Tools → Apps** lists the apps the PC running the agent offers (on Linux, the applications in its
-menu); the chips above the list choose the server. Each card shows the app's name, description and
+menu); the chips above the list choose the computer. Each card shows the app's name, description and
 category. **Launch** opens a dialog that names the app and the PC; **Launch** in the dialog opens the
 app on the PC's own screen. Nothing runs on this computer. This app sends the agent only the app's
 catalog id, never a command or a path, and the agent decides what that id means; the launch is recorded
@@ -570,6 +615,7 @@ Messages from the agent for these two screens:
 |---|---|---|
 | This computer is not allowed to see the PC's apps. On the PC's agent, turn on app viewing for this computer, then refresh. | `APP_VIEW_FORBIDDEN` | The owner has not given this computer the right to see the PC's apps. An account sign-in does not include it. Turn on "view apps" for this computer's device on the agent (an account session can change it), then press Refresh. |
 | This computer may see the PC's apps but not start them. On the PC's agent, turn on app launching for this computer. | `APP_LAUNCH_FORBIDDEN` | This computer may list apps but not start them. Turn on "launch apps" for it on the agent (it needs "view apps" too). The Launch buttons stay hidden until then. |
+| This computer is not allowed to use the PC's apps. On the PC's agent, turn on app viewing and launching for this computer. | `CAPABILITY_DENIED` | A newer agent answers this one code when this computer lacks the right to see or to start the PC's apps. Turn on "view apps" and "launch apps" for this computer's device on the agent (an account session can change it), then press Refresh. |
 | That app is no longer in the PC's catalog. It may have been uninstalled. Refresh the list. | `APP_NOT_FOUND` | The app was removed from the PC after the list was loaded. Press Refresh. |
 | The PC has no way to start that app. It is listed but cannot be launched from here. | `APP_NOT_LAUNCHABLE` | The PC knows the app but has no way to start it (for example its desktop entry has no command, or the program it names is missing). Nothing can be done from here. |
 | The PC is already starting another app. Wait a moment, then try again. | `APP_LAUNCH_BUSY` | The agent starts one app at a time. Wait a few seconds and press Launch again. |
@@ -591,9 +637,9 @@ Messages from this app:
 | Asked the PC to open (app name). It can take a moment to appear on its screen. | Not an error: the PC's launcher accepted the request. If nothing appears, check the PC's screen and that the app starts there. |
 | Cannot be launched, Launching not allowed | A row without a Launch button: the PC has no way to start that app, or this computer lacks the *launch apps* right (see above). |
 <!-- feature:health-metrics -->
-## Status of a server
+## Status of a computer
 
-**Status…** (in the three dots of a server's card, or **Status of NAME** in the command palette) shows
+**Status…** (in the three dots of a computer's card, or **Status of NAME** in the command palette) shows
 what the agent reports about itself and, for an administrator, how busy the PC is.
 
 - **Agent**, **System**, **Platform**: the agent's name and version, its operating system, and whether
@@ -621,15 +667,15 @@ of a made-up zero. The agent does not report the state of its helper programs, s
 <!-- feature:audit-logs -->
 ## Audit and logs (admin)
 
-**History** lists what this app and the servers have done: transfers, connections and, with the
+**History** lists what this app and the computers have done: transfers, connections and, with the
 **Security** filter, what the agent has recorded. The audit part needs an account sign-in: the agent
 refuses it for a computer paired with a code or approved on the PC, because the trail describes every
 device, not just this one.
 
 - **Audit log**: pairings, registrations, sign-ins (failed ones included), device revokes, removals and
   changes, share links, agent restarts and app launches, newest first. File operations are deliberately
-  not recorded. The agent keeps the most recent 5000 events. **Devices → Security events** shows the latest few; **View all** opens them in History.
-- **Agent log** (**Settings → Troubleshooting → Agent log**): the last ~200 lines of the agent's own log,
+  not recorded. The agent keeps the most recent 5000 events. **Devices** → "Devices on <computer>" → **Recent security events** shows the latest few; **View all** opens them in History.
+- **Computer log** (**Settings → Troubleshooting → Computer log**): the last ~200 lines of the agent's own log,
   which it reads from the systemd journal (`journalctl --user -u rfe.service`). It is empty when
   the agent does not run as that service. The box above it narrows what is already loaded; it does not
   ask the agent again.
@@ -663,7 +709,7 @@ attention**, **Active**, **Queued** and **Completed**, with the current speed an
 **Transfers** pill on the other pages shows the same cards while you browse. Everything is done by the app's core
 over the same pinned connection as the rest; the window only shows the progress.
 
-- **Download:** select files in a server's list and press **Download** (or `Ctrl+D`), or drag them onto
+- **Download:** select files in a computer's list and press **Download** (or `Ctrl+D`), or drag them onto
   **Local files**. They are saved in your download folder under `RFE Desktop` (`~/Downloads/RFE
   Desktop` on most systems; **Settings → Transfers** shows the exact folder and can change it), or the
   app asks for a folder each time if **Ask where to save downloads** is on. Only the file's name is
@@ -673,13 +719,13 @@ over the same pinned connection as the rest; the window only shows the progress.
   when it is whole, and the app then asks the computer for the file's SHA-256 and compares it with the
   saved copy; a match is shown as "Checksum verified", a difference discards the copy.
 - **Upload:** select files in **Local files** and press **Upload** (or `Ctrl+U`), drag them onto a
-  server's list, or press **Upload files** to choose files with the system's file chooser. The path must
+  computer's list, or press **Upload files** to choose files with the system's file chooser. The path must
   be a regular file. A path that is itself a symbolic link is refused; the app does not follow it. The file
   keeps its name, and a file of that name on the computer is only replaced when you choose Replace (see "When a name already exists" below). The computer checks every
   piece and the whole file before the file appears under its name.
 - **Pause** keeps what has arrived (a download's unfinished file, an upload's session on the computer)
-  and frees the slot; **Resume** continues from there. **Pause all** and **Resume all** do the same for
-  every transfer. **Cancel** stops a waiting or running transfer: a download's unfinished file is deleted
+  and frees the slot; **Resume** continues from there. **Pause all** (shown while a transfer is moving; transfers that only wait for a free slot do not count) and **Resume all** (shown while any transfer is paused or waiting for its computer) do the same for
+  every transfer. Both appear together only when one transfer is moving and another is paused. **Cancel** stops a waiting or running transfer: a download's unfinished file is deleted
   and an upload's unfinished copy is removed from the computer; on a paused transfer it discards what was
   kept. **Retry** (after a failure or a cancel) starts again: a download continues from what it already
   has, an upload sends only the pieces the computer is missing. **Retry failed** retries every failed
@@ -687,7 +733,7 @@ over the same pinned connection as the rest; the window only shows the progress.
 - **Settings → Transfers** change how transfers run, and they count for transfers already running:
   *Parallel transfers* (1 to 4, two by default) is how many move at once, the others say "Waiting for a
   free slot"; *Speed limit* (none, 10, 25 or 50 MB/s) is shared by all transfers together;
-  *Verify checksums* off skips the SHA-256 comparison of a finished download (an upload is always
+  *Check every download* off skips the SHA-256 comparison of a finished download (an upload is always
   checked by the computer); *When a name already exists* decides what happens when a file of that name is
   already in the download folder or on the computer: **Ask** (the transfer waits on a card with
   *Replace*, *Keep both* and *Skip*, and *Apply to all* answers every waiting transfer), **Replace**,
@@ -697,7 +743,7 @@ over the same pinned connection as the rest; the window only shows the progress.
   `.rfe-` and ending `.part` in the download folder; delete it.
 - A download of a very large file ends with "Checking the file" while the computer works out its
   SHA-256; an upload ends the same way while the computer checks the whole file.
-- If a server is lost, its transfers pause by themselves and continue when it is back.
+- If a computer is lost, its transfers pause by themselves and continue when it is back.
 
 Messages about transfers from the agent (the window shows this wording instead of the generic one for
 these codes):
@@ -748,6 +794,6 @@ Messages about transfers from this app:
 | a background task failed | Reading or checking a file stopped unexpectedly. Report it with the log level set to Detailed. |
 
 In the list: "Waiting for a free slot" is a transfer queued behind the running ones, "Checking the file"
-is a finished transfer being verified, and "Checksum verified" means the server confirmed the
+is a finished transfer being verified, and "Checksum verified" means the computer confirmed the
 file's SHA-256. A download from an older agent may finish without that line because it could not answer
 the check.

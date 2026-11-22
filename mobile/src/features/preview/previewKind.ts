@@ -2,10 +2,13 @@ import type { Entry } from '../../core/api/models';
 
 // Port of the kind detection in features/preview/preview.dart. MIME wins; the extension is the fallback.
 
-export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'csv' | 'archive' | 'text' | 'none';
+export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'csv' | 'xlsx' | 'pptx' | 'docx' | 'archive' | 'text' | 'none';
 
 const MARKDOWN = new Set(['md', 'markdown']);
 const CSV = new Set(['csv']);
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const ARCHIVE = new Set(['zip', 'tar', 'gz', 'tgz', 'bz2', '7z', 'rar']);
 const TEXT = new Set([
   'txt', 'json', 'yaml', 'yml', 'xml', 'tsv', 'log', 'ini', 'cfg', 'conf', 'toml', 'env',
@@ -34,6 +37,9 @@ export function previewKindOf(e: Pick<Entry, 'name' | 'mimeType'>): PreviewKind 
     if (mime.startsWith('audio/')) return 'audio';
     if (mime === 'text/markdown') return 'markdown';
     if (mime === 'text/csv') return 'csv';
+    if (mime === XLSX_MIME) return 'xlsx';
+    if (mime === PPTX_MIME) return 'pptx';
+    if (mime === DOCX_MIME) return 'docx';
     if (mime.startsWith('text/')) return 'text';
     if (mime === 'application/json' || mime === 'application/xml' || mime === 'application/x-yaml' || mime.endsWith('+json') || mime.endsWith('+xml')) return 'text';
   }
@@ -43,6 +49,9 @@ export function previewKindOf(e: Pick<Entry, 'name' | 'mimeType'>): PreviewKind 
   if (AUDIO.has(ext)) return 'audio';
   if (MARKDOWN.has(ext)) return 'markdown';
   if (CSV.has(ext)) return 'csv';
+  if (ext === 'xlsx') return 'xlsx';
+  if (ext === 'pptx') return 'pptx';
+  if (ext === 'docx') return 'docx';
   if (ARCHIVE.has(ext)) return 'archive';
   if (TEXT.has(ext)) return 'text';
   return 'none';

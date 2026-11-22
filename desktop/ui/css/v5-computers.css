@@ -1,0 +1,87 @@
+/* v5 Computers page: the mockup's list-and-details layout (mockups/v5/base.css .rail, .li, .ro) for the app's #stage.
+   The mockup scopes these under its own page wrapper, which the app does not have, so they hang on .cpg here (written by
+   ui/v5-computers.js). Colours come from the v5 tokens only (they already switch with the theme). rem only. */
+:where(.d5) .stage:has(> .cpg) { padding: 0; overflow: hidden; display: flex; }
+:where(.d5) .cpg { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) var(--rail-w); min-height: 0; min-width: 0; }
+:where(.d5) .cpg.solo { grid-template-columns: minmax(0, 1fr); }
+:where(.d5) .cpg .cpl { overflow: auto; padding: 1.5rem 1.75rem; min-width: 0; min-height: 0; }
+:where(.d5) .cpg .rail { border-left: 1px solid var(--line); padding: 1.25rem; overflow: auto; background: var(--sf); }
+:where(.d5) .cpg .rail h2 { font: 500 1.125rem var(--font); margin: 0.5rem 0 0.25rem; display: flex; gap: 0.625rem; align-items: center; }
+:where(.d5) .cpg .rail .k-sub { margin-bottom: 1rem; }
+:where(.d5) .cpg .rail .k-dact { margin-top: 0.5rem; }
+:where(.d5) .cpg .rail .k-dact .k-btn { width: 100%; }
+:where(.d5) .cpg .rail .k-dact .k-btn { border-radius: 0.5rem; }
+:where(.d5) .cpg .rail .k-dact .k-btn:not(.pri) { box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .cpg .cpl .k-title { font: 500 1.75rem/1.15 var(--display, var(--font)); letter-spacing: -0.01em; margin: 0; }
+:where(.d5) .cpg .li { position: static; display: grid; grid-template-columns: none; height: auto; padding: 0; border-radius: 0; left: auto; right: auto; gap: 0.125rem; }
+:where(.d5) .cpg .ro { display: grid; grid-template-columns: 1.75rem 1fr auto; gap: 0.75rem; align-items: center; min-height: var(--ro-h); padding: var(--ro-pad) 0.75rem; border-radius: 0.5rem; cursor: pointer; }
+:where(.d5) .cpg .ro:hover { background: var(--rz); }
+:where(.d5) .cpg .ro.sel { background: var(--rz); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .cpg .ro:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: -0.125rem; }
+:where(.d5) .cpg .ro b { font-weight: 500; }
+:where(.d5) .cpg .ro small { display: block; color: var(--t3); font-size: 0.75rem; }
+:where(.d5) .cpg .ro .st { font: 0.8125rem var(--font); color: var(--t2); display: flex; gap: 0.375rem; align-items: center; font-variant-numeric: tabular-nums; }
+/* the add-a-computer steps 2 and 3 reuse the existing dialogs inside the mockup's box: the old step row is kept (the flow finds its dialog by it) but hidden */
+:where(.d5) .k-dlg .addsteps[hidden] { display: none; }
+:where(.d5) .k-dlg .b-pane .fxwait, :where(.d5) .k-dlg .b-pane .fxp { color: var(--t2); font-size: 0.8125rem; }
+:where(.d5) .k-dlg .b-pane .fld input { width: 100%; box-sizing: border-box; }
+/* plain-word rewrite of add-a-computer steps 2 and 3 (v5-computers.js plain/ready/reconnectBox): the old tick-box, fields and tabs in the mockup's look */
+:where(.d5) .k-dlg .b-pane .fxck { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--t2); cursor: pointer; }
+:where(.d5) .k-dlg .b-pane .fld { margin-top: 0.75rem; }
+:where(.d5) .k-dlg .b-pane .fld label { display: block; font-size: 0.75rem; color: var(--t3); margin-bottom: 0.25rem; }
+:where(.d5) .k-dlg .b-pane .fld input { height: 2.5rem; padding: 0 0.75rem; border: 0; border-radius: 0.625rem; background: var(--sf); color: var(--t1); font: 0.875rem var(--font); box-shadow: inset 0 0 0 1px var(--line2); }
+:where(.d5) .k-dlg .b-pane .fld .err, :where(.d5) .k-dlg .b-more .err { display: block; min-height: 0; font-size: 0.75rem; color: var(--neg); }
+:where(.d5) .k-dlg .b-pane .k-tabs { margin: 0.5rem 0 0.75rem; }
+:where(.d5) .k-dlg .b-pane .fxwait { display: grid; justify-items: center; gap: 0.25rem; text-align: center; padding: 0.75rem 0; }
+:where(.d5) .k-dlg .b-pane .hint.bad { margin-top: 0.75rem; font-size: 0.8125rem; color: var(--neg); display: flex; gap: 0.5rem; align-items: flex-start; }
+:where(.d5) .k-dlg .b-cd { margin: 0.75rem 0 0.5rem; }
+:where(.d5) .k-dlg .b-ln { margin-top: 0.75rem; }
+:where(.d5) .k-dlg .k-list { max-height: 20rem; overflow: auto; }
+:where(.d5) .k-dlg .b-rc { cursor: pointer; }
+:where(.d5) .k-dlg .b-rc:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: -0.125rem; }
+/* "Add a computer" starts at one height on all three steps and grows when a fold opens (the old .dlg.conn rule is gone with the old box class); the backdrop selector outranks the overlay rule of v5-base */
+:where(.d5) .scrim .k-dlg.b-add { width: 45rem; height: auto; min-height: min(28rem, calc(100vh - 5rem)); max-height: calc(100vh - 5rem); }
+:where(.d5) .scrim .k-dlg.b-add .k-db { flex: 1; }
+/* one left edge for everything in the pane (heading, text, rows, fields, folds) and one centre line for the numbers and the waiting note */
+:where(.d5) .k-dlg.b-add .b-pane { min-width: 0; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; overflow-y: auto; }
+:where(.d5) .k-dlg.b-add .b-pane > * { box-sizing: border-box; max-width: 100%; }
+:where(.d5) .k-dlg.b-add .b-pane > :is(h3, p, .b-more, .b-tech, .fld, .fxck, .b-pc, .b-none, .b-f, .k-tabs, .b-fl) { align-self: stretch; text-align: left; }
+:where(.d5) .k-dlg.b-add .b-pane > :is(.b-num, .fxwait, .b-wait, .b-done) { align-self: stretch; text-align: center; justify-items: center; }
+:where(.d5) .k-dlg.b-add .b-pane .k-tabs { display: flex; width: 100%; }
+:where(.d5) .k-dlg.b-add .b-pane .k-tabs button { flex: 1; }
+:where(.d5) .k-dlg.b-add .b-pane .b-more > :is(p, .b-f, .k-btn) { max-width: 100%; box-sizing: border-box; }
+:where(.d5) .k-dlg.b-add .b-pane .b-tech :is(.fpfull, .k-kv dd, .k-kv dt) { overflow-wrap: anywhere; min-width: 0; }
+:where(.d5) .k-dlg.b-add .b-sx { overflow-y: auto; }
+/* "Use a code": a quiet line under the list on step 1, always visible, so the pairing-code form is one click away */
+:where(.d5) .k-dlg.b-add .b-pane > .b-cd { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--line); font-size: 0.8125rem; color: var(--t2); }
+:where(.d5) .k-dlg.b-add .b-pane > .b-cd .k-btn { flex: none; }
+/* the key check and the sign-in opened on their own: the content sits straight in the dialog body, with no step column */
+:where(.d5) .k-dlg .b-pane.solo { padding: 0; min-height: 0; }
+/* "Check the connection": one plain line per check, the outcome under it, the raw answers in the closed fold */
+:where(.d5) .k-dlg .k-lrow.bad > .i, :where(.d5) .k-dlg .dgn.bad { color: var(--neg); }
+:where(.d5) .k-dlg .k-lrow.wait, :where(.d5) .k-dlg .k-lrow.skip { color: var(--t3); }
+:where(.d5) .k-dlg .k-lrow .dgw { display: inline-block; width: 1.125rem; text-align: center; }
+:where(.d5) .k-dlg .dgn { margin: 0.75rem 0 0; font-size: 0.8125rem; display: flex; gap: 0.5rem; align-items: flex-start; }
+:where(.d5) .k-dlg .dgn.ok { color: var(--t2); }
+/* "Folders it shares": the path under the folder name may be long and is cut, not wrapped */
+:where(.d5) .k-dlg .k-lrow > span > small { min-width: 0; }
+.k-dlg:focus, .k-dlg:focus-visible { outline: none; }
+
+/* Settings for one computer (T.settings): the dialog sits outside the page wrappers that define --ctl, so the bordered buttons and the chosen
+   segment get it here; the name field shows the mockup's focus ring; the folder path is the mockup's small mono line. */
+.b-ss { --ctl: var(--ctl-ring); }
+.b-ss .b-f input:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: 0.125rem; }
+.b-ss button.k-sw { border: 0; padding: 0; flex: none; }
+.b-ss button.k-sw:focus-visible, .b-ss .k-seg button:focus-visible { outline: 0.125rem solid var(--ac); outline-offset: 0.125rem; }
+.b-ss .k-set > div:last-child { gap: 0.75rem; }
+.b-ss .b-path { overflow-wrap: anywhere; text-align: right; }
+/* The window's tokens (--display, tabular figures) sit on .win, outside the layer of dialogs: this dialog takes them so its title is the mockup's 18px. */
+.k-dlg:has(.b-ss) { --display: var(--font); font-variant-numeric: tabular-nums; }
+.k-dlg:has(.b-ss) { --pop: 0 0 0 1px color-mix(in srgb, var(--t1) 9%, transparent), 0 0.125rem 0.25rem var(--shade-04), 0 0.875rem 2.125rem -6px var(--shade-20); }
+/* the kind of a computer (v5-computers.js T.kindIcon): a small drawing in front of its name, in the list row, the details header and the add dialog */
+:where(.d5) .k-kind { display: inline-flex; vertical-align: -0.1875rem; margin-inline-end: 0.375rem; color: var(--t3); }
+:where(.d5) .cpg h2 .k-kind { color: var(--t2); }
+/* options a kind has no use for are hidden; the dialog's own row rules set display, so [hidden] needs its own */
+:where(.d5) .k-dlg [data-lack][hidden] { display: none; }
+:where(.d5) .k-dlg.b-add .b-pane > .b-kind { align-self: stretch; text-align: left; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; margin: 0.75rem 0 0; }
+:where(.d5) .k-dlg .b-kind b { font-weight: 500; }

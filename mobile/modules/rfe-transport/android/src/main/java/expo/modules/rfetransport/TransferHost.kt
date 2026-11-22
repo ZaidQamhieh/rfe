@@ -20,7 +20,7 @@ object TransferHost {
         override fun pin(hostId: String) = store.read("rfe_fp_$hostId")
         override fun token(hostId: String) = store.read("rfe_token_$hostId")
       }
-      TransferEngine(File(app.filesDir, "rfe-transfers"), creds, publisher = { PublicDownloads.publish(app, it) }, onChange = { r ->
+      TransferEngine(File(app.filesDir, "rfe-transfers"), creds, publisher = { PublicDownloads.publish(app, it) }, publishedName = { PublicDownloads.displayName(app, it) }, onChange = { r ->
         listener?.invoke(r)
         TransferService.onEngineChange(app, this.engine())
       }).also { engine = it }

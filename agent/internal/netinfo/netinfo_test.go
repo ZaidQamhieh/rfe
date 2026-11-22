@@ -26,17 +26,17 @@ func TestTailscaleCIDRAndNetworkDetection(t *testing.T) {
 	if info.LAN == "" && info.MAC != "" {
 		t.Errorf("MAC address %q was returned without a LAN IPv4 address", info.MAC)
 	}
-	lan, tailscale := LocalAddresses()
-	if lan != "" {
-		ip := net.ParseIP(lan)
+	again := Detect()
+	if again.LAN != "" {
+		ip := net.ParseIP(again.LAN)
 		if ip == nil || ip.To4() == nil {
-			t.Errorf("LocalAddresses returned invalid LAN IPv4: %q", lan)
+			t.Errorf("Detect returned invalid LAN IPv4: %q", again.LAN)
 		}
 	}
-	if tailscale != "" {
-		ip := net.ParseIP(tailscale)
+	if again.Tailscale != "" {
+		ip := net.ParseIP(again.Tailscale)
 		if ip == nil || !tailscaleRange.Contains(ip) {
-			t.Errorf("LocalAddresses returned invalid Tailscale IPv4: %q", tailscale)
+			t.Errorf("Detect returned invalid Tailscale IPv4: %q", again.Tailscale)
 		}
 	}
 }

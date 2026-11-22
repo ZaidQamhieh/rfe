@@ -3,11 +3,13 @@ import { createContext, useContext } from 'react';
 export interface AuthState {
   authenticated: boolean;
   ready: boolean;
-  agentName: string;
+  /** The session check failed for a reason other than the agent refusing the session: show a retry. */
+  unavailable: boolean;
+  retry: () => void;
   login: (username: string, password: string) => Promise<void>;
   pair: (pairingCode: string) => Promise<void>;
   register: (pairingCode: string, username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);

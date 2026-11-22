@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RFE mobile · Nameplate</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="g">
+<main>
+<header>
+  <div>
+    <h1>RFE mobile, redesigned: Nameplate</h1>
+    <p>Your computers are machines you own, so the app reads like the label on a machine: plain, legible and exact. It takes its life from the desktop app: yellow folders, real file and computer objects, a graphite main action like the app icon, and status dots that mean something.</p>
+    <div class="swatches">
+      <span class="sw"><i style="background:#f3f3f0"></i>Page</span>
+      <span class="sw"><i style="background:#1a1a1a"></i>Graphite: main action, selection, progress</span>
+      <span class="sw"><i style="background:#3f7d32"></i>Reachable, finished</span>
+      <span class="sw"><i style="background:#9a5b0b"></i>Waiting on you</span>
+      <span class="sw"><i style="background:#b3261e"></i>Deletes, broken</span>
+    </div>
+  </div>
+  <div class="rules">
+    <div><b>Same product as the desktop</b>Figtree and JetBrains Mono, the desktop’s graphite, taken from the app icon, for the one main action, selection and progress, and its grey selected rows with a fine border.</div>
+    <div><b>Things have colour, actions don’t</b>Folders, files, computers, phones and places use the desktop’s Fluent flat emoji, so a folder is yellow and a film is a film strip. Buttons and tools stay as duotone line icons.</div>
+    <div><b>A computer has a nameplate</b>Its picture, its name, a status dot and a word for the state. The lamp is never the only signal.</div>
+    <div><b>Names keep their ends</b>Long names are cut in the middle, so “…draft v7 (Leila’s comments).docx” keeps the version and the type.</div>
+    <div><b>Flat, not carded</b>Rows sit on the page. Sheets appear only for a short choice. There are no cards anywhere.</div>
+    <div><b>Three corner sizes</b>16 for sheets that slide in, 8 for anything you press, 3 to 4 for files and photos.</div>
+    <div><b>One graphite button</b>One filled button per screen, raised like the desktop’s. Others are outlined or plain text. Red text only for delete, block and forget.</div>
+    <div><b>The product is the picture</b>Colour and detail go into what RFE actually shows: the computer’s own pairing window, the 8-digit number both screens must match, a spreadsheet, a waveform and a photo. The chrome around them stays grey.</div>
+    <div><b>Three places, labelled</b>Computers, This phone, Transfers. Settings and owner tools sit in the computer’s menu, where they apply.</div>
+  </div>
+</header>
+
+<section id="s"></section>
+
+<h2>References and what was taken</h2>
+<p>Real products and objects, each for one thing.</p>
+<div class="refs">
+  <div><b>Material Files and Files by Google</b>Android list density, long-press to select, the contextual top bar and the Android back behaviour.</div>
+  <div><b>Rating plates on appliances and lab equipment</b>The computer header: an engraved-looking name, one line of facts, a status lamp beside a word.</div>
+  <div><b>SBB and DB timetable boards</b>Transfers: fixed columns, tabular figures, plain status words (“Paused”, “3 min left”) instead of icons.</div>
+  <div><b>Fastmail for Android</b>Flat dense rows with no cards, one accent used sparingly, sheets only for short choices.</div>
+  <div><b>RFE desktop v5</b>The palette, fonts, emoji set, raised graphite button and duotone icons, so moving between phone and computer feels like one app.</div>
+  <div><b>Android photo pickers</b>The photo grid: date headings, square cells, a checkbox in the corner and the photo shrinking when picked.</div>
+</div>
+
+<h2>Removed in the subtraction pass</h2>
+<p>Things that were drawn, then taken out because they did not help anyone do anything.</p>
+<ul class="cut">
+  <li><b>A storage bar on the home screen.</b> Free space is one line of text on the drive that has it.</li>
+    <li><b>A floating “+” button.</b> Sending files belongs to a folder, so it lives in the empty folder and the selection bar.</li>
+  <li><b>A fourth and fifth tab.</b> Search, Shared links and Settings are not places you visit; they are reached from where they apply.</li>
+  <li><b>Unread-style count badges.</b> The Transfers tab shows a plain number beside its label, in the text colour.</li>
+  <li><b>Welcome carousel.</b> First run is one screen with one button.</li>
+  <li><b>“Stop after one download” on share links.</b> The agent does not offer it; the mockup only shows what RFE can do.</li>
+  <li><b>An empty first-run screen.</b> It now shows what RFE looks like on the computer, so you know what to look for before you walk over.</li>
+  <li><b>Bold everywhere.</b> Titles dropped from 600 to 500; size and colour carry the hierarchy.</li>
+  <li><b>Tight tracking on small text and wide mono punctuation.</b> Only the digits are monospaced now.</li>
+  <li><b>Addresses, ports and fingerprints.</b> Kept, but under a closed “Technical details”.</li>
+</ul>
+<p style="margin-top:48px;font-size:13px;color:#6a6c64">Polished with the unslop method by Damir Sokolovsky (@heydamir), CC BY 4.0. Photos are drawn stand-ins for real thumbnails. Emoji: Microsoft Fluent Emoji Flat (MIT, emoji/LICENSE.txt).</p>
+</main>
+<script src="screens.js"></script>
+<script>
+const groups = [
+  ['Getting in', 'First run has one job. Pairing starts with the camera because RFE on the computer already shows a code; Wi-Fi discovery and typing the code are right below it.', [
+    ['firstRun', 'First run', 'Shows the pairing window RFE opens on the computer, then one button.'],
+    ['add', 'Add a computer', 'The camera sees that same window. Typing the 8-character code and Wi-Fi discovery sit below.'],
+    ['waiting', 'Waiting for Allow', 'The number both screens show is the one thing to check, so it is the biggest thing here.'],
+  ]],
+  ['A computer and its files', 'The header is the computer’s nameplate; tap the name to switch. The path line under the title is tappable, segment by segment.', [
+    ['home', 'Studio PC', 'What changed lately is shown as the files themselves. An upload runs in the strip above the tabs.'],
+    ['switcher', 'Switching computers', 'Every state has words and its own button: Wake, Review.'],
+    ['menu', 'Computer menu', 'Trash, apps, phones with access and settings sit with the computer they belong to.'],
+    ['docs', 'A folder', 'Folders first, sizes in a mono column. Long, duplicate, right-to-left and extension-less names.'],
+    ['photos', 'Photos, three picked', 'Grid because the content is photos. Labelled actions replace the tabs while picking.'],
+  ]],
+  ['One file and its actions', 'Every action is a labelled button or row. Nothing depends on a swipe.', [
+    ['preview', 'A photo', 'Save to phone is the one filled button. Delete is last, in red.'],
+    ['share', 'Share link', 'Three durations, shown side by side. The sheet says the computer has to stay on.'],
+    ['search', 'Search', 'Scope first (this computer or all), then type and size. Matches in a heavier weight.'],
+  ]],
+  ['Moving files and this phone', 'Transfers is ordered by what needs an answer, like a departures board with a problems column on top.', [
+    ['transfers', 'Transfers', 'A name clash shows both versions’ size and time side by side, so the answer is obvious.'],
+    ['phone', 'This phone', 'Photo backup, files kept offline (one has changed on the computer) and files shared into RFE.'],
+    ['access', 'Phones with access', 'For the owner. A request on top, then each phone opens in place with its permissions.'],
+  ]],
+  ['Empty, offline, broken, loading', 'Every one of these says what happened and offers the next step in the same place a populated screen puts its content.', [
+    ['emptyFolder', 'Empty folder', 'Offers the two things you can do in a folder with nothing in it.'],
+    ['asleep', 'Computer asleep', 'Wake through another computer; files kept offline still open.'],
+    ['lost', 'Connection lost', 'The page stays readable, dimmed, with the problem stated on top.'],
+    ['identity', 'Identity changed', 'Explains both the harmless and the bad reason, and stops before anything is sent.'],
+    ['noResults', 'No results', 'Suggests the likely spelling and a wider search.'],
+    ['movesEmpty', 'No transfers', 'Says what will appear here and that it survives leaving the app.'],
+    ['loading', 'Reading a big folder', 'Rows arrive as they are read; a thin line under the toolbar shows work.'],
+  ]],
+  ['Dark', 'Same palette inverted: warm graphite, not black, and the lamps lightened to keep their contrast.', [
+    ['docsDark', 'A folder, dark', ''],
+    ['transfersDark', 'Transfers, dark', ''],
+  ]],
+];
+S.docs = S.docs; const D = { ...S, docs: S.docs(), docsDark: S.docs(true), transfers: S.transfers(), transfersDark: S.transfers(true) };
+const only = new URLSearchParams(location.search).get('only');
+if (only) {
+  document.body.className = ''; document.body.style.cssText = 'margin:0;background:#dcdbd5;padding:12px';
+  document.body.innerHTML = D[only];
+} else {
+  document.getElementById('s').innerHTML = groups.map(([t, p, items]) => `<h2>${t}</h2><p>${p}</p><div class="strip">${items.map(([k, n, c]) => `<figure>${D[k]}<figcaption><b>${n}</b>${c}</figcaption></figure>`).join('')}</div>`).join('');
+}
+</script>
+</body>
+</html>

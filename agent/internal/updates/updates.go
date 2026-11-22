@@ -4,6 +4,7 @@
 package updates
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,6 +45,7 @@ func Latest(dir string) (*Release, error) {
 		}
 		code, err := strconv.Atoi(m[2])
 		if err != nil {
+			log.Printf("updates: skipping %s: bad versionCode: %v", e.Name(), err)
 			continue
 		}
 		if best != nil && code <= best.VersionCode {

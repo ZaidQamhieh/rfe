@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statusline — the whole app lives in one bar at the bottom</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d10{--ac:#c2410c;--ac-ink:#b23c0b;--ac-soft:rgba(194,65,12,.08);--font:"Inter",system-ui,sans-serif;display:flex;flex-direction:column}
+.d10 .k-btn.pri{background:#171717;color:#fafafa}
+.d10 .stage{flex:1;overflow:auto;padding:28px 40px 16px;min-height:0}
+.d10 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d10 .k-files{flex:1}
+.d10 .back{display:inline-flex;gap:6px;align-items:center;color:var(--t2);font-size:13px;margin-bottom:12px}
+.d10 .sl{height:44px;flex:none;display:flex;align-items:stretch;border-top:1px solid var(--line);background:var(--sf);font-size:13px}
+.d10 .seg{display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--t2);border-right:1px solid var(--line);white-space:nowrap;position:relative}
+.d10 .seg:hover{background:var(--rz);color:var(--t1)} .d10 .seg.on{background:var(--rz);color:var(--t1);box-shadow:inset 0 2px 0 var(--t1)}
+.d10 .seg b{font-weight:500;color:var(--t1)} .d10 .seg small{color:var(--t3);font-family:var(--mono)}
+.d10 .seg.warn small{color:var(--neg)}
+.d10 .sl .fill{flex:1;border-right:1px solid var(--line);display:flex;align-items:center;padding:0 12px}
+.d10 .sl .fill .k-in{width:100%;height:30px;background:none;box-shadow:none}
+.d10 .pop{position:absolute;bottom:52px;z-index:40;background:var(--sf);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.14),inset 0 0 0 1px var(--line);padding:16px;width:520px}
+.d10 .pop h4{margin:0 0 8px;font:500 13px var(--font);display:flex;justify-content:space-between;align-items:center}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d10">
+ <main class="stage" id="st"></main>
+ <div class="pop" id="pop" style="left:600px;display:none"></div>
+ <footer class="sl" id="sl"></footer>
+</div>
+<script>
+window.IDEA='Nothing above the content but the content. One bar at the bottom holds the computer, its key, search, transfers, requests and every page; each part shows its state at a glance and opens on a click. When something needs you, its part of the bar says so in words.';
+window.MAP=[['Navigation','Segments of the bottom bar; Esc returns to Files',1],['Switch computer','Computer segment at the far left',1],['Connect and trust','Computer segment menu, New connection',2],['Servers and status','Key segment opens Servers; card menus there',1],['Files and preview','The whole window; right-click for every action',0],['Upload and download','Upload in the list header, Ctrl U, Ctrl D, drag',1],['Pair a phone','Requests segment popover, or ⋯, Pair a phone',2],['Pairing requests','Requests segment shows the count and opens a popover with Accept',1],['Transfers','Transfers segment: ring and count; popover with conflicts',1],['Search','Search field in the bar, or /',1],['Tools','Tools segment',1],['History and audit','History segment',1],['Settings','Settings segment',1],['Tray and notifications','Bell segment',1]];
+const I=K.I,pop=document.getElementById('pop');
+function sl(v){document.getElementById('sl').innerHTML=`<button class="seg" data-k="menu:browse">${K.dot('ok')}<b>studio-pc</b><small>12 ms LAN</small>${I('chevd',12)}</button><button class="seg${v==='servers'?' on':''}" data-k="go:servers" title="Servers">${I('key',14)}<small>9F3A 1EC4</small></button><label class="fill">${K.C.searchBox('Search all connected computers')}</label><button class="seg${v==='transfers'?' on':''}" data-k="pop:x">${K.C.ring(71)}<b>2</b> moving <small>52.4 MB/s</small></button><button class="seg warn" data-k="pop:r">${K.E('phone',16)}<b>2</b> asking <small>1:42</small></button>`+[['files','folder','Files'],['devices','phone','Devices'],['tools','layers','Tools'],['history','history','History'],['settings','sliders','Settings']].map(s=>`<button class="seg${v===s[0]?' on':''}" data-k="go:${s[0]}" data-tip="${s[2]}">${I(s[1],14)}${v===s[0]?s[2]:''}</button>`).join('')+`<button class="seg" data-k="menu:notes" data-tip="Notifications">${I('bell',14)}</button><button class="seg" data-k="menu:more" data-tip="Pair a phone, new connection, theme, accounts">${I('more',14)}</button>`;}
+K.MENU.more=[['Pair a phone…','dlg:pairphone','qr'],['New connection','dlg:newconn','plug'],['Theme','close','sun'],['Accounts','dlg:accounts','user']];
+const back=(h)=>`<button class="back" data-k="go:files">${I('left',14)}Files</button>`+h;
+K.mount({stage:document.getElementById('st'),views:{files:()=>K.V.files({}),servers:()=>back(K.V.servers()),devices:()=>back(K.V.devices()),transfers:()=>back(K.V.transfers()),search:()=>back(K.V.search()),tools:s=>back(K.V.tools(s.tool)),history:s=>back(K.V.history(s.hist)),settings:s=>back(K.V.settings(s.set))},
+ on:(a,b)=>{if(a==='pop'){const open=pop.style.display==='block'&&pop.dataset.w===b;pop.dataset.w=b;pop.style.display=open?'none':'block';pop.style.left=(b==='x'?560:700)+'px';pop.innerHTML=b==='x'?`<h4>Transfers ${K.btn('Open Transfers',{k:'sm ghost',a:'go:transfers'})}</h4>`+K.V.xgroups(['attention','active']):`<h4>Pairing requests ${K.btn('Pair a phone…',{k:'sm ghost',a:'dlg:pairphone'})}</h4>`+K.V.requests();}},
+ onGo:v=>{pop.style.display='none';sl(v)}});
+</script></body></html>

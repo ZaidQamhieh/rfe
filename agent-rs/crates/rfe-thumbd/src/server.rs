@@ -4,7 +4,8 @@
 use crate::decode::DecodeError;
 use crate::render::{self, RenderError};
 use rfe_proto::{
-    code, error_response, read_frame, write_frame, Envelope, Hello, KIND_BIN, KIND_JSON,
+    cancel_request, code, error_response, hello_value, read_frame, send_frames as send, Cancels,
+    Envelope, Out, KIND_BIN, KIND_JSON, MALFORMED_REQUEST,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -20,6 +21,8 @@ pub const NAME: &str = "rfe-thumbd";
 pub const MAX_QUEUED_BYTES: usize = 256 << 20;
 /// A render that takes longer than this ends the process (the agent restarts it and falls back meanwhile).
 pub const WATCHDOG: Duration = Duration::from_secs(30);
+/// How often the watchdog thread checks the render start time against WATCHDOG.
+const WATCHDOG_POLL: Duration = Duration::from_millis(500);
 
 struct Job {
     id: u64,
@@ -33,19 +36,6 @@ struct Job {
 struct RenderReq {
     #[serde(default)]
     max_size: u32,
-}
-
-type Out<W> = Arc<Mutex<W>>;
-
-fn send<W: Write>(out: &Out<W>, v: &Value, body: Option<&[u8]>) {
-    let bytes = serde_json::to_vec(v).unwrap_or_default();
-    let mut w = out.lock().unwrap();
-    // A write failure means the agent is gone; the read loop sees EOF and exits.
-    let _ = write_frame(&mut *w, KIND_JSON, &bytes);
-    if let Some(b) = body {
-        let _ = write_frame(&mut *w, KIND_BIN, b);
-    }
-    let _ = w.flush();
 }
 
 fn run_job(job: &Job) -> Result<(Value, Vec<u8>), (&'static str, String)> {
@@ -73,7 +63,7 @@ fn run_job(job: &Job) -> Result<(Value, Vec<u8>), (&'static str, String)> {
 fn worker<W: Write + Send + 'static>(
     rx: Arc<Mutex<Receiver<Job>>>,
     out: Out<W>,
-    cancels: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
+    cancels: Arc<Cancels>,
     queued: Arc<AtomicUsize>,
     started: Arc<AtomicU64>,
     epoch: Instant,
@@ -111,7 +101,7 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
     let out: Out<W> = Arc::new(Mutex::new(output));
     let (tx, rx): (Sender<Job>, Receiver<Job>) = channel();
     let rx = Arc::new(Mutex::new(rx));
-    let cancels: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>> = Arc::new(Mutex::new(HashMap::new()));
+    let cancels: Arc<Cancels> = Arc::new(Mutex::new(HashMap::new()));
     let queued = Arc::new(AtomicUsize::new(0));
     let epoch = Instant::now();
     let slots: Vec<Arc<AtomicU64>> = (0..workers.max(1))
@@ -135,7 +125,7 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
         let (slots, stop) = (slots.clone(), Arc::clone(&stop));
         std::thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                std::thread::sleep(Duration::from_millis(500));
+                std::thread::sleep(WATCHDOG_POLL);
                 let now = epoch.elapsed().as_millis() as u64;
                 for s in &slots {
                     let t = s.load(Ordering::Relaxed);
@@ -153,15 +143,7 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
         crate::sandbox::say(&format!("rfe-thumbd: sandbox failed: {e}"));
         return Err(std::io::Error::other(e));
     }
-    send(
-        &out,
-        &serde_json::to_value(Hello::new(
-            NAME,
-            rfe_proto::release_version(env!("CARGO_PKG_VERSION")),
-        ))
-        .unwrap(),
-        None,
-    );
+    send(&out, &hello_value(NAME, env!("CARGO_PKG_VERSION")), None);
 
     while let Some(frame) = read_frame(&mut input)? {
         if frame.kind != KIND_JSON {
@@ -170,7 +152,7 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
         let Ok(env) = serde_json::from_slice::<Envelope>(&frame.payload) else {
             send(
                 &out,
-                &error_response(0, code::BAD_REQUEST, "malformed request"),
+                &error_response(0, code::BAD_REQUEST, MALFORMED_REQUEST),
                 None,
             );
             continue;
@@ -194,9 +176,7 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
         match env.op.as_str() {
             "ping" => send(&out, &json!({"id": env.id, "ok": true}), None),
             "cancel" => {
-                if let Some(flag) = cancels.lock().unwrap().get(&env.target) {
-                    flag.store(true, Ordering::Relaxed);
-                }
+                cancel_request(&cancels, env.target);
                 send(&out, &json!({"id": env.id, "ok": true}), None);
             }
             "thumb.render" => {
@@ -224,9 +204,21 @@ pub fn serve<R: Read, W: Write + Send + 'static>(
                     );
                     continue;
                 }
-                queued.fetch_add(body.len(), Ordering::Relaxed);
                 let cancel = Arc::new(AtomicBool::new(false));
-                cancels.lock().unwrap().insert(env.id, Arc::clone(&cancel));
+                {
+                    let mut live = cancels.lock().unwrap();
+                    if live.contains_key(&env.id) {
+                        drop(live);
+                        send(
+                            &out,
+                            &error_response(env.id, code::BAD_REQUEST, "request id already in use"),
+                            None,
+                        );
+                        continue;
+                    }
+                    live.insert(env.id, Arc::clone(&cancel));
+                }
+                queued.fetch_add(body.len(), Ordering::Relaxed);
                 let _ = tx.send(Job {
                     id: env.id,
                     max_size: req.max_size,

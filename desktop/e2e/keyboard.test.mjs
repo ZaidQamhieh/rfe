@@ -98,7 +98,7 @@ async function openNewConnection() {
   await waitFor("the connection dialog", () => app.visible("#sh"));
 }
 
-/** New connection by keyboard, then the trust dialog's button by Tab and Enter. */
+/** Add a computer by keyboard, then the trust dialog's button by Tab and Enter. */
 async function connectKeyboard(agent, name) {
   await openNewConnection();
   await app.script("document.querySelector('#sn').focus();");
@@ -118,10 +118,10 @@ async function connectKeyboard(agent, name) {
 test("the rail and the top bar: tab order and outlines", async () => {
   await app.skipWelcome();
   await app.script("document.activeElement && document.activeElement.blur();");
-  checkOrder("rail", await tabOrder(40), ["New connection", "Files", "Servers", "Devices", "Transfers", "Search", "Tools", "History", "Settings"]);
+  checkOrder("rail", await tabOrder(40), ["Add a computer", "Files", "Servers", "Devices", "Transfers", "Search", "Tools", "History", "Settings"]);
 });
 
-test("the welcome closes with Escape and the New connection dialog is keyboard friendly", async () => {
+test("the welcome closes with Escape and the Add a computer dialog is keyboard friendly", async () => {
   await openNewConnection();
   assert.equal((await focusInfo()).name, "sn", "the dialog starts in its first field");
   checkOrder("new connection", await tabOrder(20), ["sn", "sh", "sp", "Connect"]);

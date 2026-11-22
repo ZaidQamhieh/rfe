@@ -6,8 +6,9 @@ import type { Entry } from '../../core/api/models';
 import type { Host } from '../../core/models/host';
 import { fetchToFileNative } from '../../core/native';
 import { clientForHost } from '../../services';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { hashKey } from '../explorer/thumbnails';
+import { localPath } from './previewFile';
 import { FOLLOW_CHUNK_BYTES, followChunk, followStep } from './followLogic';
 import { NotTextError } from './textDecode';
 import { t } from '../../i18n';
@@ -50,7 +51,7 @@ export function useFollowText(host: Host, entry: Entry, enabled: boolean, baseBy
         const id = `f${hashKey(entry.path)}${Date.now().toString(36)}`;
         const part = new File(Paths.cache, `follow-${id}.part`);
         try {
-          const r = await fetchToFileNative(id, spec.url, { ...spec.headers, Range: step.range }, spec.pin, decodeURIComponent(part.uri.replace('file://', '')), 20_000, FOLLOW_CHUNK_BYTES * 2);
+          const r = await fetchToFileNative(id, spec.url, { ...spec.headers, Range: step.range }, spec.pin, localPath(part.uri), 20_000, FOLLOW_CHUNK_BYTES * 2);
           // 206 is the slice we asked for; a 200 would be the whole file again, which must never be appended.
           if (r.status === 416) return live ? stop(t('followTruncated')) : undefined;
           if (r.status !== 206) throw statusError(r.status);

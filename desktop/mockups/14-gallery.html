@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Gallery — visual-first, actions appear with a selection</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.gl{background:#000;color:#f5f5f7;font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;font-size:13px}
+.gl .tb{background:#000;color:#3a3a3c}
+.gl .hdr{display:flex;align-items:center;gap:16px;padding:6px 26px 14px}
+.gl .hdr h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
+.gl .seg{display:flex;background:#1c1c1e;border-radius:9px;padding:2px}.gl .seg span{padding:5px 14px;border-radius:7px;color:#a1a1a6}.gl .seg span.on{background:#3a3a3c;color:#fff}
+.gl .hdr .r{margin-left:auto;display:flex;gap:10px;align-items:center;color:#a1a1a6}
+.gl .hdr .pc{background:#1c1c1e;border-radius:999px;padding:6px 12px;color:#fff}
+.gl .body{flex:1;overflow:hidden;padding:0 26px}
+.gl h3{margin:6px 0 10px;font-size:15px;font-weight:600;display:flex;gap:10px}.gl h3 small{color:#a1a1a6;font-weight:400}
+.gl .mason{display:grid;grid-template-columns:repeat(8,1fr);grid-auto-rows:92px;gap:4px;margin-bottom:18px}
+.gl .ph{border-radius:4px;position:relative;overflow:hidden}
+.gl .ph.w{grid-column:span 2}.gl .ph.t{grid-row:span 2}
+.gl .ph.s{outline:3px solid #0a84ff;outline-offset:-3px}
+.gl .ph.s::after{content:"✓";position:absolute;right:6px;top:6px;width:20px;height:20px;border-radius:50%;background:#0a84ff;display:grid;place-items:center;font-size:12px;font-weight:700}
+.gl .ph .v{position:absolute;left:6px;bottom:5px;font-size:11px;font-weight:600;text-shadow:0 1px 3px #000}
+.gl .doc{background:#1c1c1e;display:flex;flex-direction:column;justify-content:flex-end;padding:8px;font-size:11.5px;color:#d1d1d6}
+.gl .doc b{font-size:20px;color:#636366;margin-bottom:auto}
+.gl .act{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;background:rgba(44,44,46,.86);backdrop-filter:blur(24px);border-radius:16px;padding:6px;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.gl .act span{padding:8px 14px;border-radius:11px;font-weight:500}
+.gl .act span.n{color:#a1a1a6}.gl .act span.p{background:#0a84ff}
+.gl .act span:hover{background:rgba(255,255,255,.1)}
+.gl .act .sep{width:1px;height:22px;background:#48484a;padding:0}
+.gl .xf{position:absolute;right:22px;bottom:24px;display:flex;align-items:center;gap:8px;background:#1c1c1e;border-radius:999px;padding:7px 12px;font-size:12px}
+.gl .xf i{width:14px;height:14px;border-radius:50%;background:conic-gradient(#30d158 0 71%,#3a3a3c 0)}
+</style></head><body class="mk">
+<div class="win gl">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="hdr"><h1>Lisbon, Oct 2025</h1><div class="seg"><span class="on">Grid</span><span>List</span><span>By date</span></div>
+  <div class="r"><span class="pc">● studio-pc ▾</span><span>⌕</span><span>☍ 1</span><span>⚙</span></div></div>
+ <div class="body">
+  <h3>Oct 14 <small>Alfama · 23 items</small></h3>
+  <div class="mason">
+   <div class="ph w t" style="background:linear-gradient(135deg,#f59e0b,#be123c)"></div>
+   <div class="ph s" style="background:linear-gradient(160deg,#38bdf8,#1e3a8a)"></div>
+   <div class="ph s" style="background:linear-gradient(160deg,#fde68a,#d97706)"></div>
+   <div class="ph t" style="background:linear-gradient(200deg,#a7f3d0,#065f46)"></div>
+   <div class="ph w" style="background:linear-gradient(120deg,#fca5a5,#7f1d1d)"><span class="v">▶ 0:42 tram.mov</span></div>
+   <div class="ph" style="background:linear-gradient(140deg,#c4b5fd,#4c1d95)"></div>
+   <div class="ph s" style="background:linear-gradient(140deg,#fdba74,#9a3412)"></div>
+   <div class="ph" style="background:linear-gradient(160deg,#94a3b8,#0f172a)"></div>
+   <div class="ph w" style="background:linear-gradient(100deg,#fb7185,#fde047)"><span class="v">sunset-pano.jpg</span></div>
+   <div class="ph doc"><b>GPX</b>route.gpx</div>
+  </div>
+  <h3>Oct 13 <small>Belém · 41 items</small></h3>
+  <div class="mason">
+   <div class="ph" style="background:linear-gradient(135deg,#67e8f9,#155e75)"></div><div class="ph w" style="background:linear-gradient(135deg,#fef08a,#a16207)"></div><div class="ph" style="background:linear-gradient(135deg,#d9f99d,#3f6212)"></div><div class="ph" style="background:linear-gradient(135deg,#fecdd3,#9f1239)"></div><div class="ph w" style="background:linear-gradient(135deg,#bae6fd,#1e40af)"></div><div class="ph doc"><b>PDF</b>tickets.pdf</div>
+  </div></div>
+ <div class="act"><span class="n">3 selected · 11.2 MB</span><span class="sep"></span><span class="p">⇩ Download</span><span>Share link</span><span>Move to…</span><span>Zip</span><span>Trash</span><span>⋯</span></div>
+ <div class="xf"><i></i>Uploading 12 from phone backup</div>
+</div></body></html>

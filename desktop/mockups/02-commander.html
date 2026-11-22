@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Commander — two panes, one key per action</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.c{background:#11161d;color:#c9d4e0;font:13px/1.2 "JetBrains Mono",ui-monospace,Menlo,monospace}
+.c .tb{background:#0b0f14;color:#4d5b6b}
+.c .panes{flex:1;display:grid;grid-template-columns:1fr 56px 1fr;min-height:0}
+.c .pane{display:flex;flex-direction:column;min-height:0;border:1px solid #1f2933;margin:10px;border-radius:8px;background:#0f141a}
+.c .pane.act{border-color:#2f7cf6;box-shadow:0 0 0 3px rgba(47,124,246,.12)}
+.c .ph{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #1f2933}
+.c .ph .who{font:600 12px system-ui;padding:3px 8px;border-radius:5px;background:#1b2530;color:#8fb4ff}
+.c .ph .who.l{color:#a6e3a1}
+.c .ph .path{color:#7d8a99;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.c .ph .path b{color:#e6edf3;font-weight:500}
+.c .ph .fr{margin-left:auto;color:#4d5b6b;font-size:11px}
+.c table{width:100%;border-collapse:collapse}
+.c .list{overflow:auto;flex:1}
+.c td{padding:6px 12px;white-space:nowrap}
+.c td:nth-child(2),.c td:nth-child(3){color:#6b7887;text-align:right;width:1%}
+.c tr.cur{background:#1d3b6e}.c tr.cur td{color:#fff}
+.c tr.mark td:first-child{color:#f9e2af}.c tr.mark td:first-child::before{content:"● ";}
+.c .dir td:first-child{color:#89b4fa}
+.c .mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.c .mid button{width:40px;height:40px;border-radius:10px;border:1px solid #2a3542;background:#151c24;color:#c9d4e0;font-size:17px;cursor:pointer}
+.c .mid button.go{background:#2f7cf6;border-color:#2f7cf6;color:#fff}
+.c .mid small{color:#4d5b6b;font-size:10px;text-align:center}
+.c .xfer{margin:0 10px;padding:8px 12px;border-radius:8px;background:#0f141a;border:1px solid #1f2933;display:flex;gap:18px;align-items:center;font-size:12px}
+.c .bar{flex:1;height:5px;background:#1f2933;border-radius:3px;overflow:hidden}.c .bar i{display:block;height:100%;width:38%;background:linear-gradient(90deg,#2f7cf6,#89b4fa)}
+.c .keys{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;padding:10px}
+.c .keys div{background:#151c24;border-radius:6px;padding:7px 8px;font:12px system-ui;color:#c9d4e0;display:flex;gap:6px;cursor:pointer}
+.c .keys div b{color:#f9e2af;font:600 11px ui-monospace,monospace}
+.c .keys div:hover{background:#1d3b6e}
+.c .badge{background:#f38ba8;color:#11161d;border-radius:8px;padding:0 6px;font-weight:700;font-size:10px}
+</style></head><body class="mk">
+<div class="win c">
+ <div class="tb"><i></i><i></i><i></i><span>RFE — Tab switches pane · Space marks · F5 copies across</span></div>
+ <div class="panes">
+  <section class="pane"><div class="ph"><span class="who l">This PC</span><span class="path">~/<b>Downloads</b></span><span class="fr">18.2 GB free</span></div>
+   <div class="list"><table>
+    <tr class="dir"><td>..</td><td></td><td></td></tr>
+    <tr class="dir"><td>RFE Desktop/</td><td>12</td><td>today</td></tr>
+    <tr class="dir"><td>screenshots/</td><td>304</td><td>today</td></tr>
+    <tr class="mark"><td>invoice-1042.pdf</td><td>96K</td><td>10:41</td></tr>
+    <tr class="mark"><td>trip-photos.zip</td><td>2.1G</td><td>09:02</td></tr>
+    <tr><td>notes.txt</td><td>3K</td><td>Oct 31</td></tr>
+    <tr><td>setup-guide.pdf</td><td>1.2M</td><td>Oct 30</td></tr>
+    <tr><td>wallpaper.png</td><td>5.6M</td><td>Oct 28</td></tr>
+    <tr><td>song-demo.flac</td><td>38M</td><td>Oct 25</td></tr>
+   </table></div></section>
+  <div class="mid"><button class="go" title="Copy marked across (F5)">→</button><button title="Copy back (F5 in other pane)">←</button><small>F5</small><button title="Swap panes">⇄</button></div>
+  <section class="pane act"><div class="ph"><span class="who">studio-pc ▾</span><span class="path">/home/sam/<b>Archive</b></span><span class="fr">412 GB free · read-write</span></div>
+   <div class="list"><table>
+    <tr class="dir"><td>..</td><td></td><td></td></tr>
+    <tr class="dir cur"><td>2024/</td><td>1.8K</td><td>Jan 03</td></tr>
+    <tr class="dir"><td>2025/</td><td>2.4K</td><td>Oct 31</td></tr>
+    <tr class="dir"><td>backups/</td><td>16</td><td>Oct 29</td></tr>
+    <tr><td>tax-2025.pdf</td><td>2.2M</td><td>Oct 12</td></tr>
+    <tr><td>family.vcf</td><td>40K</td><td>Sep 30</td></tr>
+    <tr><td>recipes.md</td><td>12K</td><td>Sep 02</td></tr>
+    <tr><td>router-config.bak</td><td>88K</td><td>Aug 19</td></tr>
+   </table></div></section>
+ </div>
+ <div class="xfer"><span>↑ trip-photos.zip → studio-pc</span><div class="bar"><i></i></div><span>812 MB / 2.1 GB · 48 MB/s</span><span style="color:#6b7887">1 waiting · Ctrl+P pause</span></div>
+ <div class="keys">
+  <div><b>F1</b>Help</div><div><b>F2</b>Rename</div><div><b>F3</b>View</div><div><b>F4</b>Share</div><div><b>F5</b>Copy ⇄</div><div><b>F6</b>Move ⇄</div><div><b>F7</b>New dir</div><div><b>F8</b>Trash</div><div><b>F9</b>Devices <span class="badge">1</span></div><div><b>F10</b>More…</div>
+ </div>
+</div></body></html>

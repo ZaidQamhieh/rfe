@@ -1,6 +1,11 @@
-import { formatSize } from '../../core/format';
+import { formatRate } from '../../core/format';
 
 type Sample = { t: number; bytes: number; rate: number | null };
+
+/** Weight of the newest sample in the exponential average. */
+const SMOOTHING_ALPHA = 0.3;
+/** Samples closer together than this are folded into the next one. */
+const MIN_SAMPLE_GAP_MS = 500;
 
 /**
  * Smoothed transfer speed per id from the progress events the engine already emits. Samples closer than [minGapMs]
@@ -12,8 +17,8 @@ export class SpeedTracker {
 
   constructor(
     private readonly now: () => number = Date.now,
-    private readonly alpha = 0.3,
-    private readonly minGapMs = 500,
+    private readonly alpha = SMOOTHING_ALPHA,
+    private readonly minGapMs = MIN_SAMPLE_GAP_MS,
   ) {}
 
   /** Feeds one record and returns bytes/second, or null when there is no estimate (not running, or too few samples). */
@@ -53,4 +58,4 @@ export function formatEta(seconds: number): string {
   return rem === 0 ? `${h} h` : `${h} h ${rem} min`;
 }
 
-export const formatSpeed = (bytesPerSecond: number): string => `${formatSize(Math.round(bytesPerSecond))}/s`;
+export const formatSpeed = (bytesPerSecond: number): string => formatRate(Math.round(bytesPerSecond));

@@ -1,9 +1,11 @@
 // Port of decodeAsText (text_editor.dart): strict UTF-8 or a NotText error, never garbled output.
 // Hand-rolled because Hermes' TextDecoder support for `fatal` is not guaranteed.
 
+import { t } from '../../i18n';
+
 export class NotTextError extends Error {
   constructor() {
-    super("Can't preview this as text — it doesn't look like a valid UTF-8 text file.");
+    super(t('previewNotText'));
     this.name = 'NotTextError';
   }
 }

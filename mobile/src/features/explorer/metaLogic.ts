@@ -1,9 +1,18 @@
+import type { Entry } from '../../core/api/models';
+
 // Pure helpers behind the entry details sheet: archive detection and POSIX permission bits.
 
 /** Whether the agent's `/fs/extract` can unpack [name] (`.zip`, `.tar.gz`, `.tgz`; case-insensitive). */
 export function isExtractableArchive(name: string): boolean {
-  const lower = name.toLowerCase();
-  return lower.endsWith('.zip') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz');
+  return ARCHIVE_SUFFIX.test(name);
+}
+
+/** The selected entry when exactly one item is selected and it is a file the agent can extract; otherwise undefined. */
+export function soleExtractableArchive(entries: readonly Entry[], selected: ReadonlySet<string>): Entry | undefined {
+  if (selected.size !== 1) return undefined;
+  const [path] = selected;
+  const entry = entries.find((e) => e.path === path);
+  return entry && !entry.isDir && isExtractableArchive(entry.name) ? entry : undefined;
 }
 
 /** Nine rwx flags (owner, group, other) from a listing mode such as `-rwxr-xr--`; anything shorter reads as no access. */

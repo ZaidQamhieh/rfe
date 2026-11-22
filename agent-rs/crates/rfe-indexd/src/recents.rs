@@ -37,7 +37,7 @@ impl Ord for Item {
 struct Scan<'a> {
     limit: usize,
     heap: Mutex<BinaryHeap<Reverse<Item>>>,
-    /// Oldest mtime currently in a full heap; files not newer than this are skipped without locking.
+    /// Oldest mtime currently in a full heap; files older than this are skipped without locking.
     threshold: AtomicI64,
     next_id: std::sync::atomic::AtomicU32,
     cancel: &'a AtomicBool,
@@ -54,6 +54,9 @@ impl Visitor for Scan<'_> {
             let Ok(ent) = ent else { continue };
             let os = ent.file_name();
             let Some(name) = os.to_str() else { continue };
+            if walk::is_publish_temp(name) {
+                continue;
+            }
             let Ok(ft) = ent.file_type() else { continue };
             if ft.is_dir() {
                 let full = join_path(dir_path, name);
@@ -68,7 +71,8 @@ impl Visitor for Scan<'_> {
             }
             let Ok(meta) = ent.metadata() else { continue };
             let mtime = stat_of(&meta).mtime_ns;
-            if mtime <= self.threshold.load(Ordering::Relaxed) {
+            // Equal to the threshold still competes: the heap's path tie-break decides, not the visit order.
+            if mtime < self.threshold.load(Ordering::Relaxed) {
                 continue;
             }
             let entry = wire_entry(at, &os, join_path(dir_path, name), &meta);

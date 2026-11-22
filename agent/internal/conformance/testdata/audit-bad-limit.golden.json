@@ -1,0 +1,138 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "entries": [
+      {
+        "action": "device_revoked",
+        "actor": "owner phone",
+        "at": "<time>",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "pair",
+        "actor": "requester phone",
+        "at": "<time>",
+        "detail": "approved at the computer, from 127.0.0.1",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "login",
+        "actor": "conf-owner",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "logger phone"
+      },
+      {
+        "action": "login_failed",
+        "actor": "nobody",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>"
+      },
+      {
+        "action": "login_failed",
+        "actor": "conf-owner",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>"
+      },
+      {
+        "action": "app_launch",
+        "actor": "guest phone",
+        "at": "<time>",
+        "detail": "outcome=permission_denied",
+        "id": "<id>",
+        "target": "invalid_295e2aeb9f0a092e"
+      },
+      {
+        "action": "app_launch",
+        "actor": "owner phone",
+        "at": "<time>",
+        "detail": "outcome=permission_denied",
+        "id": "<id>",
+        "target": "invalid_295e2aeb9f0a092e"
+      },
+      {
+        "action": "device_updated",
+        "actor": "owner phone",
+        "at": "<time>",
+        "detail": "jailRoot=\"<ROOT>/docs\" readOnly=false viewApps=false launchApps=false browse=true download=true upload=false modify=false delete=false share=false wake=false",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "share_created",
+        "actor": "owner phone",
+        "at": "<time>",
+        "detail": "expires=<time>",
+        "id": "<id>",
+        "target": "<ROOT>/data/range.txt"
+      },
+      {
+        "action": "share_created",
+        "actor": "owner phone",
+        "at": "<time>",
+        "detail": "expires=<time>",
+        "id": "<id>",
+        "target": "<ROOT>/docs/hello.txt"
+      },
+      {
+        "action": "device_updated",
+        "actor": "owner phone",
+        "at": "<time>",
+        "detail": "jailRoot=\"\" readOnly=false viewApps=false launchApps=false browse=true download=false upload=true modify=false delete=false share=false wake=false",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "pair",
+        "actor": "jailed phone",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "pair",
+        "actor": "revoked phone",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "pair",
+        "actor": "uploader phone",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "pair",
+        "actor": "guest phone",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "<uuid>"
+      },
+      {
+        "action": "register",
+        "actor": "conf-owner",
+        "at": "<time>",
+        "detail": "from 127.0.0.1",
+        "id": "<id>",
+        "target": "owner phone"
+      }
+    ]
+  }
+}

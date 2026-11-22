@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Trust — the Overview is who you trust and what each may do</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d09{--bg:#0b1020;--sf:#11172a;--rz:#1a2236;--t1:#e6e9f2;--t2:#a3abc2;--t3:#7f88a3;--line:rgba(230,233,242,.08);--line2:rgba(230,233,242,.15);--ac:#5eead4;--on-ac:#0b1020;--ac-ink:#5eead4;--ac-soft:rgba(94,234,212,.1);--pos:#5eead4;--neg:#fb7185;--warn:#fbbf24;--font:"Sora",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace;--shadow:0 16px 40px rgba(0,0,0,.5)}
+.d09 .k-qr{background:#e6e9f2}
+.d09 .top{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 24px;border-bottom:1px solid var(--line)}.d09 .top .k-sbox{width:340px;margin-right:auto}
+.d09 .chip{display:inline-flex;gap:8px;align-items:center;height:30px;padding:0 12px;border-radius:15px;font-size:12px;background:color-mix(in srgb,var(--neg) 16%,transparent);color:var(--neg)}.d09 .chip.ok{background:var(--ac-soft);color:var(--ac)}
+.d09 .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.d09 .ky{background:var(--sf);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);padding:16px;display:grid;gap:8px;cursor:pointer}
+.d09 .ky.bad{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--neg) 55%,transparent)}.d09 .ky b{font-weight:500;display:flex;gap:8px;align-items:center}.d09 .ky code{background:none;padding:0;font:500 14px var(--mono);letter-spacing:.06em;color:var(--ac)}.d09 .ky.bad code{color:var(--neg);text-decoration:line-through}.d09 .ky small{color:var(--t3);font-size:12px}
+.d09 h2.s{font:500 15px var(--font);margin:24px 0 12px;display:flex;align-items:center;gap:10px}
+.d09 table{width:100%;border-collapse:collapse;font-size:13px}.d09 th{font:500 12px var(--font);color:var(--t3);text-align:center;padding:8px;border-bottom:1px solid var(--line)}.d09 th:first-child{text-align:left}
+.d09 td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:center}.d09 td:first-child{text-align:left}.d09 td b{font-weight:500;display:flex;gap:8px;align-items:center}.d09 td small{color:var(--t3);display:block;font-size:11px;margin-left:28px}
+.d09 .tg{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--rz);color:transparent;cursor:pointer}.d09 .tg.on{background:var(--ac-soft);color:var(--ac)}
+.d09 tr.rv{opacity:.45}
+.d09 .ex{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}.d09 .ex div{background:var(--sf);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);padding:18px;display:grid;gap:6px;align-content:start}.d09 .ex b{font-weight:500}.d09 .ex small{color:var(--t2);font-size:13px}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d09">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="Security first: the Overview shows each computer\u2019s pinned key, then a grid of every device and what it may do, with requests to join on top. Devices is the same grid for one computer. A trust chip in the top bar says at once if any key changed.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Keys", "Overview, first row; key changed shows red with Compare", 0], ["Permissions", "Overview grid; a cell opens Permissions", 1], ["Requests", "Overview top; Devices page", 0], ["Search", "Top bar or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=K.C.searchBox('Search all connected computers')+(EM?`<span class="chip ok">${E('shield',14)}Nothing trusted yet</span>`:`<button class="chip" data-k="dlg:keychanged">${E('warning',14)}1 key changed</button>`)+K.C.actions();
+const G=['Browse','Download','Upload','Change','Delete','Share','Apps'];
+const has={'desk-linux':[1,1,1,1,1,1,1],'Pixel 8':[1,1,1,0,0,1,0],'Galaxy Tab S9':[1,0,0,0,0,0,1],'work-laptop':[1,1,1,1,0,0,0],'old-phone':[0,0,0,0,0,0,0]};
+const grid=()=>`<table><tr><th>Device on studio-pc</th>${G.map(g=>`<th>${g}</th>`).join('')}<th>Limited to</th><th></th></tr>${D.devices.map(d=>`<tr class="${d.revoked?'rv':''}"><td><b>${E(d.kind,20)}${d.n}${d.me?' · this computer':''}</b><small>${d.how} · seen ${d.seen}</small></td>${has[d.n].map(x=>`<td><span class="tg${x?' on':''}" data-k="dlg:perms">${I('check',14)}</span></td>`).join('')}<td><small class="mono" style="margin:0">${d.lim||'everywhere'}</small></td><td>${K.ib('more','Revoke, remove, activity','menu:device')}</td></tr>`).join('')}</table>`;
+const home=()=>EM?`${K.head('Trust','Who you trust, and what each may do')}<div class="b-empty left" style="margin:0">${E('key',40)}<b>Nothing trusted yet</b><p>RFE trusts a PC once, by the key it shows the first time; after that a different key is refused until you compare. Phones join only when you accept a matching code.</p><div class="k-row">${B.addActs}</div></div><div class="ex">${[['locked_with_key','A key per PC','Compare it with rfe status on the PC, once.'],['mobile_phone','You approve phones','Both screens show the same code before anything joins.'],['shield','Per-device rights','Browse, download, upload, change, delete, share, apps.']].map(x=>`<div>${E(x[0],28)}<b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>`
+:`${K.head('Trust','4 keys pinned · 1 changed · 2 devices asking')}<div class="keys">${D.servers.map(s=>`<div class="ky${s.dot==='bad'?' bad':''}" data-k="${s.dot==='bad'?'dlg:keychanged':'dlg:pins'}"><b>${K.mach(s,20)}${s.name}</b><code>${s.tag}</code><small>${s.dot==='bad'?'Changed: compare before use':s.login+' · '+(s.ms?s.ms+' ms':s.state.toLowerCase())}</small></div>`).join('')}</div><h2 class="s">${E('phone',18)}Asking to join <span class="k-count">2</span></h2>${K.V.requests()}<h2 class="s">${E('shield',18)}Who may do what</h2>${grid()}`;
+const devices=()=>K.head('Devices','On studio-pc · a tick opens Permissions',K.btn('Pair a phone',{i:'qr',k:'pri',a:'dlg:pairphone'}))+K.V.requests()+'<div style="height:20px"></div>'+grid();
+B.mount({views:EM?{home}:{home,devices}});
+
+</script></body></html>

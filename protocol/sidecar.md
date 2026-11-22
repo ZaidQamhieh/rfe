@@ -1,6 +1,6 @@
 # Sidecar protocol (version 1)
 
-The Go agent runs hot components as child processes (`rfe-indexd`, later `rfe-thumbd`). The agent stays the
+The Go agent runs hot components as child processes (`rfe-indexd` and `rfe-thumbd`, each with its own section below). The agent stays the
 security boundary: it authenticates devices, decides roots and jails, and re-checks everything a sidecar returns.
 A sidecar never decides access. This file is the contract both sides follow; the REST contract stays in
 `openapi.yaml`.
@@ -119,8 +119,17 @@ The agent opens the file inside its own jail and sends the bytes; the sidecar ne
   uncompressed BMP (1, 4, 8, 24, 32 bit, bottom-up or top-down; alpha ignored, like Go's x/image/bmp).
   `NOT_SUPPORTED` means the sidecar cannot decode it (any other format or variant, a corrupt file): the agent tries
   its own decoder. `TOO_LARGE` means over 40 megapixels: the agent answers "no thumbnail".
-- Four renders run at once; more than 256 MiB of queued sources is answered `BUSY`. A render that runs over 30
+- Up to four renders run at once (fewer on a machine with fewer cores); more than 256 MiB of queued sources is answered `BUSY`. The agent surfaces `BUSY` as a retryable error (HTTP 429 `THUMB_BUSY`) and never decodes that file in-process. A render that runs over 30
   seconds ends the process; the supervisor restarts it.
+
+**Values both sides must keep equal.** Change one and the other must change with it. Go tests (`rust_limits_test.go` in `agent/internal/sidecar` and `agent/internal/thumbs`) read the Rust constants and fail on a mismatch for the frame cap, pixel cap and JPEG quality:
+
+| Value | Rust | Go |
+|---|---|---|
+| Frame cap, 160 MiB | `rfe-proto/src/lib.rs` | `agent/internal/sidecar/client.go` |
+| Pixel cap, 40 megapixels | `rfe-thumbd/src/decode.rs` | `agent/internal/thumbs/thumbs.go`, `agent/internal/next/thumbs/service.go` |
+| JPEG quality, 80 | `rfe-thumbd/src/render.rs` | `agent/internal/thumbs/thumbs.go`, `agent/internal/next/thumbs/service.go` |
+| Source size, 64 MiB (enforced by Go only) | none | `agent/internal/thumbs/thumbs.go`, `agent/internal/next/thumbs/service.go` |
 
 **Sandbox.** All worker threads exist before the sandbox closes. On Linux the process then sets
 `RLIMIT_AS` (6 GiB), no core dumps, no file writes, `no_new_privs`, and a seccomp allowlist (read, write, memory,
@@ -143,7 +152,7 @@ sha256 <hex> rfe-thumbd
 The agent looks in `$RFE_SIDECAR_DIR`, then beside its own executable. When the manifest is present, a sidecar that
 is not listed or whose sha256 differs is refused, and the started process must announce the manifest `version` in
 its `hello` (sidecars embed `RFE_RELEASE_VERSION` at build time). Without a manifest the sidecar is "unverified" and
-only starts when `RFE_SIDECARS` names it. Install and update the whole set together.
+only starts when `RFE_SIDECARS` names it and it sits in `$RFE_SIDECAR_DIR`; beside the agent a missing manifest is refused. The hash is checked again before every start. Install and update the whole set together.
 
 ## Failure handling and counters
 
@@ -153,7 +162,7 @@ only starts when `RFE_SIDECARS` names it. Install and update the whole set toget
   decoded in-process. The first interruption returns a transient error; a second on the same file version (path, size,
   mtime) poisons it, answered as "no thumbnail" without calling the sidecar again.
 - The agent counts supervisor starts, start failures, crashes and breaker opens per sidecar, plus named events
-  (`thumbd.fallback`, `thumbd.interrupted`, `thumbd.poisoned-file`, `thumbd.unsupported-format`,
+  (`thumbd.fallback`, `thumbd.interrupted`, `thumbd.poisoned-file`, `thumbd.unsupported-format`, `thumbd.busy`,
   `indexd.search-fallback`, `indexd.search-not-ready`, `indexd.recents-fallback`, `<name>.refused`,
   `<name>.crash`, `<name>.breaker-open`). The daemon writes them to `<data dir>/sidecar-stats.json` every 30 s and
   `rfe status` prints them with their age. `unsupported-format` is expected (e.g. TIFF); the others are not.

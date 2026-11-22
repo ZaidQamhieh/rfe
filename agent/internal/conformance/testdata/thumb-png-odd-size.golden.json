@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "private, max-age=86400",
+    "Content-Type": "image/jpeg",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "bodyLen": 970,
+  "bodySha256": "6545dc341d435d9996701972a07ce1d028bef450864bb794601b21c4b84b9aab"
+}

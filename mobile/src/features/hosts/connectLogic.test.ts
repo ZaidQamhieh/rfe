@@ -1,5 +1,5 @@
 import type { Host } from '../../core/models/host';
-import { buildRouteRows, pickCurrent, routeSubtitle, stateTone, summarize } from './connectLogic';
+import { buildRouteRows, connectHeadline, pickCurrent, routeSubtitle, stateTone, summarize } from './connectLogic';
 import type { ProbeResult } from './diagnostics';
 
 const host: Host = { id: 'h', label: 'PC', address: '192.168.1.2:8765', tailscaleAddress: '100.1.2.3:8765' };
@@ -59,5 +59,30 @@ describe('summarize and labels', () => {
     expect(stateTone('current')).toBe('safe');
     expect(stateTone('mismatch')).toBe('warn');
     expect(stateTone('ready')).toBe('muted');
+  });
+});
+
+describe('connectHeadline', () => {
+  const now = new Date('2026-01-01T12:00:00Z');
+  const seen = new Date(now.getTime() - 40_000);
+
+  it('says the computer is ready when a route works', () => {
+    const h = connectHeadline('online', 'PC', null, now);
+    expect(h).toMatchObject({ lamp: 'go', lost: false, body: null, retryLabel: 'Check again', detailsLabel: 'Details' });
+    expect(h.title).toBe('PC is ready to connect.');
+  });
+
+  it('shows the lost block with the last time it answered', () => {
+    const h = connectHeadline('offline', 'PC', seen, now);
+    expect(h).toMatchObject({ lamp: 'wait', lost: true, retryLabel: 'Try now', detailsLabel: 'Check connection' });
+    expect(h.title).toBe('PC last answered 40s ago.');
+    expect(h.phrase).toBe('Offline · last seen 40s ago');
+    expect(h.body).toBeTruthy();
+  });
+
+  it('does not invent a time when it was never seen, and keeps checking calm', () => {
+    expect(connectHeadline('offline', 'PC', null, now).title).toBe('PC stopped answering.');
+    expect(connectHeadline('checking', 'PC', null, now)).toMatchObject({ lamp: 'wait', lost: false });
+    expect(connectHeadline('attention', 'PC', null, now)).toMatchObject({ lost: true });
   });
 });

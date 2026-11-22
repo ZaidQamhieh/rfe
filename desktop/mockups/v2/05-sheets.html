@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sheets — files stay put, everything else slides over them</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d05{--bg:#f7f4ee;--sf:#fdfbf7;--rz:#efe9df;--t1:#1f1b16;--t2:#5e554a;--t3:#7b7266;--line:rgba(31,27,22,.08);--line2:rgba(31,27,22,.15);--ac:#4d6b2f;--ac-ink:#46622a;--ac-soft:rgba(77,107,47,.1);--font:"Figtree",system-ui,sans-serif;--rc:16px;--r:10px;display:flex;flex-direction:column}
+.d05 .top{height:64px;flex:none;display:flex;align-items:center;gap:12px;padding:0 24px}
+.d05 .top .brand{font:600 17px var(--font);display:flex;gap:8px;align-items:center;margin-right:8px}
+.d05 .top .k-sbox{width:280px}
+.d05 .top .r{margin-left:auto;display:flex;gap:4px;align-items:center}
+.d05 .sb{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--rz)}
+.d05 .sb button{height:32px;padding:0 12px;border-radius:8px;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--t2)}
+.d05 .sb button:hover{color:var(--t1)} .d05 .sb button.on{background:var(--sf);color:var(--t1);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.d05 .stage{flex:1;min-height:0;padding:0 24px 20px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.d05 .stage>.k-files{flex:1;min-height:0;background:var(--sf);border-radius:var(--rc);box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px}
+.d05 .scrim{position:absolute;inset:0;background:rgba(31,27,22,.18);z-index:10}
+.d05 .sheet{position:absolute;top:0;right:0;bottom:0;width:780px;background:var(--bg);box-shadow:-16px 0 40px rgba(31,27,22,.12),inset 1px 0 0 var(--line);padding:24px 28px;overflow:auto;z-index:11;animation:k-sl .32s cubic-bezier(.22,1,.36,1)}
+@keyframes k-sl{from{transform:translateX(24px);opacity:0}}
+.d05 .sheet .close{position:absolute;top:20px;right:20px}
+.d05 .sheet .k-ph{padding-right:40px}
+.d05 .sheet .k-srvs{grid-template-columns:1fr}
+.d05 .sheet .k-g2{grid-template-columns:1fr}
+.d05 .sheet .k-devs .th,.d05 .sheet .k-devs .tr{grid-template-columns:1.3fr 1fr .8fr 1.6fr 120px}
+.d05 .sheet .k-devs .th span:nth-child(5),.d05 .sheet .k-devs .tr span:nth-child(5){display:none}
+.d05 .k-title{font-weight:500}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d05">
+ <header class="top"><span class="brand"></span></header>
+ <main class="stage" id="st"></main>
+</div>
+<script>
+window.IDEA='Files never leave the screen. Every other page is a sheet that slides over the right side and closes with Esc, so you never lose your place in a folder. The sheet buttons sit together at the top; the one that needs you carries the number.';
+window.MAP=[['Navigation','Sheet buttons at the top: Servers, Devices, Transfers, Tools, History, Settings',1],['Switch computer','Switcher left of the search box',2],['Connect and trust','Servers sheet, New connection',2],['Servers and status','Servers sheet; card menus',2],['Files and preview','Always on screen; right-click for every action',0],['Upload and download','Upload, drag, Ctrl U and Ctrl D on the files',1],['Pair a phone','QR icon, or the Devices sheet',1],['Pairing requests','Devices sheet; its button shows the count',1],['Transfers','Transfers sheet, its ring shows progress',1],['Search','Search box, results in a sheet',1],['Tools','Tools sheet',1],['History and audit','History sheet',1],['Settings','Settings sheet',1],['Tray and notifications','Bell at the top right',1]];
+const I=K.I,topEl=document.querySelector('.top');
+const B=[['servers','server','Servers'],['devices','phone','Devices','<em class="k-badge bad">2</em>'],['transfers','transfer','Transfers',K.C.ring(71)],['tools','layers','Tools'],['history','history','History'],['settings','sliders','Settings']];
+function bar(v){topEl.innerHTML=`<span class="brand">${I('key',18)}RFE</span>${K.C.switcher()}${K.C.searchBox()}<div class="r"><div class="sb">${B.map(b=>`<button class="${v===b[0]?'on':''}" data-k="go:${b[0]}">${b[3]&&b[0]==='transfers'?b[3]:I(b[1],14)}${b[2]}${b[0]==='devices'?b[3]:''}</button>`).join('')}</div>${K.C.actions({no:['refresh']})}</div>`;}
+const files=()=>K.V.files({mode:'grid'});
+const sheet=(h)=>files()+`<div class="scrim" data-k="go:files"></div><aside class="sheet">${K.ib('x','Close (Esc)','go:files').replace('k-ib','k-ib close')}${h}</aside>`;
+K.mount({stage:document.getElementById('st'),views:{files,servers:()=>sheet(K.V.servers()),devices:()=>sheet(K.V.devices()),transfers:()=>sheet(K.V.transfers()),search:()=>sheet(K.V.search()),tools:s=>sheet(K.V.tools(s.tool)),history:s=>sheet(K.V.history(s.hist)),settings:s=>sheet(K.V.settings(s.set))},onGo:bar});
+</script></body></html>

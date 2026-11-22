@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pro — tree, list, inspector, all collapsible</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.pr{background:#1e1e1e;color:#cccccc;font:12.5px/1.4 "Segoe UI",system-ui,sans-serif}
+.pr .tb{background:#181818;color:#5a5a5a}
+.pr .main{flex:1;display:grid;grid-template-columns:44px 250px 1fr 290px;min-height:0}
+.pr .act{background:#181818;display:flex;flex-direction:column;align-items:center;padding-top:6px;gap:2px}
+.pr .act a{width:44px;height:42px;display:grid;place-items:center;color:#858585;font-size:17px;border-left:2px solid transparent;position:relative}
+.pr .act a.on{color:#fff;border-left-color:#0078d4}
+.pr .act a sup{position:absolute;right:7px;bottom:7px;background:#0078d4;color:#fff;font:600 9px system-ui;border-radius:7px;padding:0 4px}
+.pr .act .sp{flex:1}
+.pr .tree{background:#181818;border-right:1px solid #2b2b2b;overflow:auto}
+.pr .sec{font:700 11px system-ui;text-transform:uppercase;color:#bbb;padding:8px 12px 4px;letter-spacing:.04em}
+.pr .n{padding:2px 8px;white-space:nowrap;cursor:default}.pr .n:hover{background:#2a2d2e}
+.pr .n.on{background:#37373d;outline:1px solid #0078d4;outline-offset:-1px}
+.pr .n .c{display:inline-block;width:12px;color:#858585}
+.pr .n .h{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4ec9b0;margin-right:6px}
+.pr .center{display:flex;flex-direction:column;min-width:0}
+.pr .crumbs{height:30px;display:flex;align-items:center;padding:0 12px;gap:6px;border-bottom:1px solid #2b2b2b;color:#999}.pr .crumbs b{color:#ddd;font-weight:400}
+.pr .crumbs .q{margin-left:auto;background:#2a2a2a;border:1px solid #3c3c3c;border-radius:4px;padding:2px 10px;width:220px;color:#777}
+.pr table{width:100%;border-collapse:collapse}
+.pr th{position:sticky;top:0;background:#1e1e1e;text-align:left;font-weight:400;color:#999;padding:5px 10px;border-bottom:1px solid #2b2b2b}
+.pr td{padding:4px 10px;white-space:nowrap}
+.pr tr.on td{background:#04395e}
+.pr td .i{display:inline-block;width:12px;height:10px;border-radius:2px;background:#dcb67a;margin-right:8px}.pr td .i.f{background:#6a9955;width:9px;height:12px}
+.pr .lst{flex:1;overflow:auto}
+.pr .panel{height:170px;border-top:1px solid #2b2b2b;display:flex;flex-direction:column}
+.pr .ptabs{display:flex;gap:16px;padding:6px 12px;font-size:11px;text-transform:uppercase;color:#999}.pr .ptabs b{color:#fff;border-bottom:1px solid #fff;font-weight:400}
+.pr .xr{display:grid;grid-template-columns:20px 260px 1fr 110px 80px;gap:10px;padding:3px 12px;align-items:center}
+.pr .xr .pb{height:4px;background:#333;border-radius:2px;overflow:hidden}.pr .xr .pb i{display:block;height:100%;background:#0078d4}
+.pr .xr span{color:#999}
+.pr .insp{background:#181818;border-left:1px solid #2b2b2b;padding:10px 14px;overflow:auto}
+.pr .insp .pv{height:140px;border-radius:4px;background:linear-gradient(135deg,#4ec9b0,#0078d4 60%,#c586c0);margin:6px 0 10px}
+.pr .kv{display:grid;grid-template-columns:90px 1fr;gap:3px 8px}.pr .kv span{color:#999}
+.pr .btn{display:block;width:100%;margin-top:6px;background:#0078d4;color:#fff;border:0;border-radius:3px;padding:6px;font:12.5px system-ui}
+.pr .btn.g{background:#313131;color:#ccc}
+.pr .status{height:22px;background:#0078d4;color:#fff;display:flex;align-items:center;gap:16px;padding:0 10px;font-size:12px}
+.pr .status .sp{flex:1}
+</style></head><body class="mk">
+<div class="win pr">
+ <div class="tb"><i></i><i></i><i></i><span>launch-kit — studio-pc — RFE</span></div>
+ <div class="main">
+  <div class="act"><a class="on" title="Explorer">▤</a><a title="Search">⌕</a><a title="Transfers">⇅<sup>2</sup></a><a title="Devices">☍<sup>1</sup></a><a title="Tools">⚒</a><a title="History">◷</a><span class="sp"></span><a title="Settings">⚙</a></div>
+  <div class="tree"><div class="sec">Computers</div>
+   <div class="n"><span class="c">▾</span><i class="h"></i>studio-pc</div>
+   <div class="n" style="padding-left:24px"><span class="c">▾</span>home</div><div class="n" style="padding-left:40px"><span class="c">▸</span>Documents</div><div class="n" style="padding-left:40px"><span class="c">▸</span>Photos</div><div class="n" style="padding-left:40px"><span class="c">▾</span>Projects</div>
+   <div class="n on" style="padding-left:56px"><span class="c">▸</span>launch-kit</div><div class="n" style="padding-left:56px"><span class="c">▸</span>website</div>
+   <div class="n"><span class="c">▸</span><i class="h"></i>work-laptop</div><div class="n"><span class="c">▸</span><i class="h" style="background:#cca700"></i>nas-box</div><div class="n" style="color:#777"><span class="c">▸</span><i class="h" style="background:#555"></i>media-mini</div>
+   <div class="sec">This PC</div><div class="n"><span class="c">▸</span>Downloads</div><div class="n"><span class="c">▸</span>Desktop</div>
+   <div class="sec">Pinned</div><div class="n">★ Inbox · studio-pc</div><div class="n">★ Thesis · work-laptop</div></div>
+  <div class="center"><div class="crumbs">studio-pc › home › Projects › <b>launch-kit</b><span class="q">⌕ Filter (Ctrl F)</span></div>
+   <div class="lst"><table><tr><th>Name</th><th>Size</th><th>Modified</th><th>Permissions</th></tr>
+    <tr><td><i class="i"></i>assets</td><td>42 items</td><td>2026-11-01</td><td>rwxr-xr-x</td></tr><tr><td><i class="i"></i>drafts</td><td>7 items</td><td>2026-10-31</td><td>rwxr-xr-x</td></tr>
+    <tr class="on"><td><i class="i f"></i>hero-final.png</td><td>4.2 MB</td><td>2026-11-01 09:12</td><td>rw-r--r--</td></tr><tr><td><i class="i f"></i>brief.md</td><td>8 KB</td><td>2026-10-29</td><td>rw-r--r--</td></tr>
+    <tr><td><i class="i f"></i>budget-q4.xlsx</td><td>212 KB</td><td>2026-10-27</td><td>rw-r--r--</td></tr><tr><td><i class="i f"></i>moodboard.jpg</td><td>11.8 MB</td><td>2026-10-22</td><td>rw-r--r--</td></tr>
+    <tr><td><i class="i f"></i>launch-video.mp4</td><td>1.4 GB</td><td>2026-10-20</td><td>rw-r--r--</td></tr><tr><td><i class="i f"></i>press-release.pdf</td><td>680 KB</td><td>2026-10-18</td><td>rw-r--r--</td></tr><tr><td><i class="i f"></i>contacts.csv</td><td>14 KB</td><td>2026-10-11</td><td>rw-r--r--</td></tr></table></div>
+   <div class="panel"><div class="ptabs"><b>Transfers</b><span>Pairing requests (1)</span><span>Audit</span><span>Agent log</span></div>
+    <div class="xr"><span>↑</span>raw-footage-day3.mov → studio-pc<div class="pb"><i style="width:71%"></i></div><span>71% · 52 MB/s</span><span>⏸ ✕</span></div>
+    <div class="xr"><span>↓</span>tax-2025.pdf ← work-laptop<div class="pb"><i style="width:100%"></i></div><span>✓ sha256</span><span>open</span></div>
+    <div class="xr"><span>↑</span>thesis-v12.docx → work-laptop<div class="pb"><i style="width:0"></i></div><span>waiting</span><span>✕</span></div></div></div>
+  <div class="insp"><div class="sec" style="padding:0">Inspector</div><div class="pv"></div>
+   <div class="kv"><span>Name</span>hero-final.png<span>Size</span>4.2 MB<span>Dimensions</span>3840×2160<span>Modified</span>today 09:12<span>Permissions</span>rw-r--r--<span>Host</span>studio-pc</div>
+   <button class="btn">Download (Ctrl D)</button><button class="btn g">Share link…</button><button class="btn g">Copy to… / Move to…</button></div>
+ </div>
+ <div class="status"><span>⛓ studio-pc · pinned 9F:3A…C1</span><span>owner session</span><span class="sp"></span><span>⇅ 2 · 58%</span><span>☍ 1 request</span><span>412 GB free</span></div>
+</div></body></html>

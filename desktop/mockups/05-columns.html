@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Columns — every computer is the first column</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.mc{background:#f5f6f8;color:#16181d;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.mc .tb{background:#eceef2;color:#9aa1ad;border-bottom:1px solid #dfe2e8}
+.mc .bar{height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;background:#eceef2;border-bottom:1px solid #dfe2e8}
+.mc .crumbs{display:flex;gap:2px;align-items:center;color:#5d6472}
+.mc .crumbs span{padding:4px 8px;border-radius:6px}.mc .crumbs span:hover{background:#dfe2e8}.mc .crumbs b{color:#16181d;padding:4px 8px}
+.mc .find{margin-left:auto;width:240px;background:#fff;border:1px solid #dfe2e8;border-radius:8px;padding:6px 10px;color:#9aa1ad}
+.mc .cols{flex:1;display:flex;overflow-x:auto;min-height:0}
+.mc .col{width:168px;flex:none;border-right:1px solid #e3e6eb;overflow:auto;padding:6px 0;background:#fff}
+.mc .col.first{background:#f5f6f8;width:178px}
+.mc .col h4{font:600 10.5px system-ui;text-transform:uppercase;letter-spacing:.08em;color:#9aa1ad;margin:10px 14px 4px}
+.mc .r{display:flex;align-items:center;gap:8px;padding:6px 12px;margin:0 6px;border-radius:6px;cursor:default;white-space:nowrap}
+.mc .r .ic{width:16px;height:13px;border-radius:2px;background:#7aa7ff;flex:none}
+.mc .r .ic.f{background:#d4d9e1;height:16px;width:13px}
+.mc .r .ic.pc{background:none;border:2px solid #5d6472;border-radius:3px;width:14px;height:10px}
+.mc .r .ch{margin-left:auto;color:#b8bec9}
+.mc .r.on{background:#2563eb;color:#fff}.mc .r.on .ch{color:#cfe0ff}.mc .r.on .ic.pc{border-color:#fff}
+.mc .r.path{background:#e3ebff}
+.mc .r .st{width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:auto}.mc .r .st.off{background:#cbd2dc}
+.mc .r.on .st{background:#bbf7d0}
+.mc .prev{flex:1;min-width:300px;background:#fff;display:flex;flex-direction:column;padding:22px;gap:14px}
+.mc .prev .art{height:220px;border-radius:10px;background:#0f172a;display:grid;place-items:center;color:#94a3b8;font:12px ui-monospace,monospace;position:relative;overflow:hidden}
+.mc .prev .art::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 40%,#38bdf8 0,transparent 35%),radial-gradient(circle at 70% 60%,#a78bfa 0,transparent 35%);opacity:.6}
+.mc .prev h3{margin:0;font-size:17px}
+.mc dl{display:grid;grid-template-columns:110px 1fr;gap:6px;margin:0;font-size:12.5px}.mc dt{color:#9aa1ad}.mc dd{margin:0}
+.mc .acts{display:flex;gap:8px;margin-top:auto}
+.mc .acts button{border:1px solid #dfe2e8;background:#fff;border-radius:8px;padding:8px 14px;font:500 13px system-ui;cursor:pointer}
+.mc .acts button.p{background:#2563eb;color:#fff;border-color:#2563eb}
+.mc .status{height:30px;display:flex;align-items:center;gap:16px;padding:0 14px;border-top:1px solid #dfe2e8;background:#eceef2;color:#5d6472;font-size:12px}
+.mc .status .pg{width:120px;height:4px;background:#dfe2e8;border-radius:2px;overflow:hidden}.mc .status .pg i{display:block;height:100%;width:44%;background:#2563eb}
+.mc .status .alert{margin-left:auto;color:#b45309}
+</style></head><body class="mk">
+<div class="win mc">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="bar"><div class="crumbs"><span>studio-pc</span>›<span>home</span>›<span>Photos</span>›<b>2025-10 Lisbon</b></div><div class="find">⌕ Search in 2025-10 Lisbon</div></div>
+ <div class="cols">
+  <div class="col first"><h4>Computers</h4>
+   <div class="r on"><i class="ic pc"></i>studio-pc<span class="st"></span></div>
+   <div class="r"><i class="ic pc"></i>work-laptop<span class="st"></span></div>
+   <div class="r"><i class="ic pc"></i>media-mini<span class="st off"></span></div>
+   <div class="r" style="color:#2563eb">＋ Add computer</div>
+   <h4>This PC</h4><div class="r"><i class="ic"></i>Downloads</div><div class="r"><i class="ic"></i>Desktop</div>
+   <h4>Manage</h4>
+   <div class="r">Devices<span class="ch" style="color:#dc2626">● 1</span></div><div class="r">Transfers<span class="ch">2</span></div><div class="r">Trash</div><div class="r">Share links</div><div class="r">Apps on PC</div><div class="r">History</div><div class="r">Settings</div></div>
+  <div class="col"><div class="r path"><i class="ic"></i>home<span class="ch">›</span></div><div class="r"><i class="ic"></i>srv-data<span class="ch">›</span></div><div class="r"><i class="ic"></i>media<span class="ch">›</span></div></div>
+  <div class="col"><div class="r"><i class="ic"></i>Desktop<span class="ch">›</span></div><div class="r"><i class="ic"></i>Documents<span class="ch">›</span></div><div class="r path"><i class="ic"></i>Photos<span class="ch">›</span></div><div class="r"><i class="ic"></i>Projects<span class="ch">›</span></div><div class="r"><i class="ic"></i>Music<span class="ch">›</span></div><div class="r"><i class="ic f"></i>notes.md</div></div>
+  <div class="col"><div class="r"><i class="ic"></i>2025-08 Coast<span class="ch">›</span></div><div class="r"><i class="ic"></i>2025-09 Wedding<span class="ch">›</span></div><div class="r path"><i class="ic"></i>2025-10 Lisbon<span class="ch">›</span></div><div class="r"><i class="ic"></i>scans<span class="ch">›</span></div></div>
+  <div class="col"><div class="r"><i class="ic f"></i>IMG_4101.heic</div><div class="r"><i class="ic f"></i>IMG_4102.heic</div><div class="r on"><i class="ic f"></i>IMG_4108.jpg</div><div class="r"><i class="ic f"></i>IMG_4112.jpg</div><div class="r"><i class="ic f"></i>tram.mov</div><div class="r"><i class="ic f"></i>sunset-pano.jpg</div><div class="r"><i class="ic f"></i>route.gpx</div></div>
+  <div class="prev"><div class="art">IMG_4108.jpg · 4032×3024</div><h3>IMG_4108.jpg</h3>
+   <dl><dt>Size</dt><dd>3.8 MB</dd><dt>Modified</dt><dd>Oct 14, 2025 18:22</dd><dt>Permissions</dt><dd>rw-r--r--</dd><dt>Where</dt><dd>studio-pc · /home/sam/Photos/2025-10 Lisbon</dd></dl>
+   <div class="acts"><button class="p">Download</button><button>Share link…</button><button>Rename</button><button>⋯</button></div></div>
+ </div>
+ <div class="status"><span>7 items · 412 GB free</span><span>↑ 2 uploading</span><span class="pg"><i></i></span><span class="alert">Pixel 9 asks to pair · Devices</span></div>
+</div></body></html>

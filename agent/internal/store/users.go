@@ -26,7 +26,17 @@ type User struct {
 // exists (PRIMARY KEY conflict) — callers should surface that as "already
 // set up", not overwrite silently.
 func (s *DB) CreateUser(username, passwordHash string) error {
-	_, err := s.db.Exec(
+	return insertUserTx(s.db, username, passwordHash)
+}
+
+// sqlExecer is the Exec method shared by *sql.DB and *sql.Tx.
+type sqlExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// insertUserTx inserts the account row on ex (a *sql.Tx or the *sql.DB).
+func insertUserTx(ex sqlExecer, username, passwordHash string) error {
+	_, err := ex.Exec(
 		`INSERT INTO users (username,password_hash,created) VALUES (?,?,?)`,
 		username, passwordHash, time.Now().Unix(),
 	)
@@ -123,12 +133,46 @@ func (s *DB) DeleteUser(username string) error {
 	// End every device session that belongs to the account, in the same
 	// transaction, with the share links those devices minted. A device that
 	// was later re-paired by code keeps its username, so match on the
-	// username alone rather than on via_login.
-	if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id IN (SELECT id FROM devices WHERE username=?)`, username); err != nil {
+	// username alone rather than on via_login. Sessions an account server vouched for (login_issuer set)
+	// belong to that server's account of the same name, not to this local one, so they are left alone.
+	if _, err := tx.Exec(`DELETE FROM share_tokens WHERE device_id IN (SELECT id FROM devices WHERE username=? AND login_issuer='')`, username); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE devices SET revoked=1 WHERE username=?`, username); err != nil {
+	endedIDs, err := liveAccountDeviceIDsTx(tx, username)
+	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	if _, err := tx.Exec(`UPDATE devices SET revoked=1 WHERE username=? AND login_issuer=''`, username); err != nil {
+		return err
+	}
+	// Assertions already issued for the account stay signed; raising the epoch makes members drop them.
+	epoch, err := bumpAccountEpochTx(tx)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.auditEpochBump(epoch, "user deleted")
+	s.logRevocations(RevocationRevoke, endedIDs...)
+	return nil
+}
+
+// liveAccountDeviceIDsTx lists the not-yet-revoked local devices that belong to username, so a caller
+// can record exactly the ones its next statement revokes.
+func liveAccountDeviceIDsTx(tx *sql.Tx, username string) ([]string, error) {
+	rows, err := tx.Query(`SELECT id FROM devices WHERE username=? AND login_issuer='' AND revoked=0`, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

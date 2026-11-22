@@ -11,5 +11,5 @@ func restartSupported() bool { return true }
 // process inherits XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS from its own
 // systemd user-session environment, so no extra env setup is needed here.
 func restartAgent() error {
-	return exec.Command("systemctl", "--user", "restart", "rfe.service").Run()
+	return exec.Command("systemctl", "--user", "restart", agentUnitName).Run()
 }

@@ -1,0 +1,17 @@
+{
+  "status": 202,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "results": [
+      {
+        "ok": true,
+        "path": "<ROOT>/data/needle-alpha.txt"
+      }
+    ]
+  }
+}

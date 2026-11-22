@@ -1,0 +1,60 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Overview — a home dashboard for every PC you own</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css">
+<style>
+.d12{--bg:#111113;--sf:#18181b;--rz:#222226;--t1:#ececee;--t2:#a0a0a8;--t3:#80808a;--line:rgba(236,236,238,.08);--line2:rgba(236,236,238,.14);--ac:#8fb4ff;--on-ac:#111113;--ac-ink:#a6c3ff;--ac-soft:rgba(143,180,255,.12);--pos:#4cc38a;--neg:#e5484d;--warn:#e0a43b;--font:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;--shadow:0 12px 32px rgba(0,0,0,.45);display:grid;grid-template-columns:240px 1fr}
+.d12 .k-btn.pri{background:#ececee;color:#111113}.d12 .k-chip.on{background:#ececee;color:#111113}.d12 .k-qr{background:#ececee}
+.d12 .side{border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:2px;background:var(--sf)}
+.d12 .side .lg{display:flex;gap:8px;align-items:center;font-weight:500;padding:4px 8px 16px}
+.d12 .side h4{font:500 12px var(--font);color:var(--t3);margin:20px 8px 8px}
+.d12 .side .pc{display:flex;gap:8px;align-items:center;height:32px;padding:0 8px;border-radius:6px;font-size:13px;color:var(--t2)}
+.d12 .side .pc:hover{background:var(--rz)} .d12 .side .pc small{margin-left:auto;font:11px var(--mono);color:var(--t3)}
+.d12 .side .gap{flex:1}
+.d12 .main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.d12 .top{height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--line)}
+.d12 .top .k-sbox{width:380px}.d12 .top .r{margin-left:auto;display:flex;gap:4px}
+.d12 .stage{flex:1;overflow:auto;padding:24px;min-height:0}
+.d12 .stage:has(.k-files){overflow:hidden;display:flex;flex-direction:column}.d12 .k-files{flex:1}
+.d12 .db{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.d12 .stat{grid-column:span 3;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px}
+.d12 .stat small{color:var(--t3);font-size:12px} .d12 .stat b{display:block;font:500 28px/1.2 var(--mono);margin:8px 0 4px;letter-spacing:-.01em} .d12 .stat span{font-size:12px;color:var(--t2)}
+.d12 .chart{grid-column:span 8;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px}
+.d12 .chart h2,.d12 .card h2{font:500 14px var(--font);margin:0;display:flex;align-items:center;gap:12px}
+.d12 .chart h2 small{color:var(--t3);font-weight:400}
+.d12 .chart>svg{display:block;width:100%;height:232px;margin-top:12px}
+.d12 .chart>svg text{font:11px var(--mono);fill:var(--t3)}
+.d12 .card{grid-column:span 4;background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.d12 .card.w{grid-column:span 6}
+.d12 .need{display:grid;grid-template-columns:20px 1fr auto;gap:12px;align-items:center;font-size:13px}
+.d12 .need small{display:block;color:var(--t3);font-size:12px}
+.d12 .pcr{display:grid;grid-template-columns:12px 1fr 120px 64px;gap:12px;align-items:center;font-size:13px;height:36px}
+.d12 .pcr small{color:var(--t3);font:12px var(--mono)} .d12 .pcr .k-bar{margin:0}
+.d12 .rc{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.d12 .rc div{font-size:12px;color:var(--t2)} .d12 .rc svg{border-radius:8px;display:block;width:100%;height:auto;margin-bottom:6px} .d12 .rc b{display:block;color:var(--t1);font-weight:500;font-size:13px}
+</style>
+<script src="_files.js"></script><script defer src="_nav.js"></script><script src="kit.js"></script></head>
+<body class="mk"><div class="win d12">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><main class="stage" id="st"></main></div>
+</div>
+<script>
+window.IDEA='Opening the app answers “what is going on with my computers”: how fast files are moving and what moved today, which computers are up and how full they are, and the few things that wait for you, each with its answer button. Every page stays one click away in a quiet sidebar.';
+window.MAP=[['Navigation','Sidebar; Overview is home',1],['Switch computer','Computers in the sidebar open their files',1],['Connect and trust','Add a computer in the sidebar',1],['Servers and status','Computers card on the overview; Servers page for details',0],['Files and preview','Files in the sidebar, or click a recent file',1],['Upload and download','Files page, Ctrl U, Ctrl D, drag',2],['Pair a phone','QR icon in the top bar',1],['Pairing requests','Waiting for you card: Accept right there',1],['Transfers','Throughput chart and Waiting for you on the overview',0],['Search','Search box in the top bar, or /',1],['Tools','Sidebar, Tools',1],['History and audit','Sidebar, History',1],['Settings','Sidebar, Settings',1],['Tray and notifications','Bell in the top bar',1]];
+const I=K.I,D=K.D;
+function side(v){document.getElementById('side').innerHTML=`<div class="lg">${I('key',16)}RFE</div><button class="k-navi${v==='home'?' on':''}" data-k="go:home">${I('grid',18)}<span>Overview</span></button>${K.C.nav(v)}<h4>Computers</h4>${D.servers.map(s=>`<button class="pc" data-k="${s.dot==='ok'?'go:files':s.dot==='bad'?'dlg:keychanged':'menu:server'}">${K.dot(s.dot)}${s.name}<small>${s.ms?s.ms+' ms':s.dot==='bad'?'key':'off'}</small></button>`).join('')}<button class="pc" data-k="dlg:newconn">${I('plus',14)}Add a computer</button><span class="gap"></span>`;}
+document.getElementById('top').innerHTML=`${K.C.searchBox('Search all connected computers')}<div class="r">${K.C.actions()}</div>`;
+// throughput today: hourly MB/s, 08:00 to 11:00
+const up=[2,3,2,6,14,22,18,30,41,38,47,52,49,53,52,51],dn=[1,1,4,9,6,4,12,8,6,11,9,7,14,10,6,8];
+const X=i=>40+i*(800/15),Y=v=>200-v*3;
+const line=(a)=>a.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(v)}`).join(' ');
+const home=()=>`<div class="db">
+${[['Moving now','52.4 MB/s','2 transfers · 23 s left'],['Moved today','1.9 GB','+640 MB vs yesterday'],['Computers up','2 of 4','nas key changed · media-mini off'],['Devices','4 allowed','2 asking to pair']].map(s=>`<div class="stat"><small>${s[0]}</small><b>${s[1]}</b><span>${s[2]}</span></div>`).join('')}
+<div class="chart"><h2>Throughput today <small>MB/s · upload and download</small><span class="sp" style="flex:1"></span><small><span style="color:var(--ac)">Upload</span> · Download</small></h2><svg viewBox="0 0 860 232">${[0,20,40,60].map(v=>`<path d="M40 ${Y(v)}H840" stroke="var(--line)" /><text x="0" y="${Y(v)+4}">${v}</text>`).join('')}${['08:00','09:00','10:00','11:00'].map((t,i)=>`<text x="${40+i*266-16}" y="226">${t}</text>`).join('')}<path d="${line(dn)}" fill="none" stroke="var(--t3)" stroke-width="1.5"/><path d="${line(up)}" fill="none" stroke="var(--ac)" stroke-width="2"/><circle cx="${X(15)}" cy="${Y(51)}" r="4" fill="var(--ac)"/><text x="${X(15)-56}" y="${Y(51)-12}" style="fill:var(--t1)">52.4 now</text></svg></div>
+<div class="card"><h2>Waiting for you <em class="k-badge bad">4</em></h2>
+${[['phone','Pixel 9 asks to join studio-pc','Match 4829 1307 · 1:42 left',K.btn('Accept…',{k:'sm pri',a:'dlg:accept'})],['laptop','sam-thinkpad wants work-laptop’s place','Match 0316 8842',K.btn('Review…',{k:'sm',a:'dlg:accept'})],['file','bed-layout.pdf exists on work-laptop','Upload to /Users/sam/Documents',K.btn('Keep both',{k:'sm'})],['alert','notes.txt was damaged while uploading','Discarded; try again',K.btn('Retry',{k:'sm',i:'refresh'})]].map(n=>`<div class="need">${K.E({phone:'phone',laptop:'laptop',file:'doc',alert:'warning'}[n[0]],20)}<div>${n[1]}<small>${n[2]}</small></div>${n[3]}</div>`).join('')}
+${K.btn('All transfers',{k:'sm ghost',a:'go:transfers'})}</div>
+<div class="card w"><h2>Computers</h2>${D.servers.map(s=>`<div class="pcr">${K.dot(s.dot)}<span>${K.mach(s,16)}${s.name} <small>${s.tag}</small></span>${K.bar(Math.round(s.used/s.total*100))}<small>${Math.round(s.used/s.total*100)}% full</small></div>`).join('')}</div>
+<div class="card w"><h2>Recent files<span class="sp" style="flex:1"></span>${K.btn('Open Files',{k:'sm ghost',a:'go:files'})}</h2><div class="rc">${[[2,'north-bed-after.jpg','studio-pc · 12 min ago'],[1,'north-bed-before.jpg','studio-pc · downloaded'],[3,'garden-sketch.png','this computer']].map(r=>`<div data-k="dlg:preview" data-row="${r[1]}" style="cursor:pointer">${K.photo(r[0],180,100,8)}<b>${r[1]}</b>${r[2]}</div>`).join('')}</div></div>
+</div>`;
+K.mount({stage:document.getElementById('st'),state:{view:'home'},views:{home},onGo:side});
+</script></body></html>

@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readAllCss } from "./css-lib.mjs";
 
 const ui = new URL("../ui/", import.meta.url);
 const read = (f) => readFileSync(new URL(f, ui), "utf8");
@@ -47,7 +48,7 @@ test("scripts do not store secrets in the page", () => {
 });
 
 test("the dark theme redefines every colour the light theme defines", () => {
-  const css = read("app.css");
+  const css = readAllCss();
   const block = (start) => { let d = 0, i = css.indexOf("{", start); const from = i; for (; i < css.length; i++) { if (css[i] === "{") d++; if (css[i] === "}" && --d === 0) break; } return css.slice(from + 1, i); };
   const vars = (b) => new Map([...b.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
   const light = vars(block(css.indexOf(":root{")));

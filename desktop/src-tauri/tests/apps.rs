@@ -57,6 +57,8 @@ impl AppAgent {
             .env("XDG_DATA_HOME", desktop.path().join("user-data"))
             .env("XDG_DATA_DIRS", desktop.path().join("system-data"))
             .env("RFE_TEST_LAUNCH_LOG", desktop.path().join("launcher-args"))
+            .env("RFE_TEST_X11_SOCKET_DIR", desktop.path().join("no-x11"))
+            .env("XDG_RUNTIME_DIR", desktop.path().join("no-runtime"))
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         if env.display {

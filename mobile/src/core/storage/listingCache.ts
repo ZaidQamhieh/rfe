@@ -2,6 +2,9 @@ import type { Entry } from '../api/models';
 
 export type CachedListing = { entries: Entry[]; fetchedAt: Date };
 
+/** Most listings kept in the cache before the oldest are evicted. */
+const DEFAULT_MAX_ENTRIES = 200;
+
 /** Persistence for cached listings: one JSON blob per (host, path). */
 export interface ListingBackend {
   get(host: string, path: string): Promise<{ json: string; fetchedAt: number } | null>;
@@ -46,14 +49,9 @@ export class ListingCache {
 
   constructor(
     private readonly backend: ListingBackend,
-    private readonly maxEntries = 200,
+    private readonly maxEntries = DEFAULT_MAX_ENTRIES,
     private readonly now: () => number = Date.now,
   ) {}
-
-  setPinned(key: string, pinned: boolean) {
-    if (pinned) this.pinned.add(key);
-    else this.pinned.delete(key);
-  }
 
   /** Replaces the pinned-path set for [hostId]; re-hydrated from the pin store because it is lost on restart. */
   syncPinned(hostId: string, paths: Iterable<string>) {
@@ -98,8 +96,14 @@ export class ListingCache {
     return n;
   }
 
-  async evictHost(hostId: string) {
-    await this.backend.removeHost(hostId);
-    for (const k of [...this.pinned]) if (k.startsWith(`${hostId}:`)) this.pinned.delete(k);
+  /** Forgets a host's cached listings, queued behind any in-flight put() for it so no row is written afterwards. */
+  evictHost(hostId: string): Promise<void> {
+    const prior = this.chains.get(hostId) ?? Promise.resolve();
+    const next = prior.then(async () => {
+      await this.backend.removeHost(hostId);
+      for (const k of [...this.pinned]) if (k.startsWith(`${hostId}:`)) this.pinned.delete(k);
+    });
+    this.chains.set(hostId, next.catch(() => undefined));
+    return next;
   }
 }

@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ZaidQamhieh/rfe/agent/internal/fsops"
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
 
@@ -49,6 +50,10 @@ var ErrChunkWrongSize = errors.New("chunk has the wrong length")
 // ErrQuotaExceeded means the host or requesting device has reached its
 // active-session or reserved-byte limit.
 var ErrQuotaExceeded = errors.New("transfer capacity exceeded")
+
+// ErrIdempotencyKeyUsed means the idempotency key already belongs to a session that is no longer open, or to
+// an upload that differs from the one now described.
+var ErrIdempotencyKeyUsed = errors.New("idempotency key already used")
 
 // ErrSessionActive means an explicit delete was attempted while an operation
 // is using that session.
@@ -79,33 +84,52 @@ const (
 
 	// Open sessions expire after a week without a chunk or status/resume request.
 	TransferStaleAfter = 7 * 24 * time.Hour
-	staleSweepInterval = time.Hour
+	// EmptyTransferStaleAfter is the shorter expiry of a session that never received a chunk (for example an
+	// open whose answer was lost), so abandoned reservations free their quota within about an hour.
+	EmptyTransferStaleAfter = time.Hour
+	staleSweepInterval      = time.Hour
 )
-
-// Kept package-private for the existing transfer-package boundary tests.
-const maxTransferSize = MaxTransferSize
 
 // Manager coordinates in-progress transfer sessions.
 type Manager struct {
 	db      *store.DB
 	tempDir string // directory for temp files
 
+	syncMu sync.Mutex              // guards syncs and every sessionSync field but flushMu
+	syncs  map[string]*sessionSync // sessions with chunk writes in flight; see durable.go
+
 	mu         sync.Mutex
 	active     map[string]int  // in-process operations that own a session lease
 	completing map[string]bool // exclusive completion lease per session
+
+	stats counters // observability tallies; see metrics.go
+
+	hashes wholeHashSet // running whole-file hashes of the sessions this process opened; see runninghash.go
 }
 
-// New creates a Manager that stores temp files under tempDir.
+// New creates a Manager that stores temp files under tempDir. It first fails any open upload session
+// whose temp file is missing or shorter than its received chunks imply (see resetBrokenSessions).
 func New(db *store.DB, tempDir string) (*Manager, error) {
 	if err := os.MkdirAll(tempDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	return &Manager{
+	m := &Manager{
 		db:         db,
 		tempDir:    tempDir,
 		active:     make(map[string]int),
 		completing: make(map[string]bool),
-	}, nil
+	}
+	if _, err := m.resetBrokenSessions(); err != nil {
+		return nil, fmt.Errorf("reconcile upload sessions: %w", err)
+	}
+	// Temps a killed publish left in destination folders are removed here too; a failure only logs, since
+	// the hourly sweep retries and startup must not depend on a user folder being reachable.
+	m.mu.Lock()
+	if _, err := m.sweepPublishIntentsLocked(time.Now()); err != nil {
+		log.Printf("transfer: startup publish-temp sweep: %v", err)
+	}
+	m.mu.Unlock()
+	return m, nil
 }
 
 // OpenSession creates a new upload session. deviceID is the requesting
@@ -115,9 +139,14 @@ func New(db *store.DB, tempDir string) (*Manager, error) {
 // The overwrite=false check here is a courtesy: it fails the client early
 // instead of after a long upload. It is not the guarantee — Complete re-checks
 // atomically at publish time, because anything created during the upload would
-// slip past this Stat (PR-50).
+// slip past this Stat.
+//
+// Opening never runs the stale-session sweep (a DB listing plus a directory scan under the manager lock): that
+// is left to the startup sweep and the periodic worker (StartStaleCleanup), so an open costs the same however
+// much stale data has piled up.
 func (m *Manager) OpenSession(id, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool, deviceID string) (*store.Transfer, error) {
-	return m.openSession(id, targetPath, size, chunkSize, sha256hex, overwrite, deviceID, nil)
+	t, _, err := m.openSession(id, targetPath, size, chunkSize, sha256hex, overwrite, deviceID, "", nil)
+	return t, err
 }
 
 // OpenSessionWithStat creates a session while checking an overwrite=false
@@ -125,24 +154,69 @@ func (m *Manager) OpenSession(id, targetPath string, size int64, chunkSize int, 
 // should pass Ops.Stat so this early conflict check cannot escape a device
 // jail; Complete still makes the authoritative atomic no-replace decision.
 func (m *Manager) OpenSessionWithStat(id, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool, deviceID string, stat func(string) (os.FileInfo, error)) (*store.Transfer, error) {
-	return m.openSession(id, targetPath, size, chunkSize, sha256hex, overwrite, deviceID, stat)
+	t, _, err := m.openSession(id, targetPath, size, chunkSize, sha256hex, overwrite, deviceID, "", stat)
+	return t, err
 }
 
-func (m *Manager) openSession(id, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool, deviceID string, stat func(string) (os.FileInfo, error)) (*store.Transfer, error) {
+// OpenSessionWithKey is OpenSessionWithStat for a client that sends an idempotency key. When deviceID already
+// holds an open session opened with the same key for the same upload, that session is returned (existed=true)
+// with its received chunks and a refreshed activity time, and nothing new is created or counted against the
+// quotas: a client that lost the first answer asks again and gets the same session. A key whose session is no
+// longer open, or whose upload differs, fails with ErrIdempotencyKeyUsed. An empty key behaves like
+// OpenSessionWithStat.
+func (m *Manager) OpenSessionWithKey(id, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool, deviceID, key string, stat func(string) (os.FileInfo, error)) (t *store.Transfer, existed bool, err error) {
+	return m.openSession(id, targetPath, size, chunkSize, sha256hex, overwrite, deviceID, key, stat)
+}
+
+// existingKeyed finds the session deviceID opened with key and checks it describes the same upload; nil when
+// the key is new. The caller holds m.mu, which serialises it with the insert that follows.
+func (m *Manager) existingKeyed(deviceID, key, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool) (*store.Transfer, error) {
+	t, err := m.db.GetTransferByKey(deviceID, key)
+	if err != nil || t == nil {
+		return nil, err
+	}
+	if t.Status != store.TransferOpen {
+		return nil, fmt.Errorf("%w: its session is %s", ErrIdempotencyKeyUsed, t.Status)
+	}
+	if t.TargetPath != targetPath || t.TotalSize != size || t.ChunkSize != chunkSize || t.SHA256 != sha256hex || t.Overwrite != overwrite {
+		return nil, fmt.Errorf("%w: it was used for a different upload", ErrIdempotencyKeyUsed)
+	}
+	now := time.Now().Unix()
+	if err := m.db.TouchOpenTransfer(t.ID, now); err != nil {
+		return nil, err
+	}
+	t.UpdatedAt = now
+	if t.ReceivedChunks, err = m.db.ChunkNumbers(t.ID); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (m *Manager) openSession(id, targetPath string, size int64, chunkSize int, sha256hex string, overwrite bool, deviceID, key string, stat func(string) (os.FileInfo, error)) (*store.Transfer, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if id == "" || filepath.Base(id) != id || id == "." || id == ".." {
-		return nil, errors.New("invalid transfer ID")
+	if !validTransferID(id) {
+		return nil, false, errors.New("invalid transfer ID")
 	}
 	if size < 0 {
-		return nil, fmt.Errorf("%w: negative size", ErrTooLarge)
+		return nil, false, fmt.Errorf("%w: negative size", ErrTooLarge)
 	}
 	if size > MaxTransferSize {
-		return nil, fmt.Errorf("%w: %d bytes declared, limit %d", ErrTooLarge, size, MaxTransferSize)
+		return nil, false, fmt.Errorf("%w: %d bytes declared, limit %d", ErrTooLarge, size, MaxTransferSize)
 	}
 	if chunkSize <= 0 {
-		return nil, errors.New("chunk size must be positive")
+		return nil, false, errors.New("chunk size must be positive")
+	}
+	// Hex has no case; keep one canonical form so later comparisons agree.
+	sha256hex = strings.ToLower(sha256hex)
+	// A repeat of an open the client never saw answered: hand back the session it already has, before the
+	// destination check (which the first open's own session does not affect, but a file published since might).
+	if key != "" {
+		existing, err := m.existingKeyed(deviceID, key, targetPath, size, chunkSize, sha256hex, overwrite)
+		if err != nil || existing != nil {
+			return existing, existing != nil, err
+		}
 	}
 	if !overwrite {
 		statPath := stat
@@ -150,34 +224,31 @@ func (m *Manager) openSession(id, targetPath string, size int64, chunkSize int, 
 			statPath = func(path string) (os.FileInfo, error) { return os.Stat(path) }
 		}
 		if _, err := statPath(targetPath); err == nil {
-			return nil, ErrDestinationExists
+			return nil, false, ErrDestinationExists
 		} else if stat != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			return nil, false, err
 		}
 	}
-	if _, err := m.cleanupStaleLocked(time.Now()); err != nil {
-		return nil, fmt.Errorf("clean stale transfers before admission: %w", err)
-	}
-
 	// Ceiling division without size+chunkSize, which overflows for a huge
 	// chunkSize; a zero-byte upload is one empty chunk.
 	totalChunks := 1
 	if size > 0 {
 		totalChunks = int((size-1)/int64(chunkSize) + 1)
 	}
-	tempPath := filepath.Join(m.tempDir, id+".tmp")
+	tempPath := m.tempPathFor(id)
 
 	t := &store.Transfer{
-		ID:          id,
-		TargetPath:  targetPath,
-		TotalSize:   size,
-		ChunkSize:   chunkSize,
-		SHA256:      sha256hex,
-		TotalChunks: totalChunks,
-		TempPath:    tempPath,
-		Status:      "open",
-		DeviceID:    deviceID,
-		Overwrite:   overwrite,
+		ID:             id,
+		TargetPath:     targetPath,
+		TotalSize:      size,
+		ChunkSize:      chunkSize,
+		SHA256:         sha256hex,
+		TotalChunks:    totalChunks,
+		TempPath:       tempPath,
+		Status:         store.TransferOpen,
+		DeviceID:       deviceID,
+		Overwrite:      overwrite,
+		IdempotencyKey: key,
 	}
 	created, err := m.db.CreateTransferWithinLimits(t, store.TransferLimits{
 		MaxHostSessions:   MaxActiveTransfersPerHost,
@@ -186,17 +257,19 @@ func (m *Manager) openSession(id, targetPath string, size int64, chunkSize int, 
 		MaxDeviceBytes:    MaxReservedBytesPerDevice,
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if !created {
-		return nil, ErrQuotaExceeded
+		return nil, false, ErrQuotaExceeded
 	}
 
 	// Persist the quota reservation first. If file allocation fails, remove the
 	// row so its open-session reservation is released immediately.
-	f, err := os.OpenFile(tempPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o666)
+	// Private (0600) until a publish gives the file its final mode.
+	f, err := os.OpenFile(tempPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err == nil && size > 0 {
-		err = f.Truncate(size)
+		// Reserves the disk for the whole file, so a full disk fails here (ErrInsufficientStorage).
+		err = reserveSpace(f, size)
 	}
 	if err == nil {
 		err = f.Close()
@@ -210,7 +283,34 @@ func (m *Manager) openSession(id, targetPath string, size int64, chunkSize int, 
 		if deleteErr := m.db.DeleteTransfer(id); deleteErr != nil {
 			log.Printf("failed to release transfer reservation %s: %v", id, deleteErr)
 		}
-		return nil, fmt.Errorf("create transfer temp file: %w", err)
+		return nil, false, storageErr("create transfer temp file", err)
+	}
+	m.hashes.start(id)
+	return t, false, nil
+}
+
+// tempSuffix names a session's temp file: <id>.tmp directly in tempDir.
+const tempSuffix = ".tmp"
+
+// validTransferID reports whether id is one plain path element, so it can name
+// a temp file without escaping tempDir.
+func validTransferID(id string) bool {
+	return id != "" && filepath.Base(id) == id && id != "." && id != ".."
+}
+
+// tempPathFor returns the manager-owned temp path for a session id.
+func (m *Manager) tempPathFor(id string) string {
+	return filepath.Join(m.tempDir, id+tempSuffix)
+}
+
+// getTransfer loads a session row, mapping a missing row to ErrNotFound.
+func (m *Manager) getTransfer(id string) (*store.Transfer, error) {
+	t, err := m.db.GetTransfer(id)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, ErrNotFound
 	}
 	return t, nil
 }
@@ -227,17 +327,14 @@ func (m *Manager) beginActivity(id string, requireOpen bool) (func(), error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return nil, err
 	}
-	if t == nil {
-		return nil, ErrNotFound
-	}
-	if requireOpen && t.Status != "open" {
+	if requireOpen && t.Status != store.TransferOpen {
 		return nil, fmt.Errorf("%w: %s", ErrNotOpen, t.Status)
 	}
-	if t.Status != "open" {
+	if t.Status != store.TransferOpen {
 		return func() {}, nil
 	}
 	if m.completing[id] {
@@ -268,14 +365,12 @@ func (m *Manager) beginCompletion(id string) (func(), error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return nil, err
 	}
-	if t == nil {
-		return nil, ErrNotFound
-	}
-	if t.Status != "open" {
+	if t.Status != store.TransferOpen {
+		m.NoteCompleteOnTerminalSession(id)
 		return nil, fmt.Errorf("%w: %s", ErrNotOpen, t.Status)
 	}
 	if m.active[id] > 0 || m.completing[id] {
@@ -301,14 +396,7 @@ func (m *Manager) beginCompletion(id string) (func(), error) {
 // HTTP handlers use it to check ownership before Status or BeginActivity can
 // extend the session's retention window.
 func (m *Manager) Lookup(id string) (*store.Transfer, error) {
-	t, err := m.db.GetTransfer(id)
-	if err != nil {
-		return nil, err
-	}
-	if t == nil {
-		return nil, ErrNotFound
-	}
-	return t, nil
+	return m.getTransfer(id)
 }
 
 // DeleteSession safely removes an upload session and its temporary file. An
@@ -321,16 +409,14 @@ func (m *Manager) DeleteSession(id string) error {
 	if m.active[id] > 0 {
 		return ErrSessionActive
 	}
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return err
-	}
-	if t == nil {
-		return ErrNotFound
 	}
 	if err := m.db.DeleteTransfer(id); err != nil {
 		return err
 	}
+	m.hashes.drop(id)
 	if tempPath, ok := m.sessionTempPath(t); ok {
 		if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			// The row is gone and no operation can still own this file. Leave
@@ -352,6 +438,7 @@ func (m *Manager) CleanupStaleSessions(now time.Time) (int, error) {
 
 func (m *Manager) cleanupStaleLocked(now time.Time) (int, error) {
 	cutoff := now.Add(-TransferStaleAfter)
+	emptyCutoff := now.Add(-EmptyTransferStaleAfter)
 	transfers, err := m.db.ListOpenTransfers()
 	if err != nil {
 		return 0, err
@@ -360,7 +447,7 @@ func (m *Manager) cleanupStaleLocked(now time.Time) (int, error) {
 	var cleanupErr error
 	for i := range transfers {
 		t := &transfers[i]
-		if m.active[t.ID] > 0 || !m.isStale(t, cutoff) {
+		if m.active[t.ID] > 0 || !m.isStale(t, cutoff, emptyCutoff) {
 			continue
 		}
 		deleted, err := m.db.DeleteStaleOpenTransfer(t)
@@ -374,6 +461,7 @@ func (m *Manager) cleanupStaleLocked(now time.Time) (int, error) {
 			continue
 		}
 		removed++
+		m.hashes.drop(t.ID)
 		if tempPath, ok := m.sessionTempPath(t); ok {
 			if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 				if cleanupErr == nil {
@@ -382,6 +470,12 @@ func (m *Manager) cleanupStaleLocked(now time.Time) (int, error) {
 			}
 		}
 	}
+	// Running hashes of sessions that no longer have an open row (removed by some other path) are dropped here.
+	open := make(map[string]bool, len(transfers))
+	for i := range transfers {
+		open[transfers[i].ID] = true
+	}
+	m.hashes.retainOnly(open)
 	pruned, err := m.db.PruneTerminalTransfersBefore(now.Add(-store.TransferHistoryRetention).Unix())
 	if err != nil && cleanupErr == nil {
 		cleanupErr = fmt.Errorf("prune terminal transfer history: %w", err)
@@ -392,16 +486,21 @@ func (m *Manager) cleanupStaleLocked(now time.Time) (int, error) {
 	if cleanupErr == nil {
 		cleanupErr = err
 	}
+	publishRemoved, err := m.sweepPublishIntentsLocked(now)
+	removed += publishRemoved
+	if cleanupErr == nil {
+		cleanupErr = err
+	}
 	return removed, cleanupErr
 }
 
 // sessionTempPath accepts only the manager-owned direct-child name generated
 // for a session. Persisted paths are never trusted as arbitrary deletion paths.
 func (m *Manager) sessionTempPath(t *store.Transfer) (string, bool) {
-	if t == nil || t.ID == "" || filepath.Base(t.ID) != t.ID || t.ID == "." || t.ID == ".." {
+	if t == nil || !validTransferID(t.ID) {
 		return "", false
 	}
-	expected := filepath.Join(m.tempDir, t.ID+".tmp")
+	expected := m.tempPathFor(t.ID)
 	if filepath.Clean(t.TempPath) != filepath.Clean(expected) {
 		return "", false
 	}
@@ -429,10 +528,10 @@ func (m *Manager) cleanupOrphanTempsLocked(cutoff time.Time) (int, error) {
 	var cleanupErr error
 	for _, entry := range entries {
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".tmp") {
+		if !strings.HasSuffix(name, tempSuffix) {
 			continue
 		}
-		id := strings.TrimSuffix(name, ".tmp")
+		id := strings.TrimSuffix(name, tempSuffix)
 		if m.active[id] > 0 {
 			continue
 		}
@@ -464,7 +563,12 @@ func (m *Manager) cleanupOrphanTempsLocked(cutoff time.Time) (int, error) {
 	return removed, cleanupErr
 }
 
-func (m *Manager) isStale(t *store.Transfer, cutoff time.Time) bool {
+// isStale reports whether an open session has been idle past its expiry: emptyCutoff when it never received a
+// chunk, cutoff otherwise. Idle time is the last activity, or the temp file's modification time when none is recorded.
+func (m *Manager) isStale(t *store.Transfer, cutoff, emptyCutoff time.Time) bool {
+	if t.ReceivedCount == 0 {
+		cutoff = emptyCutoff
+	}
 	lastActivity := time.Unix(t.UpdatedAt, 0)
 	if t.UpdatedAt <= 0 {
 		tempPath, ok := m.sessionTempPath(t)
@@ -521,7 +625,7 @@ func (m *Manager) StartStaleCleanup(interval time.Duration) func() {
 // Status returns the current state of a transfer (for resume). This is the
 // one path that genuinely needs every received chunk number — the client diffs
 // the set to decide what to re-send — so it loads them explicitly; GetTransfer
-// no longer carries them (PR-42).
+// no longer carries them.
 func (m *Manager) Status(id string) (*store.Transfer, error) {
 	release, err := m.beginActivity(id, false)
 	if err != nil {
@@ -529,12 +633,9 @@ func (m *Manager) Status(id string) (*store.Transfer, error) {
 	}
 	defer release()
 
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return nil, err
-	}
-	if t == nil {
-		return nil, ErrNotFound
 	}
 	chunks, err := m.db.ChunkNumbers(id)
 	if err != nil {
@@ -554,20 +655,17 @@ func (m *Manager) WriteChunk(id string, n int, chunkData []byte, chunkSHA256 str
 	}
 	defer release()
 
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return err
 	}
-	if t == nil {
-		return ErrNotFound
-	}
-	if t.Status != "open" {
+	if t.Status != store.TransferOpen {
 		return fmt.Errorf("%w: %s", ErrNotOpen, t.Status)
 	}
 
 	// The chunk index drives a WriteAt offset (n * chunkSize). Unchecked, a
 	// large n seeks far past the declared size and leaves a sparse file of the
-	// client's choosing; a negative one is a negative offset (PR-12).
+	// client's choosing; a negative one is a negative offset.
 	if n < 0 || n >= t.TotalChunks {
 		return fmt.Errorf("%w: chunk %d of %d", ErrChunkOutOfRange, n, t.TotalChunks)
 	}
@@ -581,13 +679,13 @@ func (m *Manager) WriteChunk(id string, n int, chunkData []byte, chunkSHA256 str
 	// Verify chunk hash.
 	sum := sha256.Sum256(chunkData)
 	got := hex.EncodeToString(sum[:])
-	if got != chunkSHA256 {
+	if !strings.EqualFold(got, chunkSHA256) {
 		return fmt.Errorf("%w: got %s want %s", ErrChunkMismatch, got, chunkSHA256)
 	}
 
 	// Check idempotency: if already received skip writing but return success.
 	// An indexed lookup, not a scan of every chunk received so far — the
-	// latter made a large transfer quadratic all on its own (PR-42).
+	// latter made a large transfer quadratic all on its own.
 	switch has, err := m.db.HasChunk(id, n); {
 	case err != nil:
 		return err
@@ -595,17 +693,44 @@ func (m *Manager) WriteChunk(id string, n int, chunkData []byte, chunkSHA256 str
 		return nil
 	}
 
+	// Same rule as complete(): the persisted path is never opened unless it is the
+	// manager-owned name for this session.
+	ownedTemp, ok := m.sessionTempPath(t)
+	if !ok {
+		return fmt.Errorf("transfer %s has an unexpected temp path", id)
+	}
 	offset := int64(n) * int64(t.ChunkSize)
-	f, err := os.OpenFile(t.TempPath, os.O_WRONLY, 0o600)
+	ss := m.beginChunk(id, ownedTemp)
+	if err := m.writeChunkBytes(id, ownedTemp, chunkData, offset); err != nil {
+		m.abandonChunk(ss)
+		return err
+	}
+	// Recorded as received only once the bytes are synced; see commitChunk.
+	if err := m.commitChunk(ss, n); err != nil {
+		return err
+	}
+	m.hashes.noteChunk(id, t, ownedTemp, n, chunkData)
+	return nil
+}
+
+// writeChunkBytes writes one chunk's bytes into the temp file at offset. It does not record the chunk.
+func (m *Manager) writeChunkBytes(id, tempPath string, chunkData []byte, offset int64) error {
+	f, err := os.OpenFile(tempPath, os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open temp file: %w", err)
 	}
-	defer f.Close()
-	if _, err := f.WriteAt(chunkData, offset); err != nil {
-		return fmt.Errorf("write chunk: %w", err)
+	if _, err := writeChunkAt(f, chunkData, offset); err != nil {
+		_ = f.Close()
+		countENOSPC(&m.stats.enospcWriteChunk, id, err)
+		return storageErr("write chunk", err)
 	}
-
-	return m.db.MarkChunkReceived(id, n)
+	// A failed close can mean the write never reached disk, so the chunk must not be
+	// recorded as received.
+	if err := f.Close(); err != nil {
+		countENOSPC(&m.stats.enospcWriteChunk, id, err)
+		return storageErr("close temp file", err)
+	}
+	return nil
 }
 
 // Complete verifies the whole-file SHA-256 and atomically renames the temp
@@ -629,14 +754,11 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 	}
 	defer release()
 
-	t, err := m.db.GetTransfer(id)
+	t, err := m.getTransfer(id)
 	if err != nil {
 		return nil, "", err
 	}
-	if t == nil {
-		return nil, "", ErrNotFound
-	}
-	if t.Status != "open" {
+	if t.Status != store.TransferOpen {
 		return nil, "", fmt.Errorf("%w: %s", ErrNotOpen, t.Status)
 	}
 
@@ -651,21 +773,37 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 		return nil, "", fmt.Errorf("%w: %d of %d chunks received", ErrIncomplete, len(received), t.TotalChunks)
 	}
 
+	// Same rule as WriteChunk: the persisted path is never opened unless it is the
+	// manager-owned name for this session.
+	tempPath, ok := m.sessionTempPath(t)
+	if !ok {
+		return nil, "", fmt.Errorf("transfer %s has an unexpected temp path", id)
+	}
+
 	// Verify whole-file hash.
-	f, err := os.Open(t.TempPath)
+	f, err := os.Open(tempPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("open temp: %w", err)
 	}
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		_ = f.Close()
-		return nil, "", fmt.Errorf("hash file: %w", err)
+	// Chunks hashed as they arrived need no second pass over the file; a resumed session does.
+	got, ok := m.hashes.sum(id, t.TotalChunks)
+	if !ok {
+		if onWholeFileRehash != nil {
+			onWholeFileRehash()
+		}
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			_ = f.Close()
+			return nil, "", fmt.Errorf("hash file: %w", err)
+		}
+		got = hex.EncodeToString(h.Sum(nil))
 	}
-
-	got := hex.EncodeToString(h.Sum(nil))
-	if got != t.SHA256 {
+	if !strings.EqualFold(got, t.SHA256) {
 		_ = f.Close()
-		if err := m.db.SetTransferStatus(id, "failed"); err != nil {
+		m.hashes.drop(id)
+		m.stats.hashMismatchAllChunksReceived.Add(1) // every chunk was recorded as received to get here
+		log.Printf("transfer %s: whole-file hash mismatch although all %d chunks were received", id, t.TotalChunks)
+		if err := m.db.SetTransferStatus(id, store.TransferFailed); err != nil {
 			log.Printf("transfer %s failed hash verification but status update failed: %v", id, err)
 			if deleteErr := m.db.DeleteTransfer(id); deleteErr != nil {
 				log.Printf("failed to release transfer reservation %s after hash failure: %v", id, deleteErr)
@@ -673,7 +811,7 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 		}
 		// The temp file is now orphaned (the transfer can't be resumed once
 		// failed) — remove it so it doesn't leak on disk.
-		if err := os.Remove(t.TempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			log.Printf("failed to remove mismatched transfer temp file %s: %v", id, err)
 		}
 		return nil, "", fmt.Errorf("%w: got %s want %s", ErrFileMismatch, got, t.SHA256)
@@ -691,9 +829,10 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 			if errors.Is(err, ErrDestinationExists) {
 				return nil, "", err
 			}
+			countENOSPC(&m.stats.enospcPublish, id, err)
 			return nil, "", fmt.Errorf("publish: %w", err)
 		}
-		if err := os.Remove(t.TempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			log.Printf("transfer %s published but central temp cleanup failed: %v", id, err)
 		}
 	} else {
@@ -705,18 +844,28 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 
 		// Preserve the path-based API for internal non-server callers. Server
 		// requests use CompleteWithPublisher and a rooted Ops publisher.
-		if err := publish(t.TempPath, t.TargetPath, t.Overwrite); err != nil {
+		// The temp is private (0600) until now; the published file gets the mode a new file normally has.
+		if err := m.applyDefaultFileMode(tempPath); err != nil {
+			return nil, "", fmt.Errorf("set published file mode: %w", err)
+		}
+		if err := publish(tempPath, t.TargetPath, t.Overwrite); err != nil {
 			if errors.Is(err, ErrDestinationExists) {
 				return nil, "", err
 			}
+			countENOSPC(&m.stats.enospcPublish, id, err)
 			return nil, "", fmt.Errorf("rename: %w", err)
+		}
+		// The new name must survive a power cut before the session is recorded as completed.
+		if err := fsops.SyncDir(filepath.Dir(t.TargetPath)); err != nil {
+			return nil, "", fmt.Errorf("sync destination folder: %w", err)
 		}
 	}
 
 	// The bytes are on disk under the final name — the transfer succeeded even
 	// if recording that fails, so surface the persistence error instead of
-	// dropping it and leaving the row stuck "open" (PR-50).
-	if err := m.db.SetTransferStatus(id, "completed"); err != nil {
+	// dropping it and leaving the row stuck "open".
+	m.hashes.drop(id)
+	if err := m.db.SetTransferStatus(id, store.TransferCompleted); err != nil {
 		if deleteErr := m.db.DeleteTransfer(id); deleteErr != nil {
 			log.Printf("failed to release transfer reservation %s after publish: %v", id, deleteErr)
 		}
@@ -735,7 +884,7 @@ func (m *Manager) complete(id string, publisher func(string, io.Reader, bool) (o
 // publish moves the finished temp file onto its final path. With overwrite it
 // replaces whatever is there (moveFile); without it, the create must fail
 // rather than replace a file that appeared during the upload — OpenSession's
-// Stat is far too early to rely on (PR-50).
+// Stat is far too early to rely on.
 //
 // The no-replace path uses os.Link, which fails with EEXIST if dst exists and
 // so decides atomically, unlike a Stat-then-rename. Link needs both paths on
@@ -747,11 +896,29 @@ func publish(src, dst string, overwrite bool) error {
 	}
 	switch err := os.Link(src, dst); {
 	case err == nil:
-		return os.Remove(src) // dst is now a second name for the same inode
+		return removeSourceAfterPublish(src) // dst is now a second name for the same inode
 	case errors.Is(err, fs.ErrExist):
 		return ErrDestinationExists
 	}
 	return copyAcrossNoReplace(src, dst)
+}
+
+// removeTempIgnoreMissing removes path, treating an already-missing file as success.
+func removeTempIgnoreMissing(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// removeSourceAfterPublish drops the temp file once dst holds the bytes. The file is already
+// published, so a failed removal must not turn a successful upload into an error: it is logged
+// and the orphan-temp cleanup collects the leftover.
+func removeSourceAfterPublish(src string) error {
+	if err := removeTempIgnoreMissing(src); err != nil {
+		log.Printf("published file but could not remove temp %s: %v", src, err)
+	}
+	return nil
 }
 
 // copyAcrossNoReplace copies src onto dst, creating dst with O_EXCL so an
@@ -786,7 +953,7 @@ func copyAcrossNoReplace(src, dst string) error {
 		os.Remove(dst)
 		return err
 	}
-	return os.Remove(src)
+	return removeSourceAfterPublish(src)
 }
 
 // moveFile moves src to dst atomically when possible. It tries os.Rename first
@@ -835,5 +1002,5 @@ func copyAcross(src, dst string) error {
 		os.Remove(tmpName)
 		return err
 	}
-	return os.Remove(src)
+	return removeSourceAfterPublish(src)
 }

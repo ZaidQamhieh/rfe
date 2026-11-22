@@ -3,12 +3,12 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, FlatList, RefreshControl, ScrollView, View } from 'react-native';
 
+import { listAllEntries } from '../../core/api/listAll';
 import { can, type Entry } from '../../core/api/models';
-import type { EntryCategory } from '../../core/entryCategory';
+import { ignoreError } from '../../core/log';
 import type { Host } from '../../core/models/host';
-import { ActionFooter, Button, EmptyState, type FooterButton, ErrorRetry, ListingSkeleton, OfflineBanner, Pressable, Text, useDialogs, useToast } from '../../design/components';
-import { ClipboardPaste, Copy, CopyPlus, FolderInput, FolderOutput, GitCompare, ListChecks, Plus, Upload, Eye, EyeOff, Bookmark, FileUp, History, LayoutGrid, PieChart, RefreshCw, Replace, Route, Search, SlidersHorizontal, Trash2 } from 'lucide-react-native';
-import { mix } from '../../design/color';
+import { Button, Chip, OfflineBanner, Pressable, Text, useDialogs, useToast } from '../../design/components';
+import { ClipboardPaste, Monitor, Copy, CopyPlus, FolderInput, FolderOutput, GitCompare, Upload, Eye, EyeOff, HardDrive, Bookmark, FileUp, LayoutGrid, RefreshCw, Route, Search, SlidersHorizontal, Trash2 } from 'lucide-react-native';
 import { LumenType } from '../../design/lumen';
 import { useScheme } from '../../design/theme';
 import { Spacing } from '../../design/tokens';
@@ -19,43 +19,54 @@ import { useSettings } from '../../state/settings';
 import { offlineDeps } from '../offline/offlineDeps';
 import { MAX_OFFLINE_FILE_BYTES, precachePinnedFolder } from '../offline/offlineBodies';
 import { markPinSynced, pinSyncPending, refreshPinnedFolders } from '../offline/pinSync';
-import { humanizeError } from '../pairing/pairingService';
+import { humanizeError } from '../../core/humanizeError';
 import { fetchPreviewFile } from '../preview/previewFile';
 import { isPreviewable, previewableSiblings } from '../preview/previewKind';
 import { usePreviewSession } from '../preview/session';
 import { enqueueDownloads } from '../transfers/enqueueDownloads';
-import { BrowseHeader, FolderHead, SelectionBar, SelectionHeader, type OverflowAction, type SelectionChip } from './Bars';
+import { BrowseHeader, SelectionBar, SelectionHeader, SelectionTools, type OverflowAction, type SelectionChip } from './Bars';
 import { BatchRenameSheet } from './BatchRenameSheet';
+import { BreadcrumbBar } from './Breadcrumb';
 import { CommandPalette, type PaletteAction } from './CommandPalette';
 import { CreateMenu } from './CreateMenu';
 import { DestinationPicker } from './DestinationPicker';
-import { footerActions } from './footerLogic';
-import { EntryGridCell } from './EntryGridCell';
+import { RelayCopySheet } from './RelayCopySheet';
+import { DayHeader, EntryGridCell } from './EntryGridCell';
 import { EntryTile } from './EntryTile';
+import { FolderSkeleton, PreviewsOffNote, StatusBlock, type StatusAction } from './FolderStates';
+import { useThumbsDenied } from './Thumbnail';
+import { thumbnails } from './thumbnails';
+import { buildGridRows, cellSize, folderSummary, formatDayLabel } from './gridLogic';
 import { MetaSheet } from './MetaSheet';
+import { soleExtractableArchive } from './metaLogic';
 import { PeekSheet } from './PeekSheet';
-import { FavoritesPinRow, FavoritesSheet, ViewOptionsSheet } from './Sheets';
+import { FavoritesSheet, ViewOptionsSheet } from './Sheets';
 import { useFileClipboard } from './clipboard';
 import { normalizeTypedPath } from './paletteLogic';
 import { transfers } from '../../core/native';
 import { clientForHost, listingCache } from '../../services';
 import { atRoot, currentPath } from './explorerStore';
 import { basenameOf, folderLabel, parentDirOf } from './paths';
-import { recentRouteParams } from '../recent/recentRoot';
-import { rowShape } from './rowShape';
-import { pathsText } from './selectionLogic';
+import { toggleFavoriteToast } from './favoriteToggle';
+import { pathsText, selectedBytes } from './selectionLogic';
 import { filterByTag } from './tagFilter';
-import { filterByType, typeChips } from './typeFilter';
+import { ToolsRow } from './ToolsRow';
 import { useExplorer } from './useExplorer';
 import { useFileActions } from './useFileActions';
-import { useFileCapabilities } from './useFileCapabilities';
+import { refreshFileCapabilities, useFileCapabilities } from './useFileCapabilities';
 
-const GRID_COLUMNS_MIN_WIDTH = 144;
-const GUTTER = 18;
-const CARD_GAP = 10;
+/** Photo grid (mockup `.grid3`): three columns with 2 dp between cells. */
+const GRID_COLUMNS = 3;
+const GRID_GAP = 2;
+/** Side inset of the filter chips (rows themselves run edge to edge). */
+const INSET = 16;
 
-/** Files tab body for one host root: list/grid browsing, selection, clipboard operations, favorites, bookmarks and pinning. */
-/** [onLeaveRoot] goes back to the host's list of shared folders or drives; absent when there is nothing above [rootPath]. */
+const fetchOfflineFile = (h: Host, e: Entry) => fetchPreviewFile(h, e, MAX_OFFLINE_FILE_BYTES);
+
+/**
+ * Files tab body for one host root: list/grid browsing, selection, clipboard operations, favorites, bookmarks and pinning.
+ * [onLeaveRoot] goes back to the host's list of shared folders or drives; absent when there is nothing above [rootPath].
+ */
 export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { host: Host; rootPath: string; initialPath?: string; onLeaveRoot?: () => void }) {
   const c = useScheme();
   const router = useRouter();
@@ -65,9 +76,9 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
   const actions = useFileActions(host, ex);
   const collections = useCollections();
   const clip = useFileClipboard((s) => s.clip);
-  const density = useSettings((s) => s.state.overrides[host.id]?.density ?? s.state.app.density);
   const [createOpen, setCreateOpen] = useState(false);
   const caps = useFileCapabilities(host);
+  const previewsOff = useThumbsDenied(host.id);
   const [viewOpen, setViewOpen] = useState(false);
   const [favOpen, setFavOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -77,9 +88,10 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
   // A tag filter applies only to the folder it was picked in.
   const [tagFilter, setTagFilter] = useState<{ path: string; tag: string } | null>(null);
   // A type filter (images, documents, ...) applies only to the folder it was picked in, like the tag filter.
-  const [typeFilter, setTypeFilter] = useState<{ path: string; category: EntryCategory } | null>(null);
   // Move to / Copy to: the destination sheet is open for the current selection.
   const [pickFor, setPickFor] = useState<'move' | 'copy' | null>(null);
+  // Copy to another computer: the chooser sheet is open for the current selection.
+  const [relayOpen, setRelayOpen] = useState(false);
   const [width, setWidth] = useState(0);
   // Selection mode entered from the footer "Select" button; long-press also selects without it.
   const [selectMode, setSelectMode] = useState(false);
@@ -99,20 +111,13 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
       const client = await clientForHost(host);
       const result = await refreshPinnedFolders(paths, {
         listAll: async (path) => {
-          const all: Entry[] = [];
-          let cursor: string | undefined;
-          do {
-            const page = await client.list(path, { cursor });
-            all.push(...page.entries);
-            cursor = page.nextCursor;
-          } while (cursor);
-          return all;
+          return listAllEntries((cursor) => client.list(path, { cursor }));
         },
         storeListing: (path, entries) => listingCache.put(host.id, path, entries),
-        precache: (entries) => precachePinnedFolder(offlineDeps, host, entries, (h, e) => fetchPreviewFile(h, e, MAX_OFFLINE_FILE_BYTES)),
+        precache: (entries) => precachePinnedFolder(offlineDeps, host, entries, fetchOfflineFile),
       });
       if (result.folders > 0) markPinSynced(host.id);
-    })().catch(() => {});
+    })().catch(ignoreError('pin sync'));
   }, [online, host]);
 
   // A finished upload into the folder on screen shows up without a manual refresh.
@@ -173,10 +178,8 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
     const visible = new Set(display.map((e) => e.path));
     return [...new Set(collections.bookmarks.filter((b) => b.hostId === host.id && b.tag && visible.has(b.remotePath)).map((b) => b.tag!))];
   }, [collections.bookmarks, display, host.id]);
-  const activeType = typeFilter?.path === path ? typeFilter.category : null;
   const byTag = filterByTag(display, activeTag, taggedPaths);
-  const chips = typeChips(byTag);
-  const entries = filterByType(byTag, activeType && chips.includes(activeType) ? activeType : null);
+  const entries = byTag;
 
   const openPreview = usePreviewSession((x) => x.open);
   const startPreview = useCallback(
@@ -202,9 +205,7 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
   );
 
   async function toggleFavorite() {
-    await collections.toggleFavorite({ hostId: host.id, path, label: folderLabel(path) });
-    if (isFav) toast.info(t('removedFavorite', { name: folderLabel(path) }));
-    else toast.success(t('addedFavorite', { name: folderLabel(path) }));
+    await toggleFavoriteToast((o) => collections.toggleFavorite(o), toast, { hostId: host.id, path, name: folderLabel(path), isFav });
   }
 
   async function togglePin() {
@@ -227,18 +228,18 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
       } catch {
         // Best effort: precache what was loaded.
       }
-      await precachePinnedFolder(offlineDeps, host, all, (h, e) => fetchPreviewFile(h, e, MAX_OFFLINE_FILE_BYTES));
-    })().catch(() => {});
+      await precachePinnedFolder(offlineDeps, host, all, fetchOfflineFile);
+    })().catch(ignoreError('pin precache'));
   }
 
   async function bookmark(e: Entry) {
     const already = collections.bookmarks.some((b) => b.hostId === host.id && b.remotePath === e.path);
     if (already) {
-      const ok = await dialogs.confirm({ title: 'Remove Bookmark', description: `Remove bookmark for "${e.name}"?`, confirmLabel: 'Remove', cancelLabel: t('cancelButton') });
+      const ok = await dialogs.confirm({ title: t('removeBookmarkTitle'), description: t('removeBookmarkBody', { name: e.name }), confirmLabel: t('phonesRemove'), cancelLabel: t('cancelButton') });
       if (ok) await collections.removeBookmark(host.id, e.path);
       return;
     }
-    const tag = await dialogs.prompt({ title: `Bookmark "${e.name}"`, placeholder: 'Tag (optional)', confirmLabel: 'Save', allowEmpty: true });
+    const tag = await dialogs.prompt({ title: t('bookmarkTitle', { name: e.name }), placeholder: t('tagOptionalPlaceholder'), confirmLabel: t('saveButton'), allowEmpty: true });
     if (tag === null) return;
     await collections.addBookmark({ hostId: host.id, remotePath: e.path, ...(tag ? { tag } : {}) });
   }
@@ -263,7 +264,7 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
     const entry = state.entries.find((e) => e.path === only);
     if (!entry) return;
     ex.clearSelection();
-    bookmark(entry).catch(() => {});
+    bookmark(entry).catch(ignoreError('bookmark'));
   }
 
   function detailsOfSelected() {
@@ -285,15 +286,12 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
     }
   }
 
-
   const onOverflow = (a: OverflowAction) => {
     switch (a) {
       case 'newItem':
         return setCreateOpen(true);
       case 'toggleFavorite':
         return void toggleFavorite();
-      case 'bookmarks':
-        return router.push('/bookmarks');
       case 'viewOptions':
         return setViewOpen(true);
       case 'favorites':
@@ -304,14 +302,6 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
         return router.navigate('/transfers');
       case 'trash':
         return router.push('/trash');
-      case 'recent':
-        return router.push('/recent');
-      case 'recentHere':
-        return router.push({ pathname: '/recent', params: recentRouteParams(path) });
-      case 'dupFinder':
-        return router.push({ pathname: '/dups', params: { path } });
-      case 'storageByType':
-        return router.push({ pathname: '/host/[id]/types', params: { id: host.id, path } });
       case 'commandPalette':
         return setPaletteOpen(true);
       default:
@@ -320,48 +310,28 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
   };
 
   const goToPath = async () => {
-    const typed = await dialogs.prompt({ title: t('goToPathTitle'), placeholder: '/path/to/folder', confirmLabel: t('goButton'), mono: true });
+    const typed = await dialogs.prompt({ title: t('goToPathTitle'), placeholder: t('goToPathPlaceholder'), confirmLabel: t('goButton'), mono: true });
     const target = typed === null ? null : normalizeTypedPath(typed);
     if (target) ex.jumpTo(target);
   };
   const paletteActions: PaletteAction[] = [
-    { id: 'search', label: 'Search', icon: Search, run: () => router.push({ pathname: '/host/[id]/search', params: { id: host.id, path } }) },
-    { id: 'refresh', label: 'Refresh', icon: RefreshCw, run: () => ex.refresh() },
-    { id: 'grid', label: 'Toggle Grid/List', icon: LayoutGrid, run: () => void useSettings.getState().setApp('gridView', !view.gridView) },
+    { id: 'search', label: t('searchButton'), icon: Search, run: () => router.push({ pathname: '/host/[id]/search', params: { id: host.id, path } }) },
+    { id: 'refresh', label: t('refreshTooltip'), icon: RefreshCw, run: () => { refreshFileCapabilities(); return ex.refresh(); } },
+    { id: 'grid', label: t('toggleGridList'), icon: LayoutGrid, run: () => void useSettings.getState().setApp('gridView', !view.gridView) },
     { id: 'view', label: t('viewOptionsTitle'), icon: SlidersHorizontal, run: () => setViewOpen(true) },
     { id: 'favorites', label: t('favoritesTitle'), icon: Bookmark, run: () => setFavOpen(true) },
     { id: 'transfers', label: t('transfersMenuItem'), icon: FileUp, run: () => router.navigate('/transfers') },
+    { id: 'usage', label: t('usageMenuItem'), icon: HardDrive, run: () => router.push({ pathname: '/host/[id]/usage', params: { id: host.id, path } }) },
     { id: 'trash', label: t('trashTitle'), icon: Trash2, run: () => router.push('/trash') },
-    { id: 'recent', label: t('recentTitle'), icon: History, run: () => router.push('/recent') },
-    { id: 'types', label: t('storageByTypeTitle'), icon: PieChart, run: () => router.push({ pathname: '/host/[id]/types', params: { id: host.id, path } }) },
-    { id: 'dups', label: 'Find Duplicates', icon: Replace, run: () => router.push({ pathname: '/dups', params: { path } }) },
-    { id: 'goto', label: 'Navigate to Path', icon: Route, run: () => void goToPath() },
+    { id: 'goto', label: t('navigateToPath'), icon: Route, run: () => void goToPath() },
   ];
 
-  const columns = Math.max(2, Math.floor((width - GUTTER * 2 + CARD_GAP) / (GRID_COLUMNS_MIN_WIDTH + CARD_GAP)));
   const showMore = state.nextCursor !== null && !activeTag;
   const showHidden = hiddenCount > 0 && !activeTag;
-  const favRow = atRoot(state) ? collections.favorites.filter((f) => f.hostId === host.id) : [];
   const multi = selectMode || state.selected.size > 0;
+  const soleArchive = soleExtractableArchive(state.entries, state.selected);
   const selectedPaths = useMemo(() => [...state.selected], [state.selected]);
   const showPaste = clip !== null && clip.paths.length > 0 && clip.hostId === host.id && can(caps, 'modify');
-  // Mockup `.file-actions`: Upload (60%) and Select (40%). The permission-gated footerActions decide the primary
-  // (Paste, Upload or New); a second "New" moves to the overflow sheet so the row keeps the mockup's two buttons.
-  const primaryAction = footerActions({ caps, showPaste })[0];
-  const footerButtons: FooterButton[] = [
-    ...(primaryAction
-      ? [
-          {
-            key: primaryAction.key,
-            primary: true,
-            label: primaryAction.key === 'paste' ? t('pasteNItems', { count: clip?.paths.length ?? 0 }) : primaryAction.key === 'upload' ? t('uploadFileTooltip') : t('newButton'),
-            onPress: primaryAction.key === 'paste' ? () => void actions.paste() : primaryAction.key === 'upload' ? () => void actions.upload() : () => setCreateOpen(true),
-            renderIcon: (k: string) => (primaryAction.key === 'paste' ? <ClipboardPaste size={22} color={k} /> : primaryAction.key === 'upload' ? <Upload size={22} color={k} /> : <Plus size={22} color={k} />),
-          },
-        ]
-      : []),
-    { key: 'select', label: 'Select', primary: false, onPress: () => setSelectMode(true), renderIcon: (k: string) => <ListChecks size={22} color={k} /> },
-  ];
 
   const pickedFiles = selectedCount === 2 ? state.entries.filter((e) => state.selected.has(e.path)) : [];
   const selectionChips: SelectionChip[] = [
@@ -369,15 +339,18 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
     ...(selectedCount > 0 && can(caps, 'modify') ? [{ key: 'dup', label: t('duplicateButton'), icon: CopyPlus, onPress: () => void actions.duplicateSelection() }] : []),
     ...(selectedCount > 0 && can(caps, 'modify') && can(caps, 'delete') ? [{ key: 'moveTo', label: t('moveToTooltip'), icon: FolderInput, onPress: () => setPickFor('move') }] : []),
     ...(selectedCount > 0 && can(caps, 'modify') ? [{ key: 'copyTo', label: t('copyToTooltip'), icon: FolderOutput, onPress: () => setPickFor('copy') }] : []),
+    ...(selectedCount > 0 && can(caps, 'download') && state.entries.filter((e) => state.selected.has(e.path)).every((e) => !e.isDir) ? [{ key: 'relay', label: t('relayCopyTooltip'), icon: Monitor, onPress: () => setRelayOpen(true) }] : []),
     ...(pickedFiles.length === 2 && pickedFiles.every((e) => !e.isDir) ? [{ key: 'compare', label: t('compareTooltip'), icon: GitCompare, onPress: () => void actions.compareSelection() }] : []),
   ];
 
+  const back = atRoot(state) ? onLeaveRoot : () => void ex.popDirectory();
   const header = multi ? (
-    <SelectionHeader host={host} state={state} shown={entries} extras={selectionChips} canModify={can(caps, 'modify')} onClose={endSelection} onBatchRename={() => setRenameOpen(true)} onSelectAll={() => ex.selectAll(entries)} onClearSelection={ex.clearSelection} onInvertSelection={() => ex.invertSelection(entries)} onBookmark={bookmarkSelected} onDetails={detailsOfSelected} />
+    <SelectionHeader count={selectedCount} bytes={selectedBytes(state.entries, state.selected)} all={entries.length > 0 && entries.every((x) => state.selected.has(x.path))} onClose={endSelection} onSelectAll={() => ex.selectAll(entries)} onClearSelection={ex.clearSelection} />
   ) : (
     <BrowseHeader
-      host={host}
-      offline={state.offline || !!state.error}
+      title={folderLabel(path)}
+      onBack={back}
+      backLabel={t('folderBackTooltip')}
       isFav={isFav}
       isCurrentFolderPinned={pinnedHere}
       canCreate={can(caps, 'modify')}
@@ -385,41 +358,57 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
       onOverflow={onOverflow}
     />
   );
-  // Folder title, path and filter chips scroll with the entries (audit M1: pinned, they left the list about a quarter
-  // of the screen). Selection mode keeps its own pinned title in SelectionHeader.
-  const folderHead = (
+  const reading = state.loading && state.entries.length === 0;
+  // Path and tools stay pinned under the header (mockup `.path` and `.tools`); selection mode swaps the tools for its own row.
+  const pathAndTools = (
     <View>
-      {!multi && <FolderHead state={state} onBack={() => ex.popDirectory()} onLeaveRoot={onLeaveRoot} onNavigateTo={ex.navigateTo} onJumpTo={ex.jumpTo} />}
-      {tags.length > 0 && <TagChips tags={tags} active={activeTag} onChange={setActiveTag} />}
-      {chips.length > 0 && <TypeChips categories={chips} active={activeType} onChange={(category) => setTypeFilter(category ? { path, category } : null)} />}
+      <BreadcrumbBar pathStack={state.pathStack} onNavigateTo={ex.navigateTo} onJumpTo={ex.jumpTo} rootLabel={host.label} />
+      {multi ? (
+        <SelectionTools count={selectedCount} canModify={can(caps, 'modify')} extras={selectionChips} onInvertSelection={() => ex.invertSelection(entries)} onRename={() => void actions.renameOne(selectedPaths[0])} onBatchRename={() => setRenameOpen(true)} onBookmark={bookmarkSelected} onDetails={detailsOfSelected} />
+      ) : entries.length > 0 || reading ? (
+        <ToolsRow summary={folderSummary(entries, showMore)} reading={reading} sort={view.sort} gridView={view.gridView} onSort={() => setViewOpen(true)} onToggleGrid={() => void useSettings.getState().setApp('gridView', !view.gridView)} />
+      ) : null}
+    </View>
+  );
+  // Tag and kind filters scroll with the entries.
+  const filterRows = (
+    <View>
+      {tags.length > 0 && <ChipRow items={tags} labelOf={(tag) => tag} active={activeTag} onChange={setActiveTag} />}
     </View>
   );
 
+  // Photo grid: three equal cells per line; with a sort by date each day gets a header line.
+  const cell = cellSize(width, GRID_COLUMNS, GRID_GAP);
+  const gridRows = useMemo(
+    () => (view.gridView ? buildGridRows(entries, GRID_COLUMNS, { byDay: view.sort.field === 'date', label: (d) => (d ? formatDayLabel(d) : t('undatedLabel')) }) : []),
+    [entries, view.gridView, view.sort.field],
+  );
+
   let body: React.ReactNode;
-  if (state.loading && state.entries.length === 0) body = <>{folderHead}<ListingSkeleton /></>;
+  if (reading) body = <FolderSkeleton />;
   else if (state.error && state.entries.length === 0) {
     // The saved folder is no longer one this device may browse (the computer's allowed folders changed): retrying cannot help, so offer the list of shared folders again.
     const rootRejected = state.errorCode === 'FORBIDDEN' && atRoot(state);
+    const errorActions: StatusAction[] = [
+      { label: t('retryButton'), onPress: () => { refreshFileCapabilities(); void ex.refresh(); }, icon: (k) => <RefreshCw size={20} color={k} /> },
+      ...(rootRejected ? [{ label: t('chooseAnotherFolder'), onPress: () => { const cur = useActiveHost.getState().active; if (cur) useActiveHost.getState().setActive({ ...cur, rootPath: undefined, initialPath: undefined }); } }] : []),
+    ];
+    body = <StatusBlock emoji="desktop_computer" off title={t('folderErrorTitle')} hint={state.error} actions={errorActions} />;
+  } else if (entries.length === 0 && state.entries.length > 0) {
+    // Everything is hidden by a tag or kind filter: say so and offer the way back.
     body = (
-      <View style={{ flex: 1 }}>
-        {folderHead}
-        <ErrorRetry message={state.error} onRetry={() => ex.refresh()} />
-        {rootRejected ? (
-          <View style={{ paddingHorizontal: 18, paddingBottom: 12 }}>
-            <Button kind="tonal" label={t('chooseAnotherFolder')} onPress={() => { const cur = useActiveHost.getState().active; if (cur) useActiveHost.getState().setActive({ ...cur, rootPath: undefined, initialPath: undefined }); }} />
-          </View>
-        ) : null}
+      <View>
+        {filterRows}
+        <StatusBlock title={t('noMatchesMessage')} hint={t('noMatchesHint')} actions={[{ label: t('showAllButton'), onPress: () => { setTagFilter(null); } }]} />
       </View>
     );
-  }
-  else if (entries.length === 0)
-    body = (
-      <View style={{ flex: 1 }}>
-        {folderHead}
-        <EmptyState kind={state.entries.length > 0 ? 'noMatches' : 'emptyFolder'} message={state.entries.length > 0 ? t('noMatchesMessage') : t('emptyFolderMessage')} />
-      </View>
-    );
-  else {
+  } else if (entries.length === 0) {
+    const emptyActions: StatusAction[] = [
+      ...(can(caps, 'upload') ? [{ label: t('sendFilesHere'), onPress: () => void actions.upload(), icon: (k: string) => <Upload size={20} color={k} /> }] : []),
+      ...(can(caps, 'modify') ? [{ label: t('newFolderButton'), onPress: () => void actions.createNamed(true) }] : []),
+    ];
+    body = <StatusBlock emoji="open_file_folder" title={t('emptyFolderMessage')} hint={emptyActions.length > 0 ? t('emptyFolderHint') : undefined} actions={emptyActions} />;
+  } else {
     const footer = (
       <>
         {showMore && state.loadMoreError !== null && (
@@ -441,57 +430,67 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
       </>
     );
     const common = {
-      data: entries,
-      keyExtractor: (e: Entry) => e.path,
       onEndReached: () => showMore && void ex.loadMore(),
       onEndReachedThreshold: 0.6,
-      refreshControl: <RefreshControl refreshing={state.loading} onRefresh={() => ex.refresh()} />,
+      refreshControl: <RefreshControl refreshing={state.loading} onRefresh={() => { refreshFileCapabilities(); thumbnails.forgetDenied(host.id); void ex.refresh(); }} />,
       ListFooterComponent: footer,
       ListHeaderComponent: (
         <View>
-          {/* The list content is inset by GUTTER; the head carries its own 18 dp inset. */}
-          <View style={{ marginHorizontal: -GUTTER, marginTop: view.gridView ? -CARD_GAP : 0 }}>{folderHead}</View>
-          {favRow.length > 0 ? <FavoritesPinRow favorites={favRow} onOpen={ex.jumpTo} onRemove={(f) => collections.removeFavorite(f.hostId, f.path)} /> : null}
+          {filterRows}
+          {previewsOff && <PreviewsOffNote />}
         </View>
       ),
     };
     body = view.gridView ? (
       <FlatList
-        key={`grid${columns}`}
+        key="grid"
         {...common}
-        numColumns={columns}
-        contentContainerStyle={{ padding: GUTTER, paddingTop: CARD_GAP, paddingBottom: GUTTER, gap: CARD_GAP }}
-        columnWrapperStyle={{ gap: CARD_GAP }}
-        renderItem={({ item }) => (
-          <View style={{ flex: 1, opacity: hidden.has(item.path) ? 0.55 : 1 }}>
-            <EntryGridCell entry={item} hostId={host.id} selected={state.selected.has(item.path)} multiSelect={multi} isFavorite={favPaths.has(item.path)} isPinned={pinPaths.has(item.path)} onPress={() => openEntry(item)} onLongPress={() => longPressEntry(item)} onPeek={isPreviewable(item) ? () => setPeekEntry(item) : undefined} />
-          </View>
-        )}
+        data={gridRows}
+        keyExtractor={(r) => r.key}
+        renderItem={({ item }) =>
+          item.type === 'day' ? (
+            <DayHeader label={item.label} count={item.count} />
+          ) : (
+            <View style={{ flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP }}>
+              {item.entries.map((e) => (
+                <View key={e.path} style={{ opacity: hidden.has(e.path) ? 0.55 : 1 }}>
+                  <EntryGridCell entry={e} hostId={host.id} size={cell} selected={state.selected.has(e.path)} multiSelect={multi} isFavorite={favPaths.has(e.path)} isPinned={pinPaths.has(e.path)} onPress={() => openEntry(e)} onLongPress={() => longPressEntry(e)} />
+                </View>
+              ))}
+            </View>
+          )
+        }
       />
     ) : (
       <FlatList
         key="list"
         {...common}
-        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: GUTTER }}
-        renderItem={({ item, index }) => (
+        data={entries}
+        keyExtractor={(e: Entry) => e.path}
+        contentContainerStyle={{ paddingBottom: INSET }}
+        renderItem={({ item }) => (
           <View style={{ opacity: hidden.has(item.path) ? 0.55 : 1 }}>
-            <EntryTile entry={item} hostId={host.id} shape={rowShape(entries, index)} selected={state.selected.has(item.path)} multiSelect={multi} density={density} isFavorite={favPaths.has(item.path)} isPinned={pinPaths.has(item.path)} onPress={() => openEntry(item)} onLongPress={() => longPressEntry(item)} onPeek={isPreviewable(item) ? () => setPeekEntry(item) : undefined} onSelect={() => ex.toggleSelect(item.path)} onShowMeta={item.isDir ? () => setMetaEntry(item) : undefined} />
+            <EntryTile entry={item} hostId={host.id} density={view.density} selected={state.selected.has(item.path)} multiSelect={multi} isFavorite={favPaths.has(item.path)} isPinned={pinPaths.has(item.path)} onPress={() => openEntry(item)} onLongPress={() => longPressEntry(item)} onPeek={isPreviewable(item) ? () => setPeekEntry(item) : undefined} onSelect={() => ex.toggleSelect(item.path)} />
           </View>
         )}
       />
     );
   }
 
-
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {header}
       {state.offline && <OfflineBanner text={t('offlineBannerText')} />}
+      {pathAndTools}
+      {showPaste && !multi && (
+        <View style={{ flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.md2, paddingVertical: 6 }}>
+          <Button label={t('pasteNItems', { count: clip!.paths.length })} renderIcon={(c) => <ClipboardPaste size={16} color={c} />} kind="tonal" size="s" onPress={() => void actions.paste()} />
+          <Button label={t('dismissButton')} kind="neutral" size="s" onPress={() => useFileClipboard.getState().clear()} />
+        </View>
+      )}
       <View style={{ flex: 1 }}>{body}</View>
-      {multi ? (
-        <SelectionBar count={state.selected.size} onCut={actions.cutSelection} onCopy={actions.copySelection} onCompress={actions.compressSelected} onDownload={downloadSelected} onDelete={actions.confirmDelete} caps={caps} />
-      ) : (
-        <ActionFooter buttons={footerButtons} />
+      {multi && (
+        <SelectionBar count={state.selected.size} onCut={actions.cutSelection} onCopy={actions.copySelection} onCompress={actions.compressSelected} onExtract={soleArchive ? () => void actions.extractArchive(soleArchive) : undefined} onDownload={downloadSelected} onDelete={actions.confirmDelete} caps={caps} />
       )}
       <CreateMenu
         visible={createOpen}
@@ -529,6 +528,7 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
           onClose={() => setPickFor(null)}
         />
       )}
+      {relayOpen && <RelayCopySheet source={host} paths={selectedPaths} onDone={() => { setRelayOpen(false); endSelection(); }} onClose={() => setRelayOpen(false)} />}
       {peekEntry && <PeekSheet host={host} entry={peekEntry} onClose={() => setPeekEntry(null)} />}
       {metaEntry && <MetaSheet visible host={host} entry={metaEntry} onClose={() => setMetaEntry(null)} onChanged={() => void ex.refresh()} onPreview={startPreview} />}
       <FavoritesSheet visible={favOpen} onClose={() => setFavOpen(false)} host={host} state={state} onOpen={ex.jumpTo} />
@@ -536,41 +536,14 @@ export function ExplorerScreen({ host, rootPath, initialPath, onLeaveRoot }: { h
   );
 }
 
-function TagChips({ tags, active, onChange }: { tags: string[]; active: string | null; onChange: (t: string | null) => void }) {
-  const c = useScheme();
-  const chip = (label: string, on: boolean, onPress: () => void) => (
-    <Pressable key={label} onPress={onPress} hitSlop={6} accessibilityLabel={label} accessibilityState={{ selected: on }}>
-      <View style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: on ? mix(c.primary, c.surfaceContainer, 0.2) : c.surfaceContainerHigh }}>
-        <Text style={LumenType.pill} color={on ? c.primary : c.onSurfaceVariant}>{label}</Text>
-      </View>
-    </Pressable>
-  );
+/** One chip per item (tag or kind); tap to show only that one, tap again (or All) to show everything. */
+function ChipRow<T extends string>({ items, labelOf, active, onChange }: { items: T[]; labelOf: (item: T) => string; active: T | null; onChange: (item: T | null) => void }) {
   // One scrolling row rather than wrapped rows, so filters cost a single line above the list.
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, paddingHorizontal: GUTTER, paddingVertical: 6, alignItems: 'center' }}>
-      {active && chip('All', false, () => onChange(null))}
-      {tags.map((tag) => chip(tag, active === tag, () => onChange(active === tag ? null : tag)))}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: Spacing.sm, paddingHorizontal: INSET, paddingVertical: Spacing.sm, alignItems: 'center' }}>
+      {active && <Chip label={t('filterAllChip')} onPress={() => onChange(null)} />}
+      {items.map((item) => <Chip key={labelOf(item)} label={labelOf(item)} selected={active === item} onPress={() => onChange(active === item ? null : item)} />)}
     </ScrollView>
   );
 }
 
-const CATEGORY_LABEL: Record<EntryCategory, string> = { folder: 'Folders', image: 'Images', video: 'Videos', audio: 'Audio', document: 'Documents', archive: 'Archives', other: 'Other' };
-
-/** One chip per kind of item in the folder; tap to show only that kind, tap again (or All) to show everything. */
-function TypeChips({ categories, active, onChange }: { categories: EntryCategory[]; active: EntryCategory | null; onChange: (c: EntryCategory | null) => void }) {
-  const c = useScheme();
-  const chip = (label: string, on: boolean, onPress: () => void) => (
-    <Pressable key={label} onPress={onPress} hitSlop={6} accessibilityLabel={label} accessibilityState={{ selected: on }}>
-      <View style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: on ? mix(c.primary, c.surfaceContainer, 0.2) : c.surfaceContainerHigh }}>
-        <Text style={LumenType.pill} color={on ? c.primary : c.onSurfaceVariant}>{label}</Text>
-      </View>
-    </Pressable>
-  );
-  // One scrolling row rather than wrapped rows, so filters cost a single line above the list.
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, paddingHorizontal: GUTTER, paddingVertical: 6, alignItems: 'center' }}>
-      {active && chip('All', false, () => onChange(null))}
-      {categories.map((cat) => chip(CATEGORY_LABEL[cat], active === cat, () => onChange(active === cat ? null : cat)))}
-    </ScrollView>
-  );
-}

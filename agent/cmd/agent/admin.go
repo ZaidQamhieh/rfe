@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,54 +32,66 @@ func runAdmin(cmd string, args []string) error {
 	return nil
 }
 
+// adminCommand is one admin subcommand word and its handler.
+type adminCommand struct {
+	name   string
+	run    func(args []string) error
+	noArgs bool // takes no arguments; a stray one is an error, never ignored
+}
+
+// adminCommands is the one list of admin subcommand words. dispatchAdmin looks words up
+// here, and adminCommandNames (main.go) is derived from it at startup.
+var adminCommands = []adminCommand{
+	{name: "pair", run: cmdPair},
+	{name: "devices", run: cmdDevices},
+	{name: "revoke", run: func(args []string) error { return cmdRevokeOrRemove(args, false) }},
+	{name: "remove", run: func(args []string) error { return cmdRevokeOrRemove(args, true) }},
+	{name: "jail", run: cmdJail},
+	{name: "readonly", run: cmdReadonly},
+	{name: "allow", run: cmdAllow},
+	{name: "backup-dir", run: cmdBackupDir},
+	{name: "backup", run: cmdBackup},
+	{name: "restore", run: cmdRestore},
+	{name: "selfcheck", run: cmdSelfcheck},
+	{name: "update", run: cmdUpdate},
+	{name: "downgrade", run: cmdDowngrade},
+	{name: "schema-info", run: cmdSchemaInfo},
+	{name: "rollback-data", run: cmdRollbackData},
+	{name: "apps", run: cmdApps},
+	{name: "status", run: cmdStatus},
+	{name: "audit", run: cmdAudit},
+	{name: "accounts", run: cmdAccounts},
+	{name: "adduser", run: cmdAddUser},
+	{name: "install", run: cmdInstall},
+	{name: "setup", run: cmdSetup},
+	{name: "uninstall", run: cmdUninstall, noArgs: true},
+	{name: "start", run: cmdStart, noArgs: true},
+	{name: "stop", run: cmdStop, noArgs: true},
+	{name: "help", run: func([]string) error { printAdminUsage(os.Stdout); return nil }},
+}
+
+// adminHelpAliases also print the usage; they are not listed in adminCommandNames.
+var adminHelpAliases = []string{"-h", "--help"}
+
 func dispatchAdmin(cmd string, args []string) error {
-	switch cmd {
-	case "pair":
-		return cmdPair(args)
-	case "devices":
-		return cmdDevices(args)
-	case "revoke":
-		return cmdRevokeOrRemove(args, false)
-	case "remove":
-		return cmdRevokeOrRemove(args, true)
-	case "jail":
-		return cmdJail(args)
-	case "readonly":
-		return cmdReadonly(args)
-	case "allow":
-		return cmdAllow(args)
-	case "backup-dir":
-		return cmdBackupDir(args)
-	case "status":
-		return cmdStatus(args)
-	case "audit":
-		return cmdAudit(args)
-	case "adduser":
-		return cmdAddUser(args)
-	case "install":
-		return cmdInstall(args)
-	case "setup":
-		return cmdSetup(args)
-	case "uninstall", "start", "stop":
-		// These take no arguments; a stray one is an error, never ignored.
-		if err := rejectAdminArgs(cmd, args); err != nil {
-			return err
+	for _, alias := range adminHelpAliases {
+		if cmd == alias {
+			cmd = "help"
 		}
-		switch cmd {
-		case "uninstall":
-			return cmdUninstall(args)
-		case "start":
-			return cmdStart(args)
-		default:
-			return cmdStop(args)
-		}
-	case "help", "-h", "--help":
-		printAdminUsage(os.Stdout)
-		return nil
-	default:
-		printAdminUsage(os.Stderr)
-		return fmt.Errorf("unknown command %q", cmd)
 	}
+	for _, c := range adminCommands {
+		if c.name != cmd {
+			continue
+		}
+		if c.noArgs {
+			if err := rejectAdminArgs(cmd, args); err != nil {
+				return err
+			}
+		}
+		return c.run(args)
+	}
+	printAdminUsage(os.Stderr)
+	return fmt.Errorf("unknown command %q", cmd)
 }
 
 func printAdminUsage(w *os.File) {
@@ -94,12 +107,39 @@ Usage:
   rfe remove <id>          permanently delete a device
   rfe jail <id> <path>     confine a device to <path> (empty "" clears it)
   rfe allow <id> <list>    set what a device may do: any of browse,download,upload,
-                                  modify,delete,share, or all / none (replaces its grants)
+                                  modify,delete,share,wake, or all / none (replaces its grants)
   rfe backup-dir [<path>|none]  show or set the folder phone photo backups go to
                                   (must be inside an allowed folder; restart the agent to apply)
   rfe readonly <id> <on|off>  allow browse/download but block all writes
+  rfe backup [-out <dir>] [-label L] [-no-prune]   write a verified backup (database, certificate, keys) to
+                                  <data dir>/backups, then prune old ones (3 premigration, 7 daily, 4 weekly, 2 GiB)
+  rfe backup verify <archive>   check an archive without restoring it
+  rfe backup offsite -dir <folder> [-archive <file>]   write an encrypted (.enc) copy of the newest backup to <folder>;
+                                  passphrase from $RFE_BACKUP_PASSPHRASE, a prompt, or stdin; never stored
+  rfe backup decrypt <file.enc> <out>   turn an encrypted copy back into a plain archive
+  rfe restore <archive> <newdir> [-revocations <file>]   restore into a new or empty folder (never overwrites),
+                                  then re-apply revocations made since the backup
+  rfe selfcheck -data <dir> [-json]   migrate and check a COPY of a data dir (for example a restored backup):
+                                  integrity, identity files and token hashes unchanged, helper handshakes;
+                                  exit 0 only if all pass. Never point it at a running agent's data dir
+  rfe update check|stage [-root <dir>] [-url <manifest url>] [-installed v] [-force] [-db-size <bytes>] [-data <dir>]
+                                  check or stage a signed release under -root (never a data dir); stage does
+                                  not switch versions but trial-migrates a snapshot copy of the data. Fails
+                                  closed unless a signing key is compiled in
+  rfe update apply -root <dir> -version <v> [-data <dir>] [-force]   snapshot the data (premigration) and mark the
+                                  staged version pending; restart the agent and the launcher starts it
+  rfe downgrade -root <dir> -to <v> [-data <dir>]   go back to an installed version (restores the premigration
+                                  snapshot into a new data dir when the database needs it); refused while a launcher runs
+  rfe schema-info [-data <dir>] [-json]   read-only: database schema level vs what this build opens (used by the launcher)
+  rfe rollback-data [-data <dir>]   restore the newest premigration snapshot into a new dir and swap it in (launcher use)
   rfe status               show name, addresses, fingerprint, devices
   rfe audit [-n 50]        show the account/device/share audit trail
+  rfe accounts trust <host:port> [--yes --fingerprint <hex>]   pin another agent's account-server key
+                                  (compare the fingerprint it prints first); then that
+                                  agent's accounts can log in here without a password
+  rfe accounts untrust|status|enable [--name N]|disable|rotate-key|revoke-all   manage the account-server role
+  rfe accounts deny|allow <issuer-fingerprint> <account> | denied   block, unblock or list members of a trusted account server
+  rfe remove <id> --deny      also deny a federated device's account (see accounts deny)
   rfe adduser <username>   create the account used to log in from the
                                   phone app / web companion (prompts for a
                                   password, hidden input). Alternatively, use
@@ -228,6 +268,13 @@ func openAdminStore(dataDir string) (*store.DB, error) {
 	if _, err := os.Stat(dataDir); err != nil {
 		return nil, fmt.Errorf("data dir %q not found (is the agent set up? use -data)", dataDir)
 	}
+	// A command that would create a new database creates the TLS identity first, as setup does:
+	// the daemon refuses to start on a database whose cert or key is missing.
+	if _, err := os.Stat(filepath.Join(dataDir, "agent.db")); errors.Is(err, os.ErrNotExist) {
+		if _, err := security.LoadOrCreateCert(dataDir); err != nil {
+			return nil, fmt.Errorf("cert: %w", err)
+		}
+	}
 	return store.Open(dataDir)
 }
 
@@ -245,9 +292,10 @@ func cmdPair(args []string) error {
 	}
 	fs := newAdminFlags("pair", "pair [-ttl 1h] [-owner] [-addr <addr>] [-data <dir>]   (also: pair requests | pair accept [id] | pair reject [id])")
 	data := fs.String("data", "", "agent data dir")
-	addr := fs.String("addr", ":8765", "listen address the phone will dial (for the QR)")
+	addr := fs.String("addr", defaultListenAddr, "listen address the phone will dial (for the QR)")
 	ttl := fs.Duration("ttl", pairing.DefaultTTL, "how long the code stays valid")
 	owner := fs.Bool("owner", false, "mint a code that can also create the owner account (first-time setup)")
+	asJSON := fs.Bool("json", false, "print one JSON object (code, expiresInSeconds, qrPayload) instead of text, for the desktop app")
 	if _, err := fs.parse(args, 0, 0); err != nil {
 		return err
 	}
@@ -277,6 +325,11 @@ func cmdPair(args []string) error {
 		return fmt.Errorf("mint: %w", err)
 	}
 
+	if *asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"pairingCode": code, "expiresInSeconds": int64(ttl.Seconds()), "qrPayload": payload,
+		})
+	}
 	fmt.Printf("Pairing code: %s   (expires in %s)\n", code, *ttl)
 	fmt.Printf("Fingerprint:  %s\n", fingerprint)
 	fmt.Printf("LAN:          %s\n", orNone(lan))
@@ -300,8 +353,9 @@ func cmdPair(args []string) error {
 
 // cmdPairRequests lists phones waiting for approval, with their match codes.
 func cmdPairRequests(args []string) error {
-	fs := newAdminFlags("pair requests", "pair requests [-data <dir>]")
+	fs := newAdminFlags("pair requests", "pair requests [-json] [-data <dir>]")
 	data := fs.String("data", "", "agent data dir")
+	asJSON := fs.Bool("json", false, "print the waiting requests as a JSON array, for the desktop app")
 	if _, err := fs.parse(args, 0, 0); err != nil {
 		return err
 	}
@@ -318,6 +372,24 @@ func cmdPairRequests(args []string) error {
 	list, err := db.ListPendingPairRequests()
 	if err != nil {
 		return err
+	}
+	if *asJSON {
+		out := make([]map[string]any, 0, len(list))
+		for _, r := range list {
+			sas, err := pairing.SAS(security.Fingerprint(cert), r.ClientNonce, r.ID)
+			if err != nil {
+				continue // never offer a request without its match code
+			}
+			replaces := ""
+			if d, ok, _ := db.ClientDeviceByID(r.ClientID); ok && (d.Revoked || (d.PublicKey != "" && d.PublicKey != r.PublicKey)) {
+				replaces = d.Label
+			}
+			out = append(out, map[string]any{
+				"id": r.ID, "label": r.Label, "matchCode": sas, "remoteIp": r.RemoteIP,
+				"replaces": replaces, "expiresAt": time.Unix(r.Expires, 0).UTC().Format(time.RFC3339),
+			})
+		}
+		return json.NewEncoder(os.Stdout).Encode(out)
 	}
 	if len(list) == 0 {
 		fmt.Println("No pairing requests waiting.")
@@ -441,8 +513,9 @@ func cmdAddUser(args []string) error {
 
 // cmdDevices lists paired devices as a table.
 func cmdDevices(args []string) error {
-	fs := newAdminFlags("devices", "devices [-data <dir>]")
+	fs := newAdminFlags("devices", "devices [-json] [-data <dir>]")
 	data := fs.String("data", "", "agent data dir")
+	asJSON := fs.Bool("json", false, "print the devices as a JSON array, for the desktop app")
 	if _, err := fs.parse(args, 0, 0); err != nil {
 		return err
 	}
@@ -456,6 +529,19 @@ func cmdDevices(args []string) error {
 	devices, err := db.ListDevices()
 	if err != nil {
 		return err
+	}
+	if *asJSON {
+		out := make([]map[string]any, 0, len(devices))
+		for _, d := range devices {
+			out = append(out, map[string]any{
+				"id": d.ID, "label": d.Label, "revoked": d.Revoked, "readOnly": d.ReadOnly,
+				"created": d.Created.Unix(), "lastSeen": d.LastSeen.Unix(), "lastAddress": d.LastAddress, "jailRoot": d.JailRoot,
+				"canBrowse": d.CanBrowse, "canDownload": d.CanDownload, "canUpload": d.CanUpload,
+				"canModify": d.CanModify, "canDelete": d.CanDelete, "canShare": d.CanShare, "canWake": d.CanWake,
+				"viewApps": d.ViewApps, "launchApps": d.LaunchApps,
+			})
+		}
+		return json.NewEncoder(os.Stdout).Encode(out)
 	}
 	if len(devices) == 0 {
 		fmt.Println("No paired devices. Run `rfe pair` to add one.")
@@ -482,8 +568,9 @@ func cmdDevices(args []string) error {
 // cmdAudit prints the audit trail newest-first — the PC-side counterpart of
 // GET /v1/audit, so the host owner can read it without a paired device.
 func cmdAudit(args []string) error {
-	fs := newAdminFlags("audit", "audit [-n 50] [-data <dir>]")
+	fs := newAdminFlags("audit", "audit [-json] [-n 50] [-data <dir>]")
 	data := fs.String("data", "", "agent data dir")
+	asJSON := fs.Bool("json", false, "print the entries as a JSON array, for the desktop app")
 	n := fs.Int("n", 50, "number of entries to show")
 	if _, err := fs.parse(args, 0, 0); err != nil {
 		return err
@@ -498,6 +585,12 @@ func cmdAudit(args []string) error {
 	entries, err := db.AuditEntries(*n, 0)
 	if err != nil {
 		return err
+	}
+	if *asJSON {
+		if entries == nil {
+			entries = []store.AuditEntry{}
+		}
+		return json.NewEncoder(os.Stdout).Encode(entries)
 	}
 	if len(entries) == 0 {
 		fmt.Println("No audit entries yet.")
@@ -516,8 +609,16 @@ func cmdAudit(args []string) error {
 // cmdRevokeOrRemove revokes (remove=false) or permanently deletes (remove=true)
 // the device whose id (or unique id prefix) is given.
 func cmdRevokeOrRemove(args []string, remove bool) error {
-	fs := newAdminFlags(verb(remove), verb(remove)+" <device-id> [-data <dir>]")
+	usage := verb(remove) + " <device-id> [-data <dir>]"
+	if remove {
+		usage = "remove <device-id> [--deny] [-data <dir>]"
+	}
+	fs := newAdminFlags(verb(remove), usage)
 	data := fs.String("data", "", "agent data dir")
+	var deny *bool
+	if remove {
+		deny = fs.Bool("deny", false, "also deny the device's account-server account on this PC (federated devices only)")
+	}
 	pos, err := fs.parse(args, 1, 1)
 	if err != nil {
 		return err
@@ -536,6 +637,21 @@ func cmdRevokeOrRemove(args []string, remove bool) error {
 	label := deviceLabel(db, id)
 
 	if remove {
+		var denySub, denyIssuer string
+		if *deny {
+			// Checked before anything changes: a device with no account-server account cannot be denied.
+			if denySub, denyIssuer, err = db.DeviceAccount(id); err != nil {
+				return err
+			}
+			if denyIssuer == "" || denySub == "" {
+				return fmt.Errorf("%q (%s) was not logged in through an account server, so --deny does not apply; nothing was removed", label, shortID(id))
+			}
+			if err := db.DenyAccount(denyIssuer, denySub); err != nil {
+				return err
+			}
+			cliAudit(db, store.AuditAccountServer, denySub, "account denied from CLI (rfe remove --deny), issuer "+denyIssuer)
+			fmt.Printf("Denied %s (issuer %s)\n", denySub, denyIssuer)
+		}
 		if err := db.DeleteDevice(id); err != nil {
 			return err
 		}
@@ -666,7 +782,7 @@ func parseOnOff(s string) (bool, error) {
 func cmdStatus(args []string) error {
 	fs := newAdminFlags("status", "status [-addr <addr>] [-data <dir>]")
 	data := fs.String("data", "", "agent data dir")
-	addr := fs.String("addr", ":8765", "listen address (for resolving reachable IPs)")
+	addr := fs.String("addr", defaultListenAddr, "listen address (for resolving reachable IPs)")
 	if _, err := fs.parse(args, 0, 0); err != nil {
 		return err
 	}
@@ -691,9 +807,12 @@ func cmdStatus(args []string) error {
 		}
 	}
 
+	// Read-only: status must never create the certificate, only report that it is missing.
 	fingerprint := "(no cert yet)"
-	if cert, err := security.LoadOrCreateCert(dir); err == nil {
+	if cert, err := security.LoadCert(dir); err == nil {
 		fingerprint = security.Fingerprint(cert)
+	} else if !errors.Is(err, security.ErrIdentityMissing) {
+		fingerprint = "(unreadable: " + err.Error() + ")"
 	}
 
 	fmt.Printf("name:        %s\n", name)
@@ -797,12 +916,13 @@ func humanizeSince(t time.Time) string {
 	}
 }
 
-// parseAllow turns "download,upload" (or "all" / "none") into the six file grants.
-func parseAllow(list string) (grants [6]bool, err error) {
-	names := []string{"browse", "download", "upload", "modify", "delete", "share"}
+// parseAllow turns "download,upload" (or "all" / "none") into the six file grants plus
+// the Wake-on-LAN grant, in that order.
+func parseAllow(list string) (grants [7]bool, err error) {
+	names := []string{"browse", "download", "upload", "modify", "delete", "share", "wake"}
 	switch strings.ToLower(strings.TrimSpace(list)) {
 	case "all":
-		return [6]bool{true, true, true, true, true, true}, nil
+		return [7]bool{true, true, true, true, true, true, true}, nil
 	case "none", "":
 		return grants, nil
 	}
@@ -821,9 +941,9 @@ func parseAllow(list string) (grants [6]bool, err error) {
 	return grants, nil
 }
 
-// cmdAllow replaces a device's file permissions.
+// cmdAllow replaces a device's file permissions and its Wake-on-LAN grant.
 func cmdAllow(args []string) error {
-	fs := newAdminFlags("allow", "allow <device-id> <browse,download,upload,modify,delete,share|all|none> [-data <dir>]")
+	fs := newAdminFlags("allow", "allow <device-id> <browse,download,upload,modify,delete,share,wake|all|none> [-data <dir>]")
 	data := fs.String("data", "", "agent data dir")
 	pos, err := fs.parse(args, 2, 2)
 	if err != nil {
@@ -842,7 +962,7 @@ func cmdAllow(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := db.SetDeviceFilePermissions(id, g[0], g[1], g[2], g[3], g[4], g[5]); err != nil {
+	if err := db.SetDeviceGrants(id, g[0], g[1], g[2], g[3], g[4], g[5], g[6]); err != nil {
 		return err
 	}
 	cliAudit(db, store.AuditDeviceUpdated, id, "permissions="+pos[1])
@@ -850,18 +970,66 @@ func cmdAllow(args []string) error {
 	return nil
 }
 
+// cmdApps sets whether a device may list and start apps on this PC. Starting needs listing, so
+// launch=on with view=off is refused.
+func cmdApps(args []string) error {
+	fs := newAdminFlags("apps", "apps <device-id> <view on|off> <launch on|off> [-data <dir>]")
+	data := fs.String("data", "", "agent data dir")
+	pos, err := fs.parse(args, 3, 3)
+	if err != nil {
+		return err
+	}
+	view, err := parseOnOff(pos[1])
+	if err != nil {
+		return err
+	}
+	launch, err := parseOnOff(pos[2])
+	if err != nil {
+		return err
+	}
+	if launch && !view {
+		return fmt.Errorf("starting apps needs listing them: turn view on too")
+	}
+	db, err := openAdminStore(adminDataDir(*data))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	id, err := db.ResolveDeviceID(pos[0])
+	if err != nil {
+		return err
+	}
+	if err := db.SetDeviceAppPermissions(id, view, launch); err != nil {
+		return err
+	}
+	cliAudit(db, store.AuditDeviceUpdated, id, fmt.Sprintf("apps view=%v launch=%v", view, launch))
+	fmt.Printf("Set %q (%s) apps: view %v, launch %v\n", deviceLabel(db, id), shortID(id), view, launch)
+	return nil
+}
+
 // backupDirInRoots reports whether dir is one of the allowed roots or inside one (no roots means unrestricted).
+// Symlinks are resolved on both sides when the path exists, so a link inside a root cannot point the backup
+// folder outside it; a path that does not exist yet is judged lexically.
 func backupDirInRoots(dir string, roots []string) bool {
 	if len(roots) == 0 {
 		return true
 	}
+	dir = resolveIfExists(dir)
 	for _, r := range roots {
-		rel, err := filepath.Rel(filepath.Clean(r), dir)
+		rel, err := filepath.Rel(resolveIfExists(filepath.Clean(r)), dir)
 		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return true
 		}
 	}
 	return false
+}
+
+// resolveIfExists returns p with symlinks resolved, or p unchanged when it cannot be resolved (typically: not created yet).
+func resolveIfExists(p string) string {
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		return resolved
+	}
+	return p
 }
 
 // cmdBackupDir shows or sets the destination folder for phone photo backup.

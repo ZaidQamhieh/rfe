@@ -1,13 +1,16 @@
 //! RFE desktop app, first slice: pin the agent's certificate, log in, list devices.
 //! The device key and login token are kept in the OS keystore.
 
+pub mod account_server;
 pub mod agent_client;
 pub mod applog;
 pub mod apps; // feature:app-catalog
 pub mod audit; // feature:audit-logs
+pub mod backups;
 pub mod desktop;
 pub mod device_actions;
 pub mod discovery;
+pub mod events;
 pub mod fileops; // feature:file-ops
 pub mod files; // feature:file-browser
 pub mod flows;
@@ -31,11 +34,15 @@ use serde::Serialize;
 use std::sync::Mutex;
 use tauri::Manager;
 
-fn keystore() -> Offloaded {
+/// The product name, as the window, the tray, the autostart entry and the download folder show it.
+/// `tauri.conf.json` carries the same text; `tests/versions.rs` keeps them equal.
+pub const APP_NAME: &str = "RFE Desktop";
+
+pub(crate) fn keystore() -> Offloaded {
     Offloaded::os_keystore()
 }
 
-fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+pub(crate) fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     app.path().app_data_dir().map_err(|e| e.to_string())
 }
 
@@ -109,7 +116,7 @@ async fn login(
         &fingerprint,
         &username,
         &password,
-        "RFE Desktop",
+        APP_NAME,
         &keystore(),
     )
     .await
@@ -129,7 +136,7 @@ async fn pair_with_code(
         &host,
         &fingerprint,
         &code,
-        "RFE Desktop",
+        APP_NAME,
         &keystore(),
     )
     .await
@@ -166,15 +173,9 @@ async fn request_pairing(
     host: String,
     fingerprint: String,
 ) -> Result<PairWaitView, String> {
-    let wait = flows::request_pairing(
-        &data_dir(&app)?,
-        &host,
-        &fingerprint,
-        "RFE Desktop",
-        &keystore(),
-    )
-    .await
-    .map_err(|e| e.to_string())?;
+    let wait = flows::request_pairing(&data_dir(&app)?, &host, &fingerprint, APP_NAME, &keystore())
+        .await
+        .map_err(|e| e.to_string())?;
     let view = PairWaitView {
         match_code: wait.match_code.clone(),
         expires_in_seconds: wait.expires_in_seconds,
@@ -281,12 +282,15 @@ struct FoundView {
     known: bool,
 }
 
+/// How long the search for agents on the local network runs.
+const DISCOVER_DURATION: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// Looks for agents on the local network for a few seconds. The result is a list of addresses to
 /// try, nothing more: no credential is sent and no agent is trusted by being listed.
 #[tauri::command]
 async fn discover_agents(app: tauri::AppHandle) -> Result<Vec<FoundView>, String> {
     let dir = data_dir(&app)?;
-    let list = flows::discover(&dir, std::time::Duration::from_secs(3)).await?;
+    let list = flows::discover(&dir, DISCOVER_DURATION).await?;
     Ok(list
         .into_iter()
         .map(|(found, known)| FoundView { found, known })
@@ -347,6 +351,24 @@ async fn generate_pairing_code(
     .map_err(|e| e.to_string())
 }
 
+/// Mints a pairing code from the agent on this PC (no computer added yet).
+#[tauri::command]
+async fn generate_local_pairing_code(
+    ttl_seconds: Option<u64>,
+) -> Result<pairing_codes::CodeView, String> {
+    pairing_codes::generate_local(ttl_seconds.unwrap_or(pairing_codes::TTL_SECONDS))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Runs an allowed admin command of the agent on this PC (list, revoke, remove, set access).
+#[tauri::command]
+async fn local_agent_admin(args: Vec<String>) -> Result<String, String> {
+    pairing_codes::local_admin(args)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ---- feature:audit-logs ----
 /// One page of the agent's audit trail (admin only). `before` is the cursor from the previous page.
 #[tauri::command]
@@ -376,17 +398,28 @@ async fn agent_log(
         .map_err(|e| e.to_string())
 }
 
+/// The agent's backup and launcher status (admin only).
+#[tauri::command]
+async fn backups_status(
+    app: tauri::AppHandle,
+    host: Option<String>,
+) -> Result<backups::BackupsReply, String> {
+    backups::fetch_backups(&data_dir(&app)?, &keystore().scoped(host))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// What to tell a user who starts the app with no graphical session (an SSH login, a console):
 /// GTK would otherwise abort with a panic that names no cause they can act on.
-pub fn no_display_message(var: impl Fn(&str) -> Option<String>) -> Option<&'static str> {
+pub fn no_display_message(var: impl Fn(&str) -> Option<String>) -> Option<String> {
     let set = |k: &str| var(k).is_some_and(|v| !v.is_empty());
     if set("DISPLAY") || set("WAYLAND_DISPLAY") {
         None
     } else {
-        Some(
-            "RFE Desktop needs a graphical session, and neither DISPLAY nor WAYLAND_DISPLAY is set. \
+        Some(format!(
+            "{APP_NAME} needs a graphical session, and neither DISPLAY nor WAYLAND_DISPLAY is set. \
              Start it from your desktop's application menu, not from a text-only login.",
-        )
+        ))
     }
 }
 
@@ -401,7 +434,7 @@ pub fn run() {
         // brings its window forward, and the second process exits.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             applog::info("a second launch was handed over to this window");
-            desktop::show_for_second_start(app);
+            desktop::show_main(app);
         }))
         // Remembers the window's size and position between runs (kept in the app's config folder;
         // it holds nothing but geometry).
@@ -414,8 +447,13 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 desktop::on_close_requested(window, api);
             }
+            // The window is gone for good (not just hidden to the tray): stop following the computers.
+            if matches!(event, tauri::WindowEvent::Destroyed) && window.label() == "main" {
+                events::stop_all(window.app_handle());
+            }
         })
         .manage(PendingPair::default())
+        .manage(events::Events::default())
         // ---- feature:transfers ----
         .manage(transfers::Transfers::default())
         .setup(|app| {
@@ -456,6 +494,7 @@ pub fn run() {
             fileops::files_read_text,
             fileops::files_write_text,
             fileops::files_thumb,
+            fileops::files_video,
             fileops::wake_computer,
             saved_agent,
             list_pins,
@@ -478,14 +517,23 @@ pub fn run() {
             apps::launch_host_app, // feature:app-catalog
             agent_health,
             generate_pairing_code, // feature:pairing-codes
-            audit_page,            // feature:audit-logs
+            generate_local_pairing_code,
+            local_agent_admin,
+            audit_page, // feature:audit-logs
             agent_log,
+            backups_status,
             // feature:device-actions
             device_actions::commands::device_access,
             device_actions::commands::device_access_all,
             device_actions::commands::set_device_access,
             device_actions::commands::revoke_device,
             device_actions::commands::remove_device,
+            // feature:account-server
+            account_server::commands::account_server_status,
+            account_server::commands::account_server_key,
+            account_server::commands::account_server_enable,
+            account_server::commands::account_server_trust,
+            account_server::commands::account_server_untrust,
             // feature:pair-inbox
             pair_inbox::list_pair_requests,
             pair_inbox::answer_pair_request,
@@ -494,6 +542,7 @@ pub fn run() {
             hosts::switch_host,
             hosts::rename_host,
             hosts::remove_host,
+            events::events_sync,
             // ---- feature:transfers ----
             transfers::transfer_download,
             transfers::transfer_upload,
@@ -507,6 +556,7 @@ pub fn run() {
             local::local_delete,
             local::local_read_text,
             local::local_read_image,
+            local::local_read_video,
             local::local_open,
             local::local_save_text,
             native::pick_files,
@@ -522,6 +572,7 @@ pub fn run() {
             desktop::desktop_set_prefs,
             desktop::desktop_has_tray,
             desktop::desktop_set_scale,
+            fileops::desktop_limits,
             desktop::desktop_notify,
             desktop::desktop_autostart_state,
             desktop::desktop_set_autostart,

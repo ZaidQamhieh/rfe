@@ -4,14 +4,30 @@
 //!
 //! These are *local* paths, so unlike `files.rs` they are real [`Path`]s. They must be absolute and
 //! hold no `..` step; a refusal comes from the operating system and is shown as it words it. Nothing
-//! here reads a file's content; uploads go through `transfers.rs`, which opens the file itself.
+//! here reads a file's content except the preview (`read_text`, `read_image`, `read_video`); uploads go
+//! through `transfers.rs`, which opens the file itself.
 
-use crate::files::{validate_name, FileEntry, Page};
+use crate::files::{validate_name, FileEntry, Page, MAX_PATH_BYTES};
+use crate::transfers::MAX_NUMBERED_COPIES;
 use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_ENTRIES: usize = 50_000;
+/// Local search results: the count used when the caller gives none, and the most a caller may ask for.
+const SEARCH_DEFAULT_RESULTS: usize = 200;
+const SEARCH_MAX_RESULTS: usize = 1000;
+
+/// A link shows what it leads to; a broken one shows as itself (its own metadata, `lmeta`).
+fn followed(p: &Path, lmeta: std::fs::Metadata) -> (std::fs::Metadata, bool) {
+    match std::fs::metadata(p) {
+        Ok(m) => {
+            let d = m.is_dir();
+            (m, d)
+        }
+        Err(_) => (lmeta, false),
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Place {
@@ -24,7 +40,7 @@ pub struct Place {
 fn check(path: &str) -> Result<PathBuf, String> {
     let p = Path::new(path);
     let bad = path.is_empty()
-        || path.len() > 4096
+        || path.len() > MAX_PATH_BYTES
         || path.contains('\0')
         || !p.is_absolute()
         || p.components().any(|c| matches!(c, Component::ParentDir));
@@ -190,14 +206,7 @@ pub fn list(path: &str) -> Result<Page, String> {
             continue;
         };
         let link = lmeta.file_type().is_symlink();
-        // A link shows what it leads to; a broken one shows as itself.
-        let (meta, is_dir) = match std::fs::metadata(&p) {
-            Ok(m) => {
-                let d = m.is_dir();
-                (m, d)
-            }
-            Err(_) => (lmeta, false),
-        };
+        let (meta, is_dir) = followed(&p, lmeta);
         entries.push(entry(&p, &meta, is_dir, link));
     }
     Ok(Page {
@@ -225,9 +234,7 @@ fn rename_no_replace(from: &Path, to: &Path) -> std::io::Result<()> {
     // the BSDs may follow it) the plain rename below is used.
     #[cfg(target_os = "linux")]
     {
-        let is_dir = std::fs::symlink_metadata(from)
-            .map(|m| m.is_dir())
-            .unwrap_or(false);
+        let is_dir = std::fs::symlink_metadata(from).is_ok_and(|m| m.is_dir());
         if !is_dir && from != to {
             match std::fs::hard_link(from, to) {
                 Ok(()) => return std::fs::remove_file(from),
@@ -301,24 +308,31 @@ pub struct LocalText {
     pub size: usize,
 }
 
-/// The most text a preview reads, the same limit as for a file on a server.
-pub const MAX_TEXT_BYTES: u64 = 1 << 20;
+const NOT_A_FILE: &str = "This is not a file.";
+
+/// The message for a path that could not be read, with the system's reason.
+fn could_not_read(path: &str, e: std::io::Error) -> String {
+    format!("Could not read {path}: {e}")
+}
 
 /// Reads a text file of up to `MAX_TEXT_BYTES`; anything else says why it cannot be shown.
 pub fn read_text(path: &str) -> Result<LocalText, String> {
     use std::io::Read;
     let p = check(path)?;
-    let meta = std::fs::metadata(&p).map_err(|e| format!("Could not read {path}: {e}"))?;
+    let meta = std::fs::metadata(&p).map_err(|e| could_not_read(path, e))?;
     if !meta.is_file() {
-        return Err("This is not a file.".into());
+        return Err(NOT_A_FILE.into());
     }
-    if meta.len() > MAX_TEXT_BYTES {
+    if meta.len() > crate::fileops::MAX_TEXT_BYTES as u64 {
         return Err("This file is too large to show as text (over 1 MB).".into());
     }
     let mut bytes = Vec::new();
     std::fs::File::open(&p)
-        .and_then(|f| f.take(MAX_TEXT_BYTES + 1).read_to_end(&mut bytes))
-        .map_err(|e| format!("Could not read {path}: {e}"))?;
+        .and_then(|f| {
+            f.take(crate::fileops::MAX_TEXT_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+        })
+        .map_err(|e| could_not_read(path, e))?;
     let text = String::from_utf8(bytes).map_err(|_| "This file is not text.".to_string())?;
     if text.contains('\0') {
         return Err("This file is not text.".into());
@@ -338,9 +352,9 @@ pub const MAX_IMAGE_BYTES: u64 = 8 << 20;
 pub fn read_image(path: &str) -> Result<String, String> {
     use std::io::Read;
     let p = check(path)?;
-    let meta = std::fs::metadata(&p).map_err(|e| format!("Could not read {path}: {e}"))?;
+    let meta = std::fs::metadata(&p).map_err(|e| could_not_read(path, e))?;
     if !meta.is_file() {
-        return Err("This is not a file.".into());
+        return Err(NOT_A_FILE.into());
     }
     if meta.len() > MAX_IMAGE_BYTES {
         return Err("This picture is too large to preview (over 8 MB).".into());
@@ -348,15 +362,81 @@ pub fn read_image(path: &str) -> Result<String, String> {
     let mut bytes = Vec::new();
     std::fs::File::open(&p)
         .and_then(|f| f.take(MAX_IMAGE_BYTES + 1).read_to_end(&mut bytes))
-        .map_err(|e| format!("Could not read {path}: {e}"))?;
+        .map_err(|e| could_not_read(path, e))?;
     Ok(crate::fileops::encode_mime(path, &bytes))
+}
+
+/// The bytes of a video on this computer, at most `MAX_VIDEO_BYTES`, for the window to play. Only the
+/// endings the player handles are read. The file is opened first and its kind and size are taken from
+/// that open handle, so a swap between the check and the read cannot get past the limit.
+pub fn read_video(path: &str) -> Result<Vec<u8>, String> {
+    use crate::fileops::{is_playable_video, ERR_VIDEO_BIG, ERR_VIDEO_TYPE, MAX_VIDEO_BYTES};
+    use std::io::Read;
+    let p = check(path)?;
+    if !is_playable_video(path) {
+        return Err(ERR_VIDEO_TYPE.into());
+    }
+    let f = std::fs::File::open(&p).map_err(|e| could_not_read(path, e))?;
+    let meta = f.metadata().map_err(|e| could_not_read(path, e))?;
+    if !meta.is_file() {
+        return Err(NOT_A_FILE.into());
+    }
+    if meta.len() > MAX_VIDEO_BYTES as u64 {
+        return Err(ERR_VIDEO_BIG.into());
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    f.take(MAX_VIDEO_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| could_not_read(path, e))?;
+    if bytes.len() > MAX_VIDEO_BYTES {
+        return Err(ERR_VIDEO_BIG.into());
+    }
+    Ok(bytes)
 }
 
 /// Endings that start a program when opened. The window opens documents and folders with the
 /// system's default app; it does not run programs.
 const PROGRAMS: &[&str] = &[
-    "exe", "bat", "cmd", "com", "msi", "scr", "ps1", "vbs", "js", "jar", "sh", "run", "appimage",
-    "desktop", "lnk", "app", "command", "pif", "reg", "dll",
+    "exe",
+    "bat",
+    "cmd",
+    "com",
+    "msi",
+    "scr",
+    "ps1",
+    "vbs",
+    "js",
+    "jar",
+    "sh",
+    "run",
+    "appimage",
+    "desktop",
+    "lnk",
+    "app",
+    "command",
+    "pif",
+    "reg",
+    "dll",
+    "vbe",
+    "jse",
+    "wsf",
+    "wsh",
+    "hta",
+    "cpl",
+    "msc",
+    "msp",
+    "url",
+    "scf",
+    "inf",
+    "jnlp",
+    "application",
+    "gadget",
+    "ps1xml",
+    "psc1",
+    "py",
+    "pl",
+    "rb",
+    "php",
 ];
 
 /// Extensions of plain data. A file system without permissions (FAT, exFAT, some network shares) shows
@@ -460,7 +540,7 @@ pub fn save_text(dir: &str, name: &str, body: &str) -> Result<String, String> {
         Some(i) if i > 0 => (&name[..i], &name[i..]),
         _ => (name, ""),
     };
-    for n in 0..1000u32 {
+    for n in 0..MAX_NUMBERED_COPIES {
         let candidate = if n == 0 {
             name.to_string()
         } else {
@@ -485,17 +565,13 @@ pub fn save_text(dir: &str, name: &str, body: &str) -> Result<String, String> {
     Err("Too many files with that name in the folder.".into())
 }
 
-/// Every file under `path` (or `path` itself when it is a file), with its path relative to the
-/// parent of `path`, for uploading a folder. Links are not followed, so a loop cannot run forever.
-pub fn walk(path: &str) -> Result<Vec<(PathBuf, String)>, String> {
-    walk_all(path).map(|(files, _)| files)
-}
-
-/// Like [`walk`], and also every folder under `path` (the folder itself included) as a path relative
-/// to the parent of `path`, so an empty folder can be made on the other side too.
 /// The files of a tree (path, relative path) and its folders (relative paths).
 pub type Tree = (Vec<(PathBuf, String)>, Vec<String>);
 
+/// Every file under `path` (or `path` itself when it is a file), with its path relative to the
+/// parent of `path`, for uploading a folder, and every folder under `path` (the folder itself
+/// included) as a path relative to the parent of `path`, so an empty folder can be made on the
+/// other side too. Links are not followed, so a loop cannot run forever.
 pub fn walk_all(path: &str) -> Result<Tree, String> {
     let root = check(path)?;
     let base = root
@@ -601,7 +677,7 @@ pub fn search(
     if needle.is_empty() {
         return Err("type something to search for".into());
     }
-    let limit = limit.clamp(1, 1000);
+    let limit = limit.clamp(1, SEARCH_MAX_RESULTS);
     let mut out = Vec::new();
     let mut queue = std::collections::VecDeque::from([root]);
     let mut visited = 0usize;
@@ -620,13 +696,7 @@ pub fn search(
             };
             let link = lmeta.file_type().is_symlink();
             let name = item.file_name().to_string_lossy().into_owned();
-            let (meta, is_dir) = match std::fs::metadata(&p) {
-                Ok(m) => {
-                    let d = m.is_dir();
-                    (m, d)
-                }
-                Err(_) => (lmeta, false),
-            };
+            let (meta, is_dir) = followed(&p, lmeta);
             if is_dir && !link {
                 queue.push_back(p.clone());
             }
@@ -667,7 +737,7 @@ pub async fn local_search(
         search(
             &root,
             &query,
-            limit.unwrap_or(200),
+            limit.unwrap_or(SEARCH_DEFAULT_RESULTS),
             &types.unwrap_or_default(),
             min_size.unwrap_or(0),
         )
@@ -724,6 +794,11 @@ mod tests {
         assert!(!starts_program("jpg", true));
         assert!(!starts_program("pdf", true));
         assert!(!starts_program("txt", false));
+        for ext in [
+            "wsf", "hta", "vbe", "jse", "cpl", "msc", "url", "jnlp", "py",
+        ] {
+            assert!(starts_program(ext, false), "{ext} starts a program");
+        }
     }
 
     #[test]
@@ -798,7 +873,7 @@ mod tests {
         assert_eq!(page.entries.len(), 1);
         let r = rename(&f.path, "papers").unwrap();
         assert_eq!(r.name, "papers");
-        let walked = walk(&r.path).unwrap();
+        let (walked, _) = walk_all(&r.path).unwrap();
         assert_eq!(walked.len(), 1);
         assert_eq!(walked[0].1, "papers/a.txt");
         delete(&r.path).unwrap();
@@ -856,6 +931,15 @@ pub async fn local_read_image(path: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// The bytes of a video on this computer, handed to the window as raw binary (not a JSON list).
+#[tauri::command]
+pub async fn local_read_video(path: String) -> Result<tauri::ipc::Response, String> {
+    tokio::task::spawn_blocking(move || read_video(&path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(tauri::ipc::Response::new)
+}
+
 #[tauri::command]
 pub async fn local_open(path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || open(&path))
@@ -868,4 +952,81 @@ pub async fn local_save_text(dir: String, name: String, body: String) -> Result<
     tokio::task::spawn_blocking(move || save_text(&dir, &name, &body))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod video_tests {
+    use super::*;
+    use crate::fileops::{ERR_VIDEO_BIG, ERR_VIDEO_TYPE, MAX_VIDEO_BYTES};
+
+    #[test]
+    fn a_small_video_is_read_whole() {
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("clip.MP4");
+        std::fs::write(&p, b"0123456789").unwrap();
+        assert_eq!(read_video(p.to_str().unwrap()).unwrap(), b"0123456789");
+    }
+
+    #[test]
+    fn only_the_endings_the_player_handles_are_read() {
+        let t = tempfile::tempdir().unwrap();
+        for ok in ["a.mp4", "a.webm", "a.mov", "a.m4v", "a.ogg"] {
+            std::fs::write(t.path().join(ok), b"x").unwrap();
+            assert!(
+                read_video(t.path().join(ok).to_str().unwrap()).is_ok(),
+                "{ok}"
+            );
+        }
+        for bad in ["a.mkv", "a.avi", "a.txt", "mp4"] {
+            std::fs::write(t.path().join(bad), b"x").unwrap();
+            let e = read_video(t.path().join(bad).to_str().unwrap()).unwrap_err();
+            assert_eq!(e, ERR_VIDEO_TYPE, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_video_over_the_cap_is_refused_without_being_read() {
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("big.mp4");
+        let f = std::fs::File::create(&p).unwrap();
+        f.set_len(MAX_VIDEO_BYTES as u64 + 1).unwrap();
+        assert_eq!(read_video(p.to_str().unwrap()).unwrap_err(), ERR_VIDEO_BIG);
+        f.set_len(MAX_VIDEO_BYTES as u64).unwrap();
+        assert_eq!(
+            read_video(p.to_str().unwrap()).unwrap().len(),
+            MAX_VIDEO_BYTES
+        );
+    }
+
+    #[test]
+    fn a_folder_a_missing_file_and_a_relative_path_are_refused() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join("dir.mp4");
+        std::fs::create_dir(&d).unwrap();
+        assert_eq!(
+            read_video(d.to_str().unwrap()).unwrap_err(),
+            "This is not a file."
+        );
+        assert!(read_video(t.path().join("none.mp4").to_str().unwrap()).is_err());
+        assert!(read_video("clip.mp4").is_err());
+        let up = format!("{}/../clip.mp4", t.path().display());
+        assert!(read_video(&up).unwrap_err().contains("no .. step"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_to_a_video_is_followed_like_a_picture_and_a_link_to_a_folder_is_not_a_file() {
+        let t = tempfile::tempdir().unwrap();
+        std::fs::write(t.path().join("real.mp4"), b"abc").unwrap();
+        std::os::unix::fs::symlink(t.path().join("real.mp4"), t.path().join("link.mp4")).unwrap();
+        assert_eq!(
+            read_video(t.path().join("link.mp4").to_str().unwrap()).unwrap(),
+            b"abc"
+        );
+        std::os::unix::fs::symlink(t.path(), t.path().join("dirlink.mp4")).unwrap();
+        assert_eq!(
+            read_video(t.path().join("dirlink.mp4").to_str().unwrap()).unwrap_err(),
+            "This is not a file."
+        );
+    }
 }

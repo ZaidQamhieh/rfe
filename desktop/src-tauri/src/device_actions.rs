@@ -12,7 +12,9 @@
 
 use crate::agent_client::{AgentClient, AgentError};
 use crate::applog;
+use crate::files::MAX_PATH_BYTES;
 use crate::flows;
+use crate::health::STATUS_FORBIDDEN;
 use crate::secrets::Offloaded;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -50,7 +52,9 @@ pub const LAUNCH_NEEDS_VIEW: &str =
 pub const NOTHING_CHANGED: &str = "No setting was changed, so there is nothing to save.";
 
 /// The jail path is empty (no limit) or text the agent can read as a path.
-pub const BAD_JAIL: &str = "The folder limit must be one path, up to 4096 characters, or empty.";
+pub fn bad_jail() -> String {
+    format!("The folder limit must be one path, up to {MAX_PATH_BYTES} characters, or empty.")
+}
 
 /// One device with everything the agent says about its access. Only an admin session gets these
 /// fields for other devices; an ordinary one sees just itself, without them.
@@ -72,6 +76,8 @@ pub struct DeviceAccess {
     pub modify: bool,
     pub delete: bool,
     pub share: bool,
+    /// Wake-on-LAN through the agent (`POST /wol`); `false` when an older agent does not report it.
+    pub wake: bool,
 }
 
 /// The settings to change: only what is present is sent, so an unchanged folder limit is not
@@ -100,6 +106,8 @@ pub struct AccessPatch {
     pub delete: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub share: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wake: Option<bool>,
 }
 
 impl AccessPatch {
@@ -117,10 +125,10 @@ pub struct Done {
 }
 
 /// The saved login, ready to call the agent. Not `Debug`-derived: it holds the token.
-struct Session {
-    client: AgentClient,
-    token: String,
-    device_id: String,
+pub(crate) struct Session {
+    pub(crate) client: AgentClient,
+    pub(crate) token: String,
+    pub(crate) device_id: String,
 }
 
 /// A device id is what the agent made (letters, digits, `-`, `_`); anything else never enters a URL.
@@ -137,7 +145,7 @@ fn check_id(id: &str) -> Result<(), AgentError> {
     }
 }
 
-async fn session(dir: &Path, store: &Offloaded) -> Result<Session, AgentError> {
+pub(crate) async fn session(dir: &Path, store: &Offloaded) -> Result<Session, AgentError> {
     let saved = {
         let dir = dir.to_path_buf();
         store
@@ -167,7 +175,7 @@ async fn session(dir: &Path, store: &Offloaded) -> Result<Session, AgentError> {
     })
 }
 
-fn logged<T>(what: &str, r: Result<T, AgentError>) -> Result<T, AgentError> {
+pub(crate) fn logged<T>(what: &str, r: Result<T, AgentError>) -> Result<T, AgentError> {
     match &r {
         Ok(_) => applog::info(&format!("{what}: ok")),
         Err(e) => applog::error(&format!("{what} failed: {e}")),
@@ -186,8 +194,7 @@ async fn own_device_id(s: &Session) -> Result<String, AgentError> {
         .client
         .call_device_json(Method::GET, "/devices", &s.token, None)
         .await?;
-    let all: Vec<DeviceAccess> = serde_json::from_value(list)
-        .map_err(|e| AgentError::Local(format!("unexpected response: {e}")))?;
+    let all = parse_access_list(list)?;
     all.into_iter()
         .find(|d| d.current && !d.id.is_empty())
         .map(|d| d.id)
@@ -221,8 +228,7 @@ pub async fn device_access(
             .client
             .call_device_json(Method::GET, "/devices", &s.token, None)
             .await?;
-        let all: Vec<DeviceAccess> = serde_json::from_value(list)
-            .map_err(|e| AgentError::Local(format!("unexpected response: {e}")))?;
+        let all = parse_access_list(list)?;
         all.into_iter()
             .find(|d| d.id == id)
             .ok_or_else(|| AgentError::Server {
@@ -272,8 +278,8 @@ pub async fn set_access(
         return Err(AgentError::Local(LAUNCH_NEEDS_VIEW.into()));
     }
     if let Some(j) = &patch.jail_root {
-        if j.len() > 4096 || j.chars().any(char::is_control) {
-            return Err(AgentError::Local(BAD_JAIL.into()));
+        if j.len() > MAX_PATH_BYTES || j.chars().any(char::is_control) {
+            return Err(AgentError::Local(bad_jail()));
         }
     }
     let r = async {
@@ -360,7 +366,10 @@ pub async fn remove(
 /// everything else is the agent client's usual wording.
 pub fn explain(e: &AgentError) -> String {
     match e {
-        AgentError::Server { status: 403, .. } => NOT_ADMIN.to_string(),
+        AgentError::Server {
+            status: STATUS_FORBIDDEN,
+            ..
+        } => NOT_ADMIN.to_string(),
         AgentError::Server {
             status: 404, code, ..
         } if code == "NOT_FOUND" => GONE.to_string(),

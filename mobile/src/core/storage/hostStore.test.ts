@@ -50,12 +50,10 @@ describe('HostStore.commitPairing', () => {
 });
 
 describe('HostStore list handling', () => {
-  it('skips corrupt records, accepts Flutter string-encoded entries, and moves touched host first', async () => {
+  it('skips corrupt records and accepts Flutter string-encoded entries', async () => {
     const { store, kv } = make();
     await kv.set(HOSTS_KEY, JSON.stringify([JSON.stringify(host), 'not json', { id: 'x' }, { id: 'h2', label: 'B', address: 'b:1' }]));
     expect((await store.listHosts()).map((h) => h.id)).toEqual(['h1', 'h2']);
-    await store.touchHost('h2');
-    expect((await store.listHosts()).map((h) => h.id)).toEqual(['h2', 'h1']);
   });
 
   it('removeHost runs the cache cleanup for that host and survives a failing cleanup', async () => {

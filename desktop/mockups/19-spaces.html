@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Spaces — each computer is a colored space with its own pins</title>
+<link rel="stylesheet" href="_frame.css"><script src="_files.js"></script><script defer src="_nav.js"></script>
+<style>
+.spc{--h:#7c3aed;--h2:#ede9fe;background:linear-gradient(180deg,var(--h2),#fff 70%);color:#18181b;font-family:"Inter",system-ui,sans-serif;font-size:13px}
+.spc .tb{background:transparent;color:#a1a1aa}
+.spc .main{flex:1;display:grid;grid-template-columns:240px 1fr;min-height:0;padding:0 10px 10px 0}
+.spc aside{padding:4px 12px;display:flex;flex-direction:column;gap:3px}
+.spc .url{background:rgba(255,255,255,.7);border-radius:10px;padding:8px 10px;color:#71717a;margin-bottom:8px;font-size:12.5px}
+.spc .pins{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.spc .pins div{background:rgba(255,255,255,.75);border-radius:10px;height:44px;display:grid;place-items:center;font-size:11px;color:#3f3f46;text-align:center;line-height:1.2}
+.spc .lbl{font:600 11px system-ui;color:#71717a;padding:8px 8px 2px;display:flex;justify-content:space-between}
+.spc .it{padding:7px 10px;border-radius:9px;display:flex;align-items:center;gap:8px;color:#3f3f46}
+.spc .it:hover{background:rgba(255,255,255,.6)}.spc .it.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.07);color:#18181b;font-weight:500}
+.spc .it i{width:14px;height:11px;border-radius:2px;background:var(--h);opacity:.7}
+.spc .it .x{margin-left:auto;color:#a1a1aa;font-size:11px}
+.spc .sw{margin-top:auto;display:flex;gap:8px;justify-content:center;padding:10px 0;align-items:center}
+.spc .sw span{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 11px system-ui;opacity:.55;cursor:pointer}
+.spc .sw span.on{opacity:1;outline:2px solid #fff;box-shadow:0 0 0 4px var(--h)}
+.spc .sw small{color:#a1a1aa;font-size:11px}
+.spc .content{background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.spc .ch{display:flex;align-items:center;gap:12px;padding:16px 22px}
+.spc .ch h1{margin:0;font-size:20px}.spc .ch .sub{color:#71717a}
+.spc .ch .r{margin-left:auto;display:flex;gap:6px}
+.spc .ch .r span{border-radius:8px;padding:6px 11px;background:var(--h2);color:var(--h);font-weight:600;font-size:12px}
+.spc .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:4px 22px 18px;overflow:auto}
+.spc .f{border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+.spc .f:hover{background:#fafafa}.spc .f.on{background:var(--h2)}
+.spc .f .t{height:96px;border-radius:9px;background:#f4f4f5;position:relative}
+.spc .f .t.d::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:32px;transform:translate(-50%,-50%);border-radius:5px;background:var(--h);opacity:.8}
+.spc .f small{color:#a1a1aa}
+.spc .peek{margin:0 22px 18px;border-radius:12px;background:#fafafa;padding:12px 14px;display:flex;align-items:center;gap:16px}
+.spc .peek .pb{width:180px;height:5px;background:#e4e4e7;border-radius:3px;overflow:hidden}.spc .peek .pb i{display:block;height:100%;width:71%;background:var(--h)}
+.spc .peek .req{margin-left:auto;color:#b45309}
+</style></head><body class="mk">
+<div class="win spc">
+ <div class="tb"><i></i><i></i><i></i></div>
+ <div class="main">
+  <aside><div class="url">⌕ studio-pc / Projects / launch-kit</div>
+   <div class="pins"><div>📥<br>Inbox</div><div>📷<br>Photos</div><div>🎬<br>Video</div><div>🗑<br>Trash</div><div>🔗<br>Links</div><div>▦<br>Apps</div></div>
+   <div class="lbl">Pinned in this space <span>＋</span></div>
+   <div class="it on"><i></i>launch-kit<span class="x">Projects</span></div><div class="it"><i></i>website<span class="x">Projects</span></div><div class="it"><i></i>Lisbon 2025<span class="x">Photos</span></div>
+   <div class="lbl">Today</div>
+   <div class="it"><i style="opacity:.3"></i>Accounting<span class="x">✕</span></div><div class="it"><i style="opacity:.3"></i>raw-exports<span class="x">✕</span></div><div class="it"><i style="opacity:.3"></i>~/Downloads (this PC)<span class="x">✕</span></div>
+   <div class="lbl">Space</div><div class="it">☍ Devices · 1 waiting</div><div class="it">◷ Activity</div><div class="it">⚙ Settings</div>
+   <div class="sw"><span class="on" style="background:#7c3aed">S</span><span style="background:#0891b2">W</span><span style="background:#ea580c">N</span><span style="background:#71717a">M</span><small>Ctrl 1–4</small></div></aside>
+  <div class="content"><div class="ch"><h1>launch-kit</h1><span class="sub">studio-pc · 9 items · 412 GB free</span><div class="r"><span>⇪ Upload</span><span>＋ Folder</span><span>⋯</span></div></div>
+   <div class="grid"><div class="f"><div class="t d"></div>assets<small>42 items</small></div><div class="f"><div class="t d"></div>drafts<small>7 items</small></div><div class="f on"><div class="t" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)"></div>hero-final.png<small>4.2 MB</small></div><div class="f"><div class="t"></div>brief.md<small>8 KB</small></div><div class="f"><div class="t"></div>budget-q4.xlsx<small>212 KB</small></div>
+    <div class="f"><div class="t" style="background:linear-gradient(135deg,#fbcfe8,#a78bfa)"></div>moodboard.jpg<small>11.8 MB</small></div><div class="f"><div class="t" style="background:#27272a"></div>launch-video.mp4<small>1.4 GB</small></div><div class="f"><div class="t"></div>press-release.pdf<small>680 KB</small></div><div class="f"><div class="t"></div>contacts.csv<small>14 KB</small></div></div>
+   <div class="peek">↑ raw-footage-day3.mov<div class="pb"><i></i></div><span style="color:#71717a">71% · 1 waiting</span><span class="req">☍ Pixel 9 asks to join this space · 482 913 · Review</span></div></div>
+ </div>
+</div></body></html>

@@ -1,6 +1,9 @@
 //! The real binary, sandboxed, driven over the protocol.
 
-use rfe_proto::{read_frame, write_frame, KIND_BIN, KIND_JSON};
+mod common;
+
+use common::data;
+use rfe_proto::{code, read_frame, write_frame, KIND_BIN, KIND_JSON, PROTO_VERSION};
 use serde_json::{json, Value};
 use std::io::{BufReader, BufWriter, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -12,16 +15,17 @@ struct Thumbd {
     next: u64,
 }
 
-fn data(name: &str) -> Vec<u8> {
-    std::fs::read(format!("{}/tests/data/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
-}
-
 impl Thumbd {
     fn start() -> Thumbd {
+        Thumbd::start_with(Stdio::inherit())
+    }
+
+    /// Starts the binary with the given stderr and checks its hello.
+    fn start_with(stderr: Stdio) -> Thumbd {
         let mut child = Command::new(env!("CARGO_BIN_EXE_rfe-thumbd"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(stderr)
             .spawn()
             .unwrap();
         let mut t = Thumbd {
@@ -34,13 +38,17 @@ impl Thumbd {
         let v: Value = serde_json::from_slice(&hello.payload).unwrap();
         assert_eq!(
             (v["kind"].as_str(), v["name"].as_str(), v["proto"].as_u64()),
-            (Some("hello"), Some("rfe-thumbd"), Some(1))
+            (
+                Some("hello"),
+                Some(rfe_thumbd::server::NAME),
+                Some(u64::from(PROTO_VERSION))
+            )
         );
         t
     }
 
-    /// Sends a request (with an optional body) and returns the response and its body, if any.
-    fn call(&mut self, op: &str, mut req: Value, body: Option<&[u8]>) -> (Value, Option<Vec<u8>>) {
+    /// Writes a request (and its body, if any) without reading the answer; returns the request id.
+    fn send_only(&mut self, op: &str, mut req: Value, body: Option<&[u8]>) -> u64 {
         self.next += 1;
         let id = self.next;
         req["id"] = json!(id);
@@ -58,6 +66,12 @@ impl Thumbd {
             write_frame(&mut self.stdin, KIND_BIN, b).unwrap();
         }
         self.stdin.flush().unwrap();
+        id
+    }
+
+    /// Sends a request (with an optional body) and returns the response and its body, if any.
+    fn call(&mut self, op: &str, req: Value, body: Option<&[u8]>) -> (Value, Option<Vec<u8>>) {
+        let id = self.send_only(op, req, body);
         loop {
             let f = read_frame(&mut self.stdout).unwrap().expect("closed");
             let v: Value = serde_json::from_slice(&f.payload).unwrap();
@@ -116,12 +130,12 @@ fn errors_use_the_documented_codes() {
     );
     assert_eq!(
         (v["ok"].clone(), v["code"].as_str()),
-        (json!(false), Some("NOT_SUPPORTED"))
+        (json!(false), Some(code::NOT_SUPPORTED))
     );
     let (v, _) = t.call("thumb.render", json!({"maxSize": 128}), None);
-    assert_eq!(v["code"], "BAD_REQUEST", "a render without a body");
+    assert_eq!(v["code"], code::BAD_REQUEST, "a render without a body");
     let (v, _) = t.call("nope", json!({}), Some(b"ignored body"));
-    assert_eq!(v["code"], "BAD_REQUEST", "unknown op, body consumed");
+    assert_eq!(v["code"], code::BAD_REQUEST, "unknown op, body consumed");
     let (v, _) = t.call("ping", json!({}), None);
     assert_eq!(v["ok"], true, "still in sync after the errors");
 }
@@ -131,16 +145,8 @@ fn many_concurrent_renders_all_answer() {
     let mut t = Thumbd::start();
     let photo = data("photo.jpg");
     let ids: Vec<u64> = (0..24)
-        .map(|_| {
-            t.next += 1;
-            let id = t.next;
-            let req = json!({"id": id, "op": "thumb.render", "body": true, "maxSize": 64});
-            write_frame(&mut t.stdin, KIND_JSON, &serde_json::to_vec(&req).unwrap()).unwrap();
-            write_frame(&mut t.stdin, KIND_BIN, &photo).unwrap();
-            id
-        })
+        .map(|_| t.send_only("thumb.render", json!({"maxSize": 64}), Some(&photo)))
         .collect();
-    t.stdin.flush().unwrap();
     let mut seen = std::collections::HashSet::new();
     while seen.len() < ids.len() {
         let f = read_frame(&mut t.stdout).unwrap().unwrap();
@@ -176,16 +182,6 @@ fn the_sandbox_refuses_files_sockets_and_new_processes() {
 fn stderr_on_a_regular_file_does_not_kill_it() {
     let path = format!("{}/stderr-file", env!("CARGO_TARGET_TMPDIR"));
     let err = std::fs::File::create(&path).unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rfe-thumbd"))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(err)
-        .spawn()
-        .unwrap();
-    let mut stdout = BufReader::new(child.stdout.take().unwrap());
-    let hello = read_frame(&mut stdout).unwrap().expect("hello");
-    let v: Value = serde_json::from_slice(&hello.payload).unwrap();
-    assert_eq!(v["kind"].as_str(), Some("hello"));
-    let _ = child.kill();
-    let _ = child.wait();
+    // Thumbd's Drop kills the process at the end of the test, also when an assertion fails.
+    let _t = Thumbd::start_with(Stdio::from(err));
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/ZaidQamhieh/rfe/agent/internal/store"
 )
 
-// TestRouteMatrix_ReadOnlyBlocksEveryMutation is the PR-81 regression: a
+// TestRouteMatrix_ReadOnlyBlocksEveryMutation is a regression: a
 // table-driven pass over every fs/trash/content mutating route (registered
 // exactly as server.New wires them), proving the read-only invariant end to
 // end through real routing rather than by calling handlers directly.

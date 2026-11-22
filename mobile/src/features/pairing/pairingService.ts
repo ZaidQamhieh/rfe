@@ -2,9 +2,13 @@ import { sha256 } from '@noble/hashes/sha2.js';
 
 import {
   AgentApiError,
+  abortError,
   AgentClient,
+  BAD_RESPONSE,
+  isAbortError,
   type Transport,
 } from "../../core/api/agentClient";
+import { t } from "../../i18n";
 import {
   hasFeature,
   isMissingRoute,
@@ -18,8 +22,17 @@ import {
 } from "../../core/api/pin";
 import type { Host } from "../../core/models/host";
 import type { DeviceIdentity } from "../../core/security/deviceIdentity";
+import { sleep as defaultSleep } from "../../core/sleep";
+import { ignoreError } from "../../core/log";
 import type { HostStore } from "../../core/storage/hostStore";
-import { matchCode } from "./matchCode";
+import { hexToBytes, matchCode } from "./matchCode";
+
+/** A few dropped or busy polls in a row are retried; this many in a row fail the pairing. */
+const MAX_TRANSIENT_POLL_ERRORS = 5;
+/** Delay between approval polls when the caller does not set one. */
+const DEFAULT_POLL_MS = 2000;
+/** Device label sent with a pairing request when the caller sets none. */
+const DEFAULT_DEVICE_LABEL = "Mobile App";
 
 export type PairingDeps = {
   transport: Transport;
@@ -31,6 +44,8 @@ export type PairingDeps = {
   /** TLS handshake only: the leaf SHA-256 the host at `https://<address>` presents. Never sends a request. */
   probe: (url: string) => Promise<string>;
   randomBytes: (n: number) => Uint8Array;
+  /** Called with the computer's id after a pairing is saved, to forget its transfer rows that failed because the phone was refused. */
+  clearStaleTransfers?: (hostId: string) => Promise<void>;
 };
 
 export type PairingTarget = { address: string; fingerprint: string };
@@ -55,32 +70,6 @@ export function parsePairingQr(raw: string): { ok: true; qr: PairingQr } | { ok:
   const fp = normalizeFingerprint(j.certFingerprint);
   if (fp === null) return { ok: false, error: 'qrInvalidFingerprint' };
   return { ok: true, qr: { address: j.address, certFingerprint: fp, pairingCode: j.pairingCode } };
-}
-
-/** Message shown for a failed call (port of humanizeError). */
-export function humanizeError(e: unknown): string {
-  if (e instanceof CertPinMismatch) return 'This computer’s identity has changed, so RFE refused to connect. If you reinstalled its agent, remove this computer and pair it again. If not, do not trust this network.';
-  if (e instanceof MissingCertPin) return e.message;
-  if (e instanceof AgentApiError) {
-    // A streamed download only knows the status; the agent's own message (when there is one) already says what is missing.
-    if (e.code === 'CAPABILITY_DENIED' || (e.statusCode === 403 && /^HTTP \d+$/.test(e.message))) {
-      // A streamed download carries only the status, so this cannot tell a missing grant from a path outside the shared folders (audit F-34).
-      return 'This computer has not allowed this phone to do that. Allow it on the computer, in the device’s access settings, or the item may be outside the folders it shares.';
-    }
-    // A revoked phone gets a bare 401 from a streamed call (audit F-33).
-    if (e.statusCode === 401 && /^HTTP \d+$/.test(e.message)) {
-      return 'This computer no longer accepts this phone. If it was removed there, remove this computer here and pair it again.';
-    }
-    return e.message;
-  }
-  // A raw native failure before any agent answered (the first-contact certificate probe): its message is often only the
-  // host name ("Could not ask the computer: myhost"), which says nothing about what to fix.
-  const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
-  if (code === 'ERR_CONNECTION') return 'Could not reach the computer. Check the address and port, that RFE is running on it, and that both devices are on the same network or on Tailscale.';
-  if (code === 'ERR_TLS') return 'Could not set up a secure connection. Check that the address points to the computer running RFE, not another service.';
-  const message = e instanceof Error ? e.message : String(e);
-  // A native module rejection wraps the real reason: "Call to function 'X.y' has been rejected.\n→ Caused by: <reason>".
-  return message.replace(/^Call to function '[^']*' has been rejected\.\s*→ Caused by:\s*/, '');
 }
 
 /**
@@ -114,18 +103,41 @@ export async function checkKnownPin(deps: PairingDeps, target: PairingTarget): P
   return same.length > 0 ? 'known' : 'new';
 }
 
+const incompleteResponse = () => new AgentApiError(0, BAD_RESPONSE, t('pairingResponseIncomplete'));
+
+const deviceIdFor = async (deps: PairingDeps): Promise<string | undefined> => (await deps.deviceId()) ?? undefined;
+
 async function commit(deps: PairingDeps, target: PairingTarget, resp: PairResponse): Promise<Host> {
   const pin = normalizeFingerprint(target.fingerprint);
   if (pin === null) throw new MissingCertPin();
-  if (!resp.deviceToken || !resp.deviceId) throw new AgentApiError(0, 'BAD_RESPONSE', 'The host returned an incomplete pairing response.');
+  if (!resp.deviceToken || !resp.deviceId) throw incompleteResponse();
+  // The same computer (same pinned certificate) paired again keeps its saved entry, so its name, favorites, kept
+  // folders and backups stay; only the address, pin and token are refreshed. The computer may hand out a new device id
+  // (it was removed there, or the phone's id changed), and that must not add a second copy of the same machine.
+  // Found by the pinned certificate (the record's mirror, else the pin in the secure store, so a record saved before the
+  // mirror existed still matches), or failing that by the device id the computer hands out: that is the same entry.
+  const saved = await deps.store.listHosts();
+  let known = saved.find((h) => normalizeFingerprint(h.certFingerprint) === pin);
+  for (const h of known ? [] : saved) {
+    if ((await deps.store.getPin(h.id)) === pin) {
+      known = h;
+      break;
+    }
+  }
+  known ??= saved.find((h) => h.id === resp.deviceId);
   const host: Host = {
-    id: resp.deviceId,
-    label: resp.agentName || target.address,
+    ...known,
+    id: known?.id ?? resp.deviceId,
+    label: known?.label ?? (resp.agentName || target.address),
     address: target.address.trim(),
     certFingerprint: pin,
-    tailscaleAddress: resp.tailscaleAddress,
+    tailscaleAddress: resp.tailscaleAddress ?? known?.tailscaleAddress,
   };
   await deps.store.commitPairing(host, { token: resp.deviceToken, fingerprint: pin });
+  // The committed entry is listed last, so it is the copy a merge keeps. A failed merge is retried at the next app
+  // start and must never fail a pairing that already succeeded.
+  await deps.store.mergeDuplicates().catch(ignoreError('merge duplicate computers after pairing'));
+  await deps.clearStaleTransfers?.(host.id).catch(ignoreError('clear stale transfers after pairing'));
   return host;
 }
 
@@ -143,9 +155,9 @@ export async function pairWithCode(deps: PairingDeps, target: PairingTarget, pai
   const p = await proof(client, deps.identity, target.fingerprint);
   const resp = await client.pair({
     pairingCode: pairingCode.trim(),
-    deviceLabel: deps.deviceLabel ?? 'Mobile App',
+    deviceLabel: deps.deviceLabel ?? DEFAULT_DEVICE_LABEL,
     ...p,
-    deviceId: (await deps.deviceId()) ?? undefined,
+    deviceId: await deviceIdFor(deps),
   });
   return commit(deps, target, resp);
 }
@@ -161,9 +173,40 @@ export async function loginWithAccount(
   const resp = await client.login({
     username: creds.username.trim(),
     password: creds.password,
-    deviceLabel: deps.deviceLabel ?? 'Mobile App',
+    deviceLabel: deps.deviceLabel ?? DEFAULT_DEVICE_LABEL,
     ...p,
-    deviceId: (await deps.deviceId()) ?? undefined,
+    deviceId: await deviceIdFor(deps),
+  });
+  return commit(deps, target, resp);
+}
+
+/**
+ * "Sign in with account server": [accountClient] is a client for a saved computer (the account server) this phone
+ * already logged in to with a password. The member computer (the pinned [target]) issues a challenge, the account
+ * server signs an assertion that names this phone's key, that challenge and the member's certificate, and the member
+ * accepts it at /login. The password never reaches the member, and the assertion is used once, never stored or logged.
+ * The member decides whether it trusts that account server; this phone only relays.
+ */
+export async function loginWithAccountServer(
+  deps: PairingDeps,
+  target: PairingTarget,
+  accountClient: AgentClient,
+): Promise<Host> {
+  await checkKnownPin(deps, target);
+  const pin = normalizeFingerprint(target.fingerprint);
+  if (pin === null) throw new MissingCertPin();
+  const client = pinnedClient(deps, target);
+  const p = await proof(client, deps.identity, pin);
+  const { assertion } = await accountClient.accountAssertion({
+    audience: pin,
+    devicePublicKey: p.devicePublicKey,
+    memberNonce: p.nonce,
+  });
+  const resp = await client.login({
+    assertion,
+    deviceLabel: deps.deviceLabel ?? DEFAULT_DEVICE_LABEL,
+    ...p,
+    deviceId: await deviceIdFor(deps),
   });
   return commit(deps, target, resp);
 }
@@ -180,9 +223,9 @@ export async function registerAccount(
     pairingCode: a.pairingCode.trim(),
     username: a.username.trim(),
     password: a.password,
-    deviceLabel: deps.deviceLabel ?? 'Mobile App',
+    deviceLabel: deps.deviceLabel ?? DEFAULT_DEVICE_LABEL,
     ...p,
-    deviceId: (await deps.deviceId()) ?? undefined,
+    deviceId: await deviceIdFor(deps),
   });
   return commit(deps, target, resp);
 }
@@ -216,14 +259,13 @@ export async function probeTarget(deps: PairingDeps, address: string): Promise<P
   return { address: authority, fingerprint: fp };
 }
 
-const hexToBytes = (h: string) => Uint8Array.from(h.match(/../g) ?? [], (b) => parseInt(b, 16));
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 
 const mapMissingRoute = (e: unknown): never => {
   throw isMissingRoute(e) ? unsupportedByAgent("pairRequest") : e;
 };
 
-/** agent-v1.43.0 has /pair/request but takes the nonce up front: it answers the commit-reveal request with 400. */
+/** Older agents have /pair/request but take the nonce up front: they answer the commit-reveal request with 400. */
 const mapOlderPairProtocol = (e: unknown): never => {
   if (
     e instanceof AgentApiError &&
@@ -254,21 +296,16 @@ export async function requestPairing(
   // Commit to the nonce first and reveal it only once the agent has chosen the request id. A relay that
   // could see the nonce before the id exists could grind an id that makes both match codes agree.
   const clientNonce = hex(deps.randomBytes(16));
-  const deviceId = (await deps.deviceId()) ?? undefined;
+  const deviceId = await deviceIdFor(deps);
   const r = await client
     .requestPair({
-      deviceLabel: deps.deviceLabel ?? "Mobile App",
+      deviceLabel: deps.deviceLabel ?? DEFAULT_DEVICE_LABEL,
       clientNonceCommit: hex(sha256(hexToBytes(clientNonce))),
       ...p,
       deviceId,
     })
     .catch(mapOlderPairProtocol);
-  if (!r.requestId)
-    throw new AgentApiError(
-      0,
-      "BAD_RESPONSE",
-      "The host returned an incomplete pairing response.",
-    );
+  if (!r.requestId) throw incompleteResponse();
   await client.revealPair(r.requestId, clientNonce).catch(mapMissingRoute);
   return {
     target,
@@ -286,27 +323,32 @@ export async function awaitPairing(
   o: { signal?: AbortSignal; intervalMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number } = {},
 ): Promise<Host> {
   const client = pinnedClient(deps, h.target);
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleep = o.sleep ?? defaultSleep;
   const now = o.now ?? Date.now;
   const deadline = now() + (h.expiresInSeconds + 5) * 1000;
   let transient = 0;
   while (!o.signal?.aborted) {
     if (now() > deadline) throw new PairExpired();
+    let s: Awaited<ReturnType<AgentClient['pairRequestStatus']>> | undefined;
+    // Only the status request is retried; saving the approved host below is outside this try, so a failure to save
+    // is a real failure and is never mistaken for a dropped poll.
     try {
-      const s = await client.pairRequestStatus(h.requestId, h.clientNonce);
+      s = await client.pairRequestStatus(h.requestId, h.clientNonce);
       transient = 0;
-      // Cancelled while this request was in flight: do not save the host and token the person just backed out of.
-      if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
-      if (s.status === 'approved') return commit(deps, h.target, s.response);
-      if (s.status === 'rejected') throw new PairRejected();
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') throw e;
-      if (e instanceof PairRejected || e instanceof CertPinMismatch || e instanceof MissingCertPin) throw e;
+      if (isAbortError(e)) throw e;
+      if (e instanceof CertPinMismatch || e instanceof MissingCertPin) throw e;
       if (e instanceof AgentApiError && e.code === 'NOT_FOUND') throw new PairExpired();
       // A dropped connection or a busy agent is retried; a few in a row is a real failure.
-      if (++transient >= 5) throw e;
+      if (++transient >= MAX_TRANSIENT_POLL_ERRORS) throw e;
     }
-    await sleep(o.intervalMs ?? 2000);
+    if (s) {
+      // Cancelled while this request was in flight: do not save the host and token the person just backed out of.
+      if (o.signal?.aborted) throw abortError();
+      if (s.status === 'approved') return commit(deps, h.target, s.response);
+      if (s.status === 'rejected') throw new PairRejected();
+    }
+    await sleep(o.intervalMs ?? DEFAULT_POLL_MS);
   }
-  throw new DOMException('aborted', 'AbortError');
+  throw abortError();
 }

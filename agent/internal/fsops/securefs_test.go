@@ -135,3 +135,12 @@ func TestArchiveWriteRejectsSymlinkSwapAfterJoinCheck(t *testing.T) {
 		t.Fatalf("outside target was created: %v", err)
 	}
 }
+
+// createArchiveFile mirrors the archive extraction open: a unique, exclusive create.
+func createArchiveFile(path *securePath, mode os.FileMode) (*os.File, error) {
+	dst, err := uniqueArchivePath(path)
+	if err != nil {
+		return nil, err
+	}
+	return dst.openFile(os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+}

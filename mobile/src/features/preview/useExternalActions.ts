@@ -1,5 +1,6 @@
 import type { Entry } from '../../core/api/models';
 import type { Host } from '../../core/models/host';
+import { isUserCancel } from '../../core/userCancel';
 import { useToast } from '../../design/components';
 import { t } from '../../i18n';
 import { openEntryWith, shareEntry } from './externalFiles';
@@ -11,8 +12,9 @@ export function useExternalActions(host: Host) {
     toast.info(preparing);
     try {
       if (!(await action(host, entry))) toast.error(failed);
-    } catch {
-      toast.error(failed);
+    } catch (e) {
+      // A hand-off the person cancelled is not a failure to report.
+      if (!isUserCancel(e)) toast.error(failed);
     }
   };
   return {

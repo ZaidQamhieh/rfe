@@ -2,7 +2,7 @@ import { NativeModule, requireNativeModule } from 'expo';
 
 import type { RfeResponse } from './RfeTransport.types';
 
-type Events = { onTransferUpdate: (e: { record: string }) => void };
+type Events = { onTransferUpdate: (e: { record: string }) => void; onAgentEvent: (e: { id: string; kind: string }) => void; onLanAgentFound: (e: { name: string; address: string; port: number }) => void };
 
 declare class RfeTransportModule extends NativeModule<Events> {
   /** Durable native downloads; each returns/emits JSON-encoded TransferRecord. */
@@ -18,6 +18,10 @@ declare class RfeTransportModule extends NativeModule<Events> {
   /** Cancellable pinned GET to a file; a non-2xx status is a normal result (404 no thumbnail, 429 busy + Retry-After). Rejects ERR_TOO_LARGE past maxBytes. */
   fetchToFile(id: string, url: string, headers: Record<string, string>, pin: string | null, destPath: string, timeoutMs?: number, maxBytes?: number): Promise<{ status: number; retryAfter: number | null; bytes: number }>;
   fetchCancel(id: string): Promise<void>;
+  /** Holds the pinned GET /v1/events stream open, emitting onAgentEvent {id, kind}; resolves with the HTTP status (0 = connection lost) when it ends. */
+  eventStreamRun(id: string, url: string, headers: Record<string, string>, pin: string | null): Promise<number>;
+  eventStreamStop(id: string): Promise<void>;
+  widgetSet(title: string, detail: string, percent: number): Promise<void>;
   /** Local PDF via PdfRenderer; rejects ERR_PDF for corrupt or password-protected files. */
   pdfPageCount(path: string): Promise<number>;
   /** Renders a page to a PNG at [outPath], [widthPx] wide on white; resolves with the pixel size. */
@@ -43,7 +47,7 @@ declare class RfeTransportModule extends NativeModule<Events> {
   /** Transports of the active network: any of wifi, ethernet, cellular, vpn, bluetooth; empty when offline. */
   networkTransports(): Promise<string[]>;
   deviceId(): Promise<string | null>;
-  /** mDNS search for `_rfe._tcp` agents (8 s); results are untrusted hints. */
+  /** mDNS search for `_rfe._tcp` agents (at most 5 s, ends 2 s after the last one is found); each is also sent as an `onLanAgentFound` event as it resolves. Results are untrusted hints. */
   discoveryScan(): Promise<{ name: string; address: string; port: number }[]>;
   discoveryStop(): Promise<void>;
   /** Flutter shared_preferences (`flutter.` stripped); each value is JSON-encoded. */

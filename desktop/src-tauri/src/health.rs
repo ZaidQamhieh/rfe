@@ -2,7 +2,7 @@
 //! and the live host figures an administrator may read (`GET /metrics`).
 //!
 //! Three read-only requests, all through the pinned client, each with its own short timeout and
-//! sent at the same time, so an agent that is down or silent costs at most [`REQUEST_TIMEOUT`] and
+//! sent at the same time, so an agent that is down or silent costs at most [`HEALTH_TIMEOUT`] and
 //! a half-working agent still shows what it can. Only `/health` is required: a failure there is the
 //! screen's error. `/status` and `/metrics` degrade into a note, and a non-admin session (the agent
 //! answers `/metrics` with 403) is a state of its own, not an error. Nothing is kept between calls:
@@ -16,8 +16,11 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Duration;
 
+// The status and code constants live in `agent_client`; re-exported here so `crate::health::` paths keep working.
+pub use crate::agent_client::{CODE_UNAUTHORIZED, STATUS_FORBIDDEN, STATUS_UNAUTHORIZED};
+
 /// How long each of the three requests may take before the screen reports the agent as silent.
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+pub const HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// `GET /health`. Only `status` is guaranteed; the rest is sent to a caller with a valid token, and
 /// every field is optional here so an older or reduced answer still reads.
@@ -47,7 +50,7 @@ fn one() -> i64 {
 
 fn lenient_api_version<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
     let v = serde_json::Value::deserialize(d)?;
-    Ok(v.as_i64().filter(|n| *n >= 1).unwrap_or(1))
+    Ok(v.as_i64().filter(|n| *n >= 1).unwrap_or_else(one))
 }
 
 fn lenient_features<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
@@ -131,10 +134,16 @@ pub async fn snapshot(
         .into_iter()
         .flatten()
     {
-        if matches!(r, AgentError::Server { status: 401, .. }) {
+        if matches!(
+            r,
+            AgentError::Server {
+                status: STATUS_UNAUTHORIZED,
+                ..
+            }
+        ) {
             return Err(AgentError::Server {
-                status: 401,
-                code: "UNAUTHORIZED".into(),
+                status: STATUS_UNAUTHORIZED,
+                code: CODE_UNAUTHORIZED.into(),
                 message: String::new(),
             });
         }
@@ -151,7 +160,10 @@ pub async fn snapshot(
     };
     let (metrics, metrics_forbidden, metrics_note) = match metrics {
         Ok(m) => (Some(m), false, String::new()),
-        Err(AgentError::Server { status: 403, .. }) => (None, true, String::new()),
+        Err(AgentError::Server {
+            status: STATUS_FORBIDDEN,
+            ..
+        }) => (None, true, String::new()),
         Err(e) => (None, false, e.to_string()),
     };
     Ok(Snapshot {
@@ -202,8 +214,12 @@ async fn agent_health_inner(dir: &Path, store: &Offloaded) -> Result<Snapshot, A
             ))
         })?;
     let client = AgentClient::pinned(&s.host, &pinned)?;
-    let got = snapshot(&client, &s.host, &pinned, &s.token, REQUEST_TIMEOUT).await;
-    if let Err(AgentError::Server { status: 401, .. }) = &got {
+    let got = snapshot(&client, &s.host, &pinned, &s.token, HEALTH_TIMEOUT).await;
+    if let Err(AgentError::Server {
+        status: STATUS_UNAUTHORIZED,
+        ..
+    }) = &got
+    {
         let dir = dir.to_path_buf();
         let token = s.token.clone();
         store

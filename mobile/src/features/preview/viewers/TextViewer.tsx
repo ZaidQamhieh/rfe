@@ -7,11 +7,22 @@ import type { Host } from '../../../core/models/host';
 import { Text } from '../../../design/components';
 import { useScheme } from '../../../design/theme';
 import { FontFamily, Spacing } from '../../../design/tokens';
-import { humanizeError } from '../../pairing/pairingService';
+import { t } from '../../../i18n';
+import { humanizeError } from '../../../core/humanizeError';
 import { PreviewError, PreviewLoading, PreviewTooLarge } from '../PreviewChrome';
 import { MAX_IN_MEMORY_PREVIEW_BYTES, PAGER_CHIP_CLEARANCE, usePreviewFile } from '../previewFile';
 import { NotTextError, decodeAsText } from '../textDecode';
 import { useFollowText } from '../useFollowText';
+
+/** Shown in place of the text of an empty file. */
+export function EmptyFileNotice() {
+  const c = useScheme();
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text color={c.outline}>{t('emptyFile')}</Text>
+    </View>
+  );
+}
 
 export const MONO = { fontFamily: FontFamily.mono, fontSize: 13, lineHeight: 18.2 } as const;
 
@@ -46,9 +57,9 @@ export function usePreviewText(host: Host, entry: Entry) {
 /** Shared loading / too-large / error body for the text-based viewers; null once the text is ready. */
 export function textStateView(file: ReturnType<typeof usePreviewText>['file'], text: Loaded, retry: () => void, loadingLabel: string) {
   if (file.status === 'tooLarge') return <PreviewTooLarge size={file.size} />;
-  if (file.status === 'error') return <PreviewError message={`Could not load this file.\n${humanizeError(file.error)}`} onRetry={retry} />;
+  if (file.status === 'error') return <PreviewError message={t('couldNotLoadFile', { error: humanizeError(file.error) })} onRetry={retry} />;
   if (text.status === 'error') {
-    return text.error instanceof NotTextError ? <PreviewError message={text.error.message} /> : <PreviewError message={`Could not load this file.\n${humanizeError(text.error)}`} onRetry={retry} />;
+    return text.error instanceof NotTextError ? <PreviewError message={text.error.message} /> : <PreviewError message={t('couldNotLoadFile', { error: humanizeError(text.error) })} onRetry={retry} />;
   }
   if (text.status !== 'ready') return <PreviewLoading message={loadingLabel} />;
   return null;
@@ -74,15 +85,9 @@ export function TextViewer({ host, entry, showLineNumbers, follow = false, onTex
     if (follow) list.current?.scrollToEnd({ animated: false });
   }, [follow, grown]);
 
-  const pending = textStateView(file, text, retry, 'Loading text…');
+  const pending = textStateView(file, text, retry, t('loadingText'));
   if (pending) return pending;
-  if (ready === '') {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text color={c.outline}>(empty file)</Text>
-      </View>
-    );
-  }
+  if (ready === '') return <EmptyFileNotice />;
   return (
     <FlatList
       ref={list}

@@ -11,7 +11,7 @@ import (
 
 // clientIP returns the caller's source IP from RemoteAddr. It deliberately
 // ignores X-Forwarded-For: that header is client-controlled and trusting it
-// would let an attacker forge a fresh key per request (PR-52).
+// would let an attacker forge a fresh key per request.
 func clientIP(r *http.Request) string {
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return host
@@ -20,7 +20,7 @@ func clientIP(r *http.Request) string {
 }
 
 // keyedLimiter applies a per-key fixed window so one source can't consume the
-// whole endpoint's budget for everyone (PR-52). The key map is bounded and
+// whole endpoint's budget for everyone. The key map is bounded and
 // lazily pruned of fully-expired windows to cap memory.
 type keyedLimiter struct {
 	mu          sync.Mutex
@@ -35,12 +35,15 @@ type keyedLimiter struct {
 // many-address caller starve every new client; hashing sources over several keeps most of them unaffected (audit F-06).
 const overflowBuckets = 64
 
+// keyedLimiterMaxKeys caps the per-source map; sources beyond it use the overflow windows.
+const keyedLimiterMaxKeys = 4096
+
 func newKeyedLimiter(maxAttempts int, window time.Duration) *keyedLimiter {
 	k := &keyedLimiter{
 		maxAttempts: maxAttempts,
 		window:      window,
 		perKey:      make(map[string]*fixedWindowLimiter),
-		maxKeys:     4096,
+		maxKeys:     keyedLimiterMaxKeys,
 	}
 	for i := range k.overflow {
 		k.overflow[i] = newFixedWindowLimiter(maxAttempts, window)
@@ -61,14 +64,19 @@ func (k *keyedLimiter) Allow(key string) bool {
 		// caller can use a fresh source address per request; keep memory bounded
 		// by sending previously unseen keys through one shared overflow window.
 		if len(k.perKey) >= k.maxKeys {
-			h := fnv.New32a()
-			_, _ = h.Write([]byte(key))
-			return k.overflow[h.Sum32()%overflowBuckets].Allow()
+			return k.overflowFor(key).Allow()
 		}
 		l = newFixedWindowLimiter(k.maxAttempts, k.window)
 		k.perKey[key] = l
 	}
 	return l.Allow()
+}
+
+// overflowFor returns the shared overflow window that key hashes to. Callers hold k.mu.
+func (k *keyedLimiter) overflowFor(key string) *fixedWindowLimiter {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return k.overflow[h.Sum32()%overflowBuckets]
 }
 
 // pruneLocked drops per-key limiters whose window holds no recent hits.
@@ -141,9 +149,7 @@ func (k *keyedLimiter) Exhausted(key string) bool {
 	l, ok := k.perKey[key]
 	if !ok && len(k.perKey) >= k.maxKeys {
 		// A key that would be sent to a shared overflow window is judged by that window.
-		h := fnv.New32a()
-		_, _ = h.Write([]byte(key))
-		l, ok = k.overflow[h.Sum32()%overflowBuckets], true
+		l, ok = k.overflowFor(key), true
 	}
 	k.mu.Unlock()
 	if !ok {

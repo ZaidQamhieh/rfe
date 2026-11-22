@@ -1,0 +1,18 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "json": {
+    "chunkSize": 4,
+    "id": "<id>",
+    "path": "<ROOT>/made/up.txt",
+    "receivedChunks": [],
+    "size": 10,
+    "status": "open",
+    "totalChunks": 3
+  }
+}

@@ -4,9 +4,12 @@ import { CertPinMismatch, MissingCertPin, normalizeFingerprint } from '../../cor
 import { routeAddresses, type Host, type HostRoute } from '../../core/models/host';
 
 export type ProbeFailure = 'none' | 'missingPin' | 'pinMismatch' | 'dns' | 'unreachable' | 'other';
-export type AuthOutcome = 'notChecked' | 'accepted' | 'denied';
+type AuthOutcome = 'notChecked' | 'accepted' | 'denied';
 
 export type ProbeResult = { route: HostRoute; address: string; latencyMs?: number; health?: Health; failure: ProbeFailure; auth: AuthOutcome };
+
+/** Per-request timeout for one route probe, in milliseconds. */
+export const PROBE_TIMEOUT_MS = 5000;
 
 const DNS_HINTS = ['unable to resolve host', 'no address associated with hostname', 'failed host lookup', 'name or service not known', 'nodename nor servname', 'unknownhost'];
 
@@ -33,7 +36,7 @@ export async function probeRoute(d: ProbeDeps, host: Host, route: HostRoute, add
   const pin = normalizeFingerprint(d.fingerprint);
   if (pin === null) return { route, address, failure: 'missingPin', auth: 'notChecked' };
   const single: Host = { id: host.id, label: host.label, address, certFingerprint: pin };
-  const client = new AgentClient(single, { transport: d.transport, pinnedFingerprint: pin, deviceToken: d.deviceToken ?? undefined, timeoutMs: d.timeoutMs ?? 5000 });
+  const client = new AgentClient(single, { transport: d.transport, pinnedFingerprint: pin, deviceToken: d.deviceToken ?? undefined, timeoutMs: d.timeoutMs ?? PROBE_TIMEOUT_MS });
   const now = d.now ?? Date.now;
   try {
     const started = now();

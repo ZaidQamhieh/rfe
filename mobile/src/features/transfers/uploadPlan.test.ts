@@ -24,6 +24,12 @@ describe('upload plan', () => {
     expect(planUploads(pick('a.txt', 'a.txt'), new Set(), 'skip').map((i) => i.targetName)).toEqual(['a.txt', 'a (1).txt']);
   });
 
+  it('overwrites a repeated colliding name once and keeps the other picks apart', () => {
+    const picked = [{ name: 'a.jpg', uri: 'file:///u1' }, { name: 'a.jpg', uri: 'file:///u2' }, { name: 'a.jpg', uri: 'file:///u3' }];
+    const plan = planUploads(picked, new Set(['a.jpg']), 'overwrite');
+    expect(plan.map((i) => [i.targetName, i.overwrite])).toEqual([['a.jpg', true], ['a (1).jpg', false], ['a (2).jpg', false]]);
+  });
+
   it('strips directories and control characters from picked names', () => {
     expect(cleanUploadName('../../etc/passwd')).toBe('passwd');
     expect(cleanUploadName('C:\\x\\y.txt')).toBe('y.txt');

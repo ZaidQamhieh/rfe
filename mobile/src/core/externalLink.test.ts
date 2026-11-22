@@ -15,7 +15,7 @@ describe('externalLinkTarget', () => {
       'rfe://pair/register?address=evil',
       'rfe://edit?path=/etc/passwd',
       'rfe://host/h1/settings',
-      'rfe://receive',
+      'rfe://trash',
       'rfe://dataUrl=rfeShareKey',
       'rfe://expo-sharing-intent?x=1',
       'https://example.com/pair/request',

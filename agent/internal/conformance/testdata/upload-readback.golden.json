@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "headers": {
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+    "Content-Disposition": "attachment; filename=up.txt",
+    "Content-Security-Policy": "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "text": "0123456789",
+  "bodyLen": 10
+}

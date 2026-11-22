@@ -5,7 +5,7 @@
 #
 #   tools/package-agent-linux.sh <version> <amd64|arm64> <archive.tar.gz> <out_dir>
 #
-# Writes <out_dir>/agent-v<version>-linux-<arch>.deb and .rpm. Needs nfpm on PATH.
+# Writes <out_dir>/host-v<version>-linux-<arch>.deb and .rpm. Needs nfpm on PATH.
 set -euo pipefail
 if [[ $# -ne 4 ]]; then
   echo "usage: $0 <version> <amd64|arm64> <archive.tar.gz> <out_dir>" >&2
@@ -49,6 +49,6 @@ YAML
 
 for fmt in deb rpm; do
   nfpm package --config "$stage/nfpm.yaml" --packager "$fmt" --target "$stage/pkg.$fmt" >/dev/null
-  mv "$stage/pkg.$fmt" "$out/agent-v$version-linux-$arch.$fmt"
-  echo "$out/agent-v$version-linux-$arch.$fmt"
+  mv "$stage/pkg.$fmt" "$out/host-v$version-linux-$arch.$fmt"
+  echo "$out/host-v$version-linux-$arch.$fmt"
 done

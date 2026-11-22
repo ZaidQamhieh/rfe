@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Mover — the Overview is for moving files between here and there</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap">
+<link rel="stylesheet" href="_frame.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="base.css">
+<style>
+
+.d10{--bg:#0f1512;--sf:#151d19;--rz:#1d2722;--t1:#e4ece7;--t2:#9fb0a6;--t3:#7e9086;--line:rgba(228,236,231,.08);--line2:rgba(228,236,231,.15);--ac:#7bd389;--on-ac:#0f1512;--ac-ink:#8ee09b;--ac-soft:rgba(123,211,137,.1);--pos:#7bd389;--neg:#f87171;--warn:#fbbf24;--font:"Onest",system-ui,sans-serif;--mono:"Fira Code",monospace;--shadow:0 16px 40px rgba(0,0,0,.5)}
+.d10 .k-qr{background:#e4ece7}
+.d10 .top{height:64px;flex:none;display:flex;align-items:center;gap:16px;padding:0 24px;border-bottom:1px solid var(--line)}
+.d10 .top .sp0{display:flex;align-items:baseline;gap:10px;margin-right:auto}.d10 .top .sp0{white-space:nowrap}.d10 .top .sp0 b{font:500 26px var(--mono);color:var(--ac)}.d10 .top .sp0 small{color:var(--t3)}
+.d10 .top .k-sbox{width:300px}
+.d10 .desk{display:grid;grid-template-columns:1fr 300px 1fr;gap:16px;height:100%;min-height:0}
+.d10 .pane{background:var(--sf);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;min-height:0}
+.d10 .pane h3{display:flex;align-items:center;gap:8px;margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font:500 14px var(--font)}.d10 .pane h3 small{color:var(--t3);font:12px var(--mono)}
+.d10 .pane .l{overflow:auto;padding:6px;flex:1}.d10 .pane .k-lrow{min-height:36px;font-size:13px}.d10 .pane .k-lrow small{font:12px var(--mono)}
+.d10 .pane .h{padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--t3);display:flex;gap:8px;align-items:center}
+.d10 .q{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.d10 .arr{display:flex;gap:8px}.d10 .arr .k-btn{flex:1;justify-content:center}
+.d10 .qi{background:var(--sf);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);padding:12px;font-size:13px;display:grid;gap:4px}.d10 .qi small{color:var(--t3);font:11px var(--mono)}.d10 .qi.w{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 50%,transparent)}
+.d10 .stage:has(.desk){overflow:hidden}
+
+</style>
+<script src="_files.js"></script><script src="_nav.js"></script><script src="kit.js"></script><script src="base.js"></script></head>
+<body class="mk"><div class="win rfe d10">
+ <aside class="side" id="side"></aside>
+ <div class="main"><header class="top" id="top"></header><div class="body"><main class="stage" id="st"></main><aside class="rail" id="rail"></aside></div><footer class="bot" id="bot"></footer></div>
+ <div class="k-dockwrap" id="dock"></div><div class="pop" id="pop"></div>
+</div>
+<script>
+window.IDEA="The Overview is a moving desk: a computer\u2019s folder on the left, this computer on the right, the queue between them with the live speed. Drag across, or select and press the arrow. Transfers is the same desk.";
+window.MAP=[["Navigation", "Left sidebar (fixed): Overview, the pages, Computers, Add a computer", 1], ["Files", "Files page (fixed): one tree across every computer, actions on the row, preview on the right", 1], ["Settings", "Settings page (fixed): sections on the left", 1], ["Move files", "Overview: drag across, or select and press an arrow", 0], ["Transfers", "The queue in the middle; Transfers page", 0], ["Speed", "Top bar, with Pause all", 0], ["Search", "Top bar or Ctrl K", 1]];
+const I=K.I,D=K.D,E=K.E,EM=B.empty;
+
+document.getElementById('top').innerHTML=`<span class="sp0">${EM?`<b>0 B/s</b><small>nothing moving</small>`:`<b>52.4 MB/s</b><small>2 moving · 1 waiting · <span class="warn">3 need you</span></small>${K.btn('Pause all',{i:'pause',k:'sm'})}`}</span>${K.C.searchBox('Search all connected computers')}${K.C.actions()}`;
+const pane=(h,rows,foot)=>`<div class="pane"><h3>${h}</h3><div class="l">${rows}</div><div class="h">${foot}</div></div>`;
+const home=()=>`<div class="desk">`+(EM?pane(`${E('desktop_computer',18)}A computer`,B.W('desktop_computer','No computer yet','Add one and its folders open here, ready to drag across.',K.btn('Add a computer',{i:'plus',k:'sm pri',a:'dlg:newconn'})),'')
+:pane(`${K.mach(D.servers[0],18)}studio-pc <small>garden-plan</small><span class="sp" style="flex:1"></span>${K.ib('chevd','Choose a computer and folder','menu:browse')}`,D.files.map(f=>`<div class="k-lrow${f.n===D.sel?' sel':''}" data-row="${f.n}">${K.fic(f.k)}<span>${f.n}</span><small>${f.k==='dir'?f.c+' items':f.s}</small></div>`).join(''),`${I('right',12)} drag right to download`))
++`<div class="q"><div class="arr">${K.btn('',{i:'left',k:EM?'':'',dis:EM}).replace('<button','<button data-tip="Upload the selection (Ctrl U)"')}${K.btn('',{i:'right',k:EM?'':'pri',dis:EM}).replace('<button','<button data-tip="Download the selection (Ctrl D)"')}</div>`+(EM?`<p class="mut" style="font-size:13px;text-align:center">The queue shows here: what moves, how fast, and what needs an answer.</p>`:[['↑ walkthrough-full.mov','71% · 23 s','',71],['↓ tax-2025.pdf','checking','',100],['↑ bed-layout.pdf','name exists on work-laptop','w'],['↓ album-2019.zip','paused · media-mini offline','w',33],['↑ seed-order.xlsx','waiting for a slot','',0]].map(x=>`<div class="qi ${x[2]}"><b style="font-weight:500">${x[0]}</b><small>${x[1]}</small>${x[3]!==undefined?K.bar(x[3]):K.btn('Keep both',{k:'sm'})}</div>`).join(''))+`</div>`
++pane(`${E('laptop',18)}This computer <small>~/Downloads</small>`,D.local.map(l=>`<div class="k-lrow" data-row="${l.n}">${K.fic(l.k)}<span>${l.n}</span><small>${l.k==='dir'?l.c+' items':l.s}</small></div>`).join(''),`${I('left',12)} drag left to upload`)+`</div>`;
+B.mount({views:{home,transfers:EM?undefined:home}});
+
+</script></body></html>

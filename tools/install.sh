@@ -3,9 +3,11 @@
 # (setcap is opt-in). Every download is checked against the release's SHA256SUMS before anything is installed.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ZaidQamhieh/rfe/master/tools/install.sh | sh
-#   tools/install.sh [agent|desktop|all] [--agent-version X.Y.Z] [--desktop-version X.Y.Z] [--bin-dir DIR]
+#   tools/install.sh [agent|desktop|all] [--version X.Y.Z] [--bin-dir DIR]
 #                    [--share-root DIR] [--no-service] [--setcap] [--uninstall]
 #
+# Both come from one host-vX.Y.Z release (agent-v*/desktop-v* releases before that, still accepted for a pinned
+# version: --agent-version / --desktop-version pick each one separately).
 # agent: rfe + rfe-indexd + rfe-thumbd + rfe-sidecars.txt go into the bin dir together (the agent refuses
 #        sidecars that do not match the manifest). A first install then runs `rfe setup`: it shares one
 #        folder (default ~/RFE Files), starts the systemd user service and prints a pairing QR. An upgrade runs
@@ -25,6 +27,7 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required"; }
 while [ $# -gt 0 ]; do
   case $1 in
     agent|desktop|all) what=$1 ;;
+    --version) agent_version=${2:?}; desktop_version=$2; shift ;;
     --agent-version) agent_version=${2:?}; shift ;;
     --desktop-version) desktop_version=${2:?}; shift ;;
     --bin-dir) bin_dir=${2:?}; shift ;;
@@ -32,7 +35,7 @@ while [ $# -gt 0 ]; do
     --no-service) service=0 ;;
     --setcap) setcap=1 ;;
     --uninstall) uninstall=1 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
   shift
@@ -78,10 +81,20 @@ need sha256sum
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-# Newest stable (no "-rc") release whose tag starts with the prefix.
-latest_version() {
+# The release tag to install from: for version $2, host-v$2 when it exists, else <$1>v$2 (the older separate
+# releases); without a version, the newest stable (no "-rc") host-v* or <$1>v* release (the list is newest first).
+release_tag() {
+  if [ -n "$2" ]; then
+    if curl -fsIL -o /dev/null "https://github.com/$REPO/releases/download/host-v$2/SHA256SUMS"; then
+      echo "host-v$2"
+    else
+      echo "$1v$2"
+    fi
+    return
+  fi
   curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=50" |
-    sed -n 's/.*"tag_name": *"'"$1"'v\([0-9][0-9.]*\)".*/\1/p' | head -n 1
+    sed -n -e 's/.*"tag_name": *"\(host-v[0-9][0-9.]*\)".*/\1/p' \
+      -e 's/.*"tag_name": *"\('"$1"'v[0-9][0-9.]*\)".*/\1/p' | head -n 1
 }
 
 # Downloads <tag> asset <file> plus SHA256SUMS into $tmp and verifies the file.
@@ -101,9 +114,10 @@ fetch() {
 mkdir -p "$bin_dir"
 
 install_agent() {
-  v=${agent_version:-$(latest_version agent-)}
-  [ -n "$v" ] || die "no agent release found"
-  fetch "agent-v$v" "agent-v$v-linux-$arch.tar.gz"
+  tag=$(release_tag agent- "$agent_version")
+  [ -n "$tag" ] || die "no agent release found"
+  v=${tag#*-v}
+  fetch "$tag" "agent-v$v-linux-$arch.tar.gz"
   mkdir -p "$tmp/agent"
   tar -C "$tmp/agent" -xzf "$tmp/agent-v$v-linux-$arch.tar.gz"
   for f in rfe rfe-indexd rfe-thumbd rfe-sidecars.txt; do
@@ -150,15 +164,16 @@ install_agent() {
 
 install_desktop() {
   [ "$arch" = amd64 ] || die "the desktop app is only built for x86_64"
-  v=${desktop_version:-$(latest_version desktop-)}
-  [ -n "$v" ] || die "no desktop release found"
+  tag=$(release_tag desktop- "$desktop_version")
+  [ -n "$tag" ] || die "no desktop release found"
+  v=${tag#*-v}
   file=RFE-Desktop_${v}_amd64.AppImage
-  fetch "desktop-v$v" "$file"
+  fetch "$tag" "$file"
   install -m 755 "$tmp/$file" "$bin_dir/.rfe-desktop.new"
   mv -f "$bin_dir/.rfe-desktop.new" "$appimage"
   mkdir -p "$apps_dir" "$icon_dir"
   curl -fsSL -o "$icon_dir/app.rfe.desktop.png" \
-    "https://raw.githubusercontent.com/$REPO/desktop-v$v/desktop/src-tauri/icons/128x128.png" ||
+    "https://raw.githubusercontent.com/$REPO/$tag/desktop/src-tauri/icons/128x128.png" ||
     echo "icon download failed; the launcher entry will have no icon"
   cat > "$desktop_file" <<EOF
 [Desktop Entry]

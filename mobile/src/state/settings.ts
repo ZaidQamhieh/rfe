@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 
-import { defaultAppDefaults, resolveView, resolveVisibility, type AppDefaults, type DeviceOverrides, type SettingsState } from '../core/settings/settings';
+import { defaultAppDefaults, hasOverride, resolveView, resolveVisibility, type AppDefaults, type DeviceOverrides, type SettingsState } from '../core/settings/settings';
 import { settingsRepo } from '../services';
 
 type Store = {
@@ -25,7 +25,7 @@ export const useSettings = create<Store>((set, get) => ({
   },
   async setOverrides(next) {
     await settingsRepo.setOverrides(next);
-    set((s) => ({ state: { ...s.state, overrides: Object.fromEntries(Object.entries(next).filter(([, o]) => Object.keys(o).length > 0)) } }));
+    set((s) => ({ state: { ...s.state, overrides: Object.fromEntries(Object.entries(next).filter(([, o]) => hasOverride(o))) } }));
   },
 }));
 

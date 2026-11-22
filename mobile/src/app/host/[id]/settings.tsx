@@ -1,31 +1,15 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
-import type { Host } from '../../../core/models/host';
-import { Loading, Text } from '../../../design/components';
+import { Loading } from '../../../design/components';
+import { HostGone } from '../../../features/hosts/HostGone';
+import { useHostById } from '../../../features/hosts/useHostById';
 import { HostSettingsScreen } from '../../../features/settings/HostSettingsScreen';
-import { hostStore } from '../../../services';
 
 /** Settings for one paired computer. */
 export default function HostSettings() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [host, setHost] = useState<Host | null | undefined>(undefined);
-  useEffect(() => {
-    let live = true;
-    void hostStore.listHosts().then((l) => live && setHost(l.find((h) => h.id === id) ?? null));
-    return () => {
-      live = false;
-    };
-  }, [id]);
+  const host = useHostById(id);
   if (host === undefined) return <Loading />;
-  if (host === null) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Stack.Screen options={{ title: '' }} />
-        <Text muted>This computer is no longer paired.</Text>
-      </View>
-    );
-  }
+  if (host === null) return <HostGone />;
   return <HostSettingsScreen host={host} />;
 }

@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
 import { File as FileIcon, Monitor } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import type { Host } from '../core/models/host';
 import { formatSize } from '../core/format';
+import { log } from '../core/log';
 import { Button, Loading, Text, useToast } from '../design/components';
 import { Spacing } from '../design/tokens';
 import { t } from '../i18n';
@@ -14,10 +15,10 @@ import { folderLabel } from '../features/explorer/paths';
 import { loadRoots } from '../features/explorer/rootsCache';
 import { useConflictPrompt } from '../features/explorer/useConflictPrompt';
 import { useHosts } from '../features/hosts/useHosts';
-import { humanizeError } from '../features/pairing/pairingService';
+import { humanizeError } from '../core/humanizeError';
 import { InfoRow, NavRow, SettingsPage, SettingsSection } from '../features/settings/parts';
 import { sharedFiles } from '../features/share/shareLogic';
-import { enqueueUploads } from '../features/transfers/enqueueUploads';
+import { enqueueUploads, PartialUploadError } from '../features/transfers/enqueueUploads';
 import { cleanUploadName, planUploads, type Resolution } from '../features/transfers/uploadPlan';
 import { clientForHost, keyValue } from '../services';
 
@@ -32,6 +33,8 @@ export default function Share() {
   const [chosen, setChosen] = useState<string | null>(null);
   const [picking, setPicking] = useState<{ host: Host; start: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Uris of shared files already queued (or lost) in an earlier, partly failed send, so a new send does not queue them twice. */
+  const handled = useRef(new Set<string>());
 
   const host = hosts?.find((h) => h.id === chosen) ?? (hosts?.length === 1 ? hosts[0] : null);
 
@@ -42,7 +45,10 @@ export default function Share() {
   }
 
   async function choose(h: Host) {
-    const roots = await loadRoots(keyValue, h.id).catch(() => null);
+    const roots = await loadRoots(keyValue, h.id).catch((e) => {
+      log.warn('share roots', e);
+      return null;
+    });
     setPicking({ host: h, start: roots?.roots[0] ?? '/' });
   }
 
@@ -51,18 +57,32 @@ export default function Share() {
     setBusy(true);
     try {
       let resolution: Resolution = 'skip';
-      const colliding = await collidingNames(h, dest, files.map((f) => cleanUploadName(f.name)));
+      const pending = files.filter((f) => !handled.current.has(f.uri));
+      const colliding = await collidingNames(h, dest, pending.map((f) => cleanUploadName(f.name)));
       if (colliding.size > 0) {
-        const res = await askConflict(colliding.size, files.length, dest);
+        const res = await askConflict(colliding.size, pending.length, dest);
         if (res === 'cancel') return;
         resolution = res;
       }
-      const items = planUploads(files, colliding, resolution);
+      const items = planUploads(pending, colliding, resolution);
       if (items.length === 0) {
         toast.info(t('uploadAllExist', { folder: folderLabel(dest) }));
         return;
       }
-      const queued = await enqueueUploads(h, dest, items);
+      let queued: number;
+      try {
+        queued = await enqueueUploads(h, dest, items);
+      } catch (e) {
+        if (!(e instanceof PartialUploadError)) throw e;
+        // Some files are already on their way: a second send must queue only the others.
+        for (const i of items) if (!e.remaining.includes(i)) handled.current.add(i.source.uri);
+        toast.error(t('operationFailed', { operation: t('uploadFileTooltip'), error: humanizeError(e.failure) }));
+        if (e.remaining.length === 0) {
+          resetShareIntent();
+          router.replace('/transfers');
+        }
+        return;
+      }
       toast.success(queued === 1 ? t('uploadingFile', { name: items[0].targetName }) : t('uploadingNFiles', { count: queued }));
       resetShareIntent();
       router.replace('/transfers');

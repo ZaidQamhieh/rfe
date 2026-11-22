@@ -1,42 +1,53 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Activity, Bookmark, Folder, History, LayoutGrid, Monitor, Plug, Plus, QrCode, RefreshCw, Search, Settings, ShieldCheck, ShieldX, SlidersHorizontal, Zap, type LucideIcon } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { X } from 'lucide-react-native';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 
 import type { Entry } from '../../core/api/models';
-import { roleOf } from '../../core/entryCategory';
-import { formatSize } from '../../core/format';
-import { sendWakeOnLan } from '../../core/native';
 import type { Host } from '../../core/models/host';
-import { Button, ErrorRetry, Loading, Pressable, SectionLabel, Text, useToast } from '../../design/components';
-import { GroupedCard } from '../../design/components/Card';
-import { StatePill, TopBar } from '../../design/components/LumenBits';
-import { mix } from '../../design/color';
-import { LumenSize, LumenType } from '../../design/lumen';
-import { useRoles, useScheme } from '../../design/theme';
-import { EntryLeading } from '../explorer/EntryIcon';
-import { parentPathOf } from '../explorer/reveal';
+import { DuoIcon, Emoji, ErrorRetry, Loading, Pressable, Row, SectionLabel, Text, useToast } from '../../design/components';
+import { TopBar } from '../../design/components/LumenBits';
+import { LumenType } from '../../design/lumen';
+import { useScheme } from '../../design/theme';
 import { t } from '../../i18n';
 import { clientForHost } from '../../services';
 import { useActiveHost } from '../../state/activeHost';
+import { useCollections } from '../../state/collections';
 import { useSettings } from '../../state/settings';
+import { EntryLeading, isImageEntry, useIconChipBg } from '../explorer/EntryIcon';
+import { basenameOf } from '../explorer/paths';
+import { parentPathOf } from '../explorer/reveal';
+import { Thumbnail } from '../explorer/Thumbnail';
+import { usePreviewSession } from '../preview/session';
 import { UpdateBanner } from '../update/UpdateBanner';
-import { hostCardActions, recentMeta, routeStripState } from './hostCardLogic';
-import { HostHero } from './HostHero';
-import { relativeLabel } from './relative';
-import { OverflowSheet, type OverflowItem } from './OverflowSheet';
-import { RouteStrip } from './RouteStrip';
+import { ComputerMenu } from './ComputerMenu';
+import { ComputerStateView } from './ComputerStateView';
+import { EmptyPairPrompt } from './EmptyPairPrompt';
+import { useKeptFiles } from './useKeptFiles';
+import { computerMenuEntries, computerMenuTarget, type ComputerMenuKey } from './computerMenuLogic';
+import { ComputerSwitcherSheet } from './ComputerSwitcherSheet';
+import { hostCardActions } from './hostCardLogic';
+import { RECENT_ASK, RECENT_FETCH, RECENT_SHOWN, recentRows, recentWhen, withoutHidden } from './homeLogic';
+import { Nameplate } from './Nameplate';
+import { pathCrumb, stateLine } from './nameplateLogic';
+import { homeStateView, pairAgainAddress } from './switcherLogic';
+import { TransferStrip } from './TransferStrip';
 import { useHostStatus } from './useHostStatus';
-import { activateHost, useWorkspaces } from './useWorkspaces';
+import { useIsHostOwner } from './useIsHostOwner';
+import { usePlaces } from './usePlaces';
+import { useTransfers } from './useTransfers';
+import { activateHost, useWorkspaces, wakeHost } from './useWorkspaces';
+import { Radii, Spacing } from '../../design/tokens';
 
-/** Home: the selected computer as a hero (name, state, route), the four places to go, and what changed on it recently. */
+/** Height of a "Changed lately" preview tile (`.prev .pv`); the three tiles share the row's width. */
+const RECENT_TILE_HEIGHT = 152;
+
+/** Home: the selected computer's nameplate, its places, what is pinned and what changed lately, and the transfer strip. */
 export function HomeScreen() {
-  const router = useRouter();
   const c = useScheme();
   const { hosts, selected, error, reload } = useWorkspaces();
   const activeId = useActiveHost((s) => s.active?.host.id ?? null);
   const setActive = useActiveHost((s) => s.setActive);
-  const [menu, setMenu] = useState(false);
 
   // Keep the shared "active host" (what Files, Apps and Activity read) in step with what Home shows.
   useEffect(() => {
@@ -45,47 +56,60 @@ export function HomeScreen() {
     else if (!selected && activeId) setActive(null);
   }, [hosts, selected, activeId, setActive]);
 
-  if (selected) return <HomeHost key={selected.id} host={selected} onChanged={reload} />;
+  if (selected) return <HomeHost key={selected.id} host={selected} hosts={hosts ?? [selected]} onChanged={reload} />;
 
-  const baseItems: OverflowItem[] = [{ key: 'settings', label: t('settingsMenuItem'), icon: Settings, onPress: () => router.push('/(tabs)/settings') }];
   return (
     <View style={{ flex: 1, backgroundColor: c.surface }}>
-      <TopBar context="RFE · Workspaces" onMore={() => setMenu(true)} />
+      <TopBar context="RFE · Workspaces" />
       {error ? (
         <ErrorRetry message={t('errorLabel', { error })} onRetry={reload} />
       ) : hosts === null ? (
         <Loading />
       ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, gap: 14 }}>
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 108, height: 108, borderRadius: 54, backgroundColor: mix(c.primary, c.surface, 0.17), alignItems: 'center', justifyContent: 'center' }}>
-            <Monitor size={44} color={c.primary} />
-          </View>
-          <Text style={[LumenType.pageTitle, { textAlign: 'center' }]} accessibilityRole="header">
-            {t('emptyStatePairTitle')}
-          </Text>
-          <Text style={[LumenType.caption, { textAlign: 'center' }]} muted>
-            {t('emptyStatePairBody')}
-          </Text>
-          <Button size="lg" kind="filled" label={t('addComputerButton')} renderIcon={(k) => <Plus size={20} color={k} />} onPress={() => router.push('/pair')} style={{ alignSelf: 'stretch' }} />
-        </View>
+        <EmptyPairPrompt />
       )}
-      <OverflowSheet visible={menu} onClose={() => setMenu(false)} items={[...baseItems, { key: 'receive', label: t('receiveFileTooltip'), icon: QrCode, onPress: () => router.push('/receive') }]} />
     </View>
   );
 }
 
-function HomeHost({ host, onChanged }: { host: Host; onChanged: () => void }) {
+/** Nameplate `.sec`: a sentence-case 14/500 label with 20 above and an optional action at the right edge. */
+function Section({ title, action }: { title: string; action?: { label: string; onPress: () => void } }) {
+  const c = useScheme();
+  return (
+    <View style={{ paddingHorizontal: Spacing.md2, paddingTop: Spacing.md3 }}>
+      <SectionLabel
+        title={title}
+        trailing={
+          action ? (
+            <Pressable onPress={action.onPress} accessibilityLabel={action.label} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={LumenType.sectionLabel} color={c.onSurface}>
+                {action.label}
+              </Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
+    </View>
+  );
+}
+
+function HomeHost({ host, hosts, onChanged }: { host: Host; hosts: Host[]; onChanged: () => void }) {
   const router = useRouter();
   const c = useScheme();
-  const roles = useRoles();
-  const toast = useToast();
   const st = useHostStatus(host, onChanged);
   const { online, checking, health } = st;
   const actions = hostCardActions({ online, checking });
   const lowDiskThresholdBytes = useSettings((x) => x.state.app.lowDiskThresholdBytes);
-  const [menu, setMenu] = useState(false);
+  const favorites = useCollections((s) => s.favorites);
+  const removeFavorite = useCollections((s) => s.removeFavorite);
+  const [editing, setEditing] = useState(false);
+  const [seeAll, setSeeAll] = useState(false);  const [menu, setMenu] = useState(false);
+  const [switcher, setSwitcher] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const recents = useRecents(host, online);
+  const places = usePlaces(host, health, online, st.drives);
+  const records = useTransfers();
+  const toast = useToast();
 
   // Hand the freshly read /health to the Files tab (it resolves shared roots from it) without resetting where it is.
   useEffect(() => {
@@ -93,46 +117,61 @@ function HomeHost({ host, onChanged }: { host: Host; onChanged: () => void }) {
     if (health && cur && cur.host.id === host.id && cur.health === null) useActiveHost.getState().setActive({ ...cur, health });
   }, [health, host.id]);
 
+  // A computer that is not answering gets the asleep / lost panel above its places (cached browsing stays below).
+  const stateView = homeStateView(st, host);
   const readOnly = online && health?.readOnly === true;
   const lowDisk = online && lowDiskThresholdBytes > 0 && (st.drives ?? []).some((d) => d.freeBytes != null && d.freeBytes < lowDiskThresholdBytes);
-  const version = health?.version?.trim() ? `v${health.version.trim()}` : '';
-  const status = checking ? t('checkingStatus') : st.untrusted ? t('statusUntrusted') : online ? [host.note, version, 'Connected securely'].filter(Boolean).join(' · ') : st.lastSeen ? t('statusOfflineLastSeen', { relative: relativeLabel(st.lastSeen) }) : t('offlineStatus');
-
-  const wake = async () => {
-    if (!host.macAddress) return;
-    const sent = await sendWakeOnLan(host.macAddress).catch(() => false);
-    if (sent) toast.info(t('wolPacketSent', { hostname: host.label }));
-    else toast.error(t('wolPacketFailed'));
+  const line = stateLine(st, host);
+  // An unreachable computer that cannot be woken reads "Connection lost · trying again" on a waiting lamp (mockup `lost`).
+  const { lamp, phrase } = stateView === 'lost' ? { lamp: 'wait' as const, phrase: t('stateConnectionLost') } : line;
+  const kept = useKeptFiles(host.id, stateView === 'asleep');
+  const openKept = (e: Entry) => {
+    usePreviewSession.getState().open({ host, entries: [e], index: 0 });
+    router.push('/preview');
   };
-  const hostRoute = (pathname: string) => router.push({ pathname, params: { id: host.id } } as never);
+  const notes = [...(lowDisk ? [{ lamp: 'wait' as const, text: t('lowDiskWarning') }] : []), ...(readOnly ? [{ lamp: 'off' as const, text: t('stateReadOnly') }] : [])];
 
-  const items: OverflowItem[] = [
-    { key: 'settings', label: t('settingsMenuItem'), icon: Settings, onPress: () => router.push('/(tabs)/settings') },
-    { key: 'search', label: t('searchButton'), icon: Search, disabled: !actions.search, onPress: () => hostRoute('/host/[id]/search') },
-    { key: 'bookmarks', label: 'Bookmarks', icon: Bookmark, onPress: () => router.push('/bookmarks') },
-    { key: 'recent', label: t('recentTitle'), icon: History, disabled: !online, onPress: () => router.push('/recent') },
-    ...(host.macAddress ? [{ key: 'wol', label: 'Wake on LAN', icon: Zap, onPress: () => void wake() }] : []),
-    { key: 'connection', label: 'Connection', icon: Plug, onPress: () => hostRoute('/host/[id]/connect') },
-    { key: 'computer', label: `${host.label} settings`, icon: SlidersHorizontal, onPress: () => hostRoute('/host/[id]/settings') },
-    { key: 'receive', label: t('receiveFileTooltip'), icon: QrCode, onPress: () => router.push('/receive') },
-    { key: 'refresh', label: t('refreshTooltip'), icon: RefreshCw, disabled: checking, onPress: st.refresh },
-  ];
+  const hostRoute = (pathname: string, id: string = host.id) => router.push({ pathname, params: { id } } as never);
+  // Pair again: the add-computer screen, with this computer's address already filled in (no protocol change).
+  const pairAgain = (address: string) => router.push({ pathname: '/pair', params: { address } });
+  const openFiles = (opts: { rootPath?: string; initialPath?: string } = {}) => {
+    useActiveHost.getState().setActive({ host, health, ...opts });
+    router.navigate('/files');
+  };
 
-  const tiles: { key: string; label: string; icon: LucideIcon; color: string; disabled?: boolean; onPress: () => void }[] = [
-    { key: 'files', label: 'Files', icon: Folder, color: roles.folder, onPress: () => router.navigate('/files') },
-    { key: 'apps', label: t('hostAppsButton'), icon: LayoutGrid, color: c.primary, disabled: !actions.apps, onPress: () => router.navigate('/apps') },
-    { key: 'activity', label: 'Activity', icon: Activity, color: roles.transfer, onPress: () => router.navigate('/transfers') },
-    { key: 'trust', label: 'Trust', icon: ShieldCheck, color: roles.safe, onPress: () => hostRoute('/host/[id]/trust') },
-  ];
+  // The computer menu entries (Trash, Apps, Phones with access, About, Settings); the technical ones live under About.
+  // Phones with access names the computer's other phones, so only an owner phone is offered it.
+  const isOwner = useIsHostOwner(host, online);
+  const menuEntries = computerMenuEntries(host.label, actions.apps, isOwner);
+  const pickMenu = (key: ComputerMenuKey) => {
+    const target = computerMenuTarget(key, host.id);
+    const go = target.method === 'navigate' ? router.navigate : router.push;
+    go((target.params ? { pathname: target.pathname, params: target.params } : target.pathname) as never);
+  };
 
-  const pill = checking ? <StatePill label={t('checkingStatus')} tone="muted" /> : st.untrusted ? <StatePill label="Not trusted" tone="warn" icon={ShieldX} /> : online ? <StatePill label="Linked" tone="safe" icon={ShieldCheck} /> : <StatePill label={t('offlineStatus')} tone="warn" />;
+  const pinned = favorites.filter((f) => f.hostId === host.id);
+  // Removing the last pinned folder ends edit mode (the Pinned section disappears with it).
+  const unpin = (hostId: string, remotePath: string) => {
+    if (pinned.length <= 1) setEditing(false);
+    void removeFavorite(hostId, remotePath);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.surface }}>
-      <TopBar context="RFE · Workspaces" right={pill} onMore={() => setMenu(true)} />
+      <Nameplate
+        name={host.label}
+        picture="desktop_computer"
+        off={!online && !checking}
+        lamp={lamp}
+        phrase={phrase}
+        notes={notes}
+        onSwitch={() => setSwitcher(true)}
+        onSearch={actions.search ? () => hostRoute('/host/[id]/search') : undefined}
+        onMore={() => setMenu(true)}
+      />
       <UpdateBanner />
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: Spacing.lg }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -145,79 +184,117 @@ function HomeHost({ host, onChanged }: { host: Host; onChanged: () => void }) {
           />
         }
       >
-        <HostHero name={host.label} status={status} readOnly={readOnly} lowDisk={lowDisk} onSwitch={() => router.push('/workspaces')} />
-        <RouteStrip state={routeStripState({ online, checking, activeAddress: st.activeAddress }, host)} />
-        <View style={{ height: 14 }} />
-        <SectionLabel title="Move into this computer" />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {tiles.map((tile) => (
-            <Pressable key={tile.key} disabled={tile.disabled} onPress={tile.onPress} accessibilityLabel={tile.label} accessibilityState={{ disabled: !!tile.disabled }} style={{ width: '48.5%', flexGrow: 1, opacity: tile.disabled ? 0.4 : 1 }}>
-              <View style={{ height: 78, borderRadius: LumenSize.tileRadius, backgroundColor: c.surfaceContainer, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 }}>
-                <tile.icon size={32} color={tile.color} />
-                <Text style={LumenType.sectionLabel} numberOfLines={1}>
-                  {tile.label}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-        {recents && recents.length > 0 ? (
-          <GroupedCard padded={false} style={{ marginTop: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[LumenType.sectionLabel, { flexShrink: 1 }]} muted numberOfLines={1} accessibilityRole="header">
-                {`Recent on ${host.label}`}
-              </Text>
-              <Pressable onPress={() => router.push('/recent')} accessibilityLabel="See all recent files" hitSlop={{ top: 12, bottom: 12, left: 12, right: 0 }}>
-                <Text style={LumenType.meta} color={c.primary}>
-                  See all
-                </Text>
-              </Pressable>
-            </View>
-            {recents.map((e) => (
-              <RecentRow
-                key={e.path}
-                entry={e}
-                onPress={() => {
-                  useActiveHost.getState().setActive({ host, health, initialPath: parentPathOf(e.path) });
-                  router.navigate('/files');
-                }}
-              />
-            ))}
-          </GroupedCard>
+        {stateView ? (
+          <ComputerStateView
+            kind={stateView}
+            name={host.label}
+            lastSeen={st.lastSeen}
+            onWake={stateView === 'asleep' ?() => void wakeHost(host, toast) : undefined}
+            onRetry={st.refresh}
+            onCheck={() => hostRoute('/host/[id]/connect')}
+            onPair={() => pairAgain(pairAgainAddress(st, host))}
+            kept={kept}
+            onOpenKept={openKept}
+          />
         ) : null}
+        {/* The places stay browsable from the cache but are dimmed while the computer is not answering (mockup `lost`). */}
+        <View style={{ opacity: stateView === 'lost' || stateView === 'refused' ? 0.5 : 1 }}>
+        <Section title={t('placesTitle')} />
+        {places && places.length > 0 ? (
+          places.map((p) => <Row key={p.key} lead={<Emoji name={p.kind === 'drive' ? 'drive' : 'folder'} size={32} off={!online} />} title={p.title} subtitle={p.subtitle} onPress={() => openFiles({ rootPath: p.path })} />)
+        ) : (
+          <Row lead={<Emoji name="folder" size={32} off={!online} />} title={t('placeFilesFallback')} onPress={() => openFiles()} />
+        )}
+        {pinned.length > 0 ? (
+          <>
+            <Section title={t('pinnedTitle')} action={{ label: editing ? t('doneAction') : t('editAction'), onPress: () => setEditing((v) => !v) }} />
+            {pinned.map((b) => {
+              const name = b.label || basenameOf(b.path) || b.path;
+              return (
+                <Row
+                  key={b.path}
+                  lead={<Emoji name="folder" size={32} off={!online} />}
+                  title={name}
+                  subtitle={pathCrumb(b.path)}
+                  trailing={
+                    editing ? (
+                      <Pressable onPress={() => unpin(b.hostId, b.path)} accessibilityRole="button" accessibilityLabel={t('unpinAction', { name })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <DuoIcon icon={X} size={22} color={c.onSurfaceVariant} />
+                      </Pressable>
+                    ) : undefined
+                  }
+                  onPress={editing ? undefined : () => openFiles({ initialPath: b.path })}
+                />
+              );
+            })}
+          </>
+        ) : null}
+        {recents && recents.length > 0 ? (
+          <>
+            <Section title={t('changedLatelyTitle')} action={recents.length > RECENT_SHOWN ? { label: seeAll ? t('showLessAction') : t('seeAllAction'), onPress: () => setSeeAll((v) => !v) } : undefined} />
+            <View style={{ gap: Spacing.md2, paddingHorizontal: Spacing.md, paddingTop: Spacing.xs }}>
+              {recentRows(recents, seeAll).map((row, i) => (
+                <View key={i} style={{ flexDirection: 'row', gap: Spacing.md2 }}>
+                  {row.map((e, j) =>
+                    e ? <RecentTile key={e.path} hostId={host.id} entry={e} onPress={() => openFiles({ initialPath: parentPathOf(e.path) })} /> : <View key={`pad${j}`} style={{ flex: 1, minWidth: 0 }} />,
+                  )}
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+        </View>
       </ScrollView>
-      <OverflowSheet visible={menu} title={host.label} items={items} onClose={() => setMenu(false)} />
+      <TransferStrip records={records} />
+      <ComputerMenu visible={menu} entries={menuEntries} onClose={() => setMenu(false)} onPick={pickMenu} />
+      <ComputerSwitcherSheet
+        visible={switcher}
+        hosts={hosts}
+        selectedId={host.id}
+        onClose={() => setSwitcher(false)}
+        onSelect={(h) => {
+          if (h.id !== host.id) activateHost(h);
+        }}
+        onReview={(h) => hostRoute('/host/[id]/trust', h.id)}
+        onPair={pairAgain}
+        onAdd={() => router.push('/pair')}
+        onManage={() => router.push('/workspaces')}
+        onChanged={onChanged}
+      />
     </View>
   );
 }
 
-function RecentRow({ entry, onPress }: { entry: Entry; onPress: () => void }) {
+/** One recently changed file as a preview tile (`.prev figure`): a thumbnail for images, else its type glyph, with name and date below. */
+function RecentTile({ hostId, entry, onPress }: { hostId: string; entry: Entry; onPress: () => void }): ReactNode {
   const c = useScheme();
-  const roles = useRoles();
-  const role = roleOf(entry);
-  const meta = recentMeta(entry, formatSize);
+  const chip = useIconChipBg(entry);
+  const when = recentWhen(entry.modified, new Date(), { today: t('todayLabel'), yesterday: t('yesterdayLabel') });
+  const glyph = (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: chip }}>
+      <EntryLeading entry={entry} size={40} />
+    </View>
+  );
   return (
-    <Pressable onPress={onPress} accessibilityLabel={entry.name}>
-      <View style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
-        <View style={{ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: role ? mix(roles[role], c.surfaceContainerHigh, 0.17) : c.surfaceContainerHigh }}>
-          <EntryLeading entry={entry} size={22} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={LumenType.name} numberOfLines={1}>
-            {entry.name}
+    <Pressable onPress={onPress} accessibilityLabel={entry.name} style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ height: RECENT_TILE_HEIGHT, borderRadius: Radii.file, overflow: 'hidden', borderWidth: 1, borderColor: c.outlineVariant }}>
+        {isImageEntry(entry) ? <Thumbnail hostId={hostId} entry={entry} size={RECENT_TILE_HEIGHT * 2} style={{ flex: 1 }} fallback={glyph} /> : glyph}
+      </View>
+      <View style={{ marginTop: Spacing.sm }}>
+        <Text numberOfLines={1} ellipsizeMode="middle" style={LumenType.caption}>
+          {entry.name}
+        </Text>
+        {when ? (
+          <Text numberOfLines={1} muted style={LumenType.meta}>
+            {when}
           </Text>
-          {meta ? (
-            <Text style={LumenType.meta} muted numberOfLines={1}>
-              {meta}
-            </Text>
-          ) : null}
-        </View>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
-/** The few newest files on [host] (real `/fs/recent`), refreshed on focus; null while offline, unloaded or unavailable. */
+/** The newest files on [host] (real `/fs/recent`), refreshed on focus; null while offline, unloaded or unavailable. */
 function useRecents(host: Host, online: boolean): Entry[] | null {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [tick, setTick] = useState(0);
@@ -230,9 +307,9 @@ function useRecents(host: Host, online: boolean): Entry[] | null {
     if (!online) return;
     let live = true;
     clientForHost(host)
-      .then((cl) => cl.recent({ limit: 3 }))
+      .then((cl) => cl.recent({ limit: RECENT_ASK }))
       .then(
-        (r) => live && setEntries(r.entries.slice(0, 3)),
+        (r) => live && setEntries(withoutHidden(r.entries).slice(0, RECENT_FETCH)),
         () => live && setEntries(null),
       );
     return () => {
